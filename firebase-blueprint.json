@@ -1,0 +1,174 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and account settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "seller", "customer"] },
+        "permissions": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "email", "role"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Marketplace product details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "brand": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "dynamicFilters": { "type": "object", "description": "Map of filterId to value(s)" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "sellerId", "name", "price", "status"]
+    },
+    "Filter": {
+      "title": "Filter",
+      "description": "Dynamic product filters",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["dropdown", "checkbox", "range", "multi-select"] },
+        "displayOrder": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "labels": { "type": "object", "description": "Multi-language labels" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "type", "displayOrder", "isActive"]
+    },
+    "FilterValue": {
+      "title": "FilterValue",
+      "description": "Values for a specific filter",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "filterId": { "type": "string" },
+        "value": { "type": "string" },
+        "labels": { "type": "object", "description": "Multi-language labels" },
+        "displayOrder": { "type": "number" }
+      },
+      "required": ["id", "filterId", "value", "displayOrder"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "items": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerId", "sellerId", "totalAmount", "status"]
+    },
+    "Promotion": {
+      "title": "Promotion",
+      "description": "Marketing promotions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "value": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      }
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount coupons",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "discount": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      }
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Financial invoices",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" }
+      }
+    },
+    "Ledger": {
+      "title": "Ledger",
+      "description": "Financial audit trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "balance": { "type": "number" }
+      }
+    },
+    "Log": {
+      "title": "Log",
+      "description": "System and activity logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string" }
+      }
+    },
+    "SEO": {
+      "title": "SEO",
+      "description": "Centralized SEO metadata for all entities",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "entityType": { "type": "string", "enum": ["product", "category", "brand", "page", "promotion", "blog"] },
+        "entityId": { "type": "string" },
+        "entityName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "keywords": { "type": "string" },
+        "slug": { "type": "string" },
+        "canonicalUrl": { "type": "string" },
+        "ogImage": { "type": "string" },
+        "robots": { "type": "string" },
+        "structuredData": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "seoScore": { "type": "number" }
+      },
+      "required": ["id", "entityType", "entityId", "title", "slug"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/products/{productId}": { "schema": "Product", "description": "Marketplace products" },
+    "/filters/{filterId}": { "schema": "Filter", "description": "Dynamic filters" },
+    "/filterValues/{valueId}": { "schema": "FilterValue", "description": "Filter values" },
+    "/orders/{orderId}": { "schema": "Order", "description": "Customer orders" },
+    "/promotions/{promoId}": { "schema": "Promotion", "description": "Promotions" },
+    "/coupons/{couponId}": { "schema": "Coupon", "description": "Coupons" },
+    "/invoices/{invoiceId}": { "schema": "Invoice", "description": "Invoices" },
+    "/ledgers/{ledgerId}": { "schema": "Ledger", "description": "Financial ledger" },
+    "/logs/{logId}": { "schema": "Log", "description": "System logs" },
+    "/seo/{seoId}": { "schema": "SEO", "description": "Centralized SEO metadata" }
+  }
+}
