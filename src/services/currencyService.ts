@@ -57,12 +57,9 @@ export const detectUserCountry = async (countries: Country[]): Promise<Country |
     }
   };
 
-  // 1. Try a sequence of APIs
+  // 1. Try local proxy API first (to avoid CORS)
   const apis = [
-    { url: 'https://ipapi.co/json/', key: 'country_code' },
-    { url: 'https://ipwho.is/', key: 'country_code' },
-    { url: 'https://freeipapi.com/api/json', key: 'countryCode' },
-    { url: 'https://ip-api.com/json', key: 'countryCode' }
+    { url: '/api/detect-country', key: 'country_code' }
   ];
 
   for (const api of apis) {
@@ -73,7 +70,6 @@ export const detectUserCountry = async (countries: Country[]): Promise<Country |
     }
   }
 
-  // 2. Fallback to browser language (very reliable heuristic)
   const browserLang = navigator.language || '';
   const langCountry = browserLang.split('-')[1];
   if (langCountry) {
@@ -81,7 +77,7 @@ export const detectUserCountry = async (countries: Country[]): Promise<Country |
     if (guessed) return guessed;
   }
 
-  // 3. Final default (silent fallback to avoid console noise)
+
   return findCountry('US');
 };
 

@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import axios from 'axios';
 import apiRoutes from './src/server/routes';
 import paymentRoutes from './src/server/paymentRoutes';
 import orderRoutes from './src/server/orderRoutes';
@@ -53,6 +54,16 @@ async function startServer() {
   app.use(cors());
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+  // API proxy for geolocation to avoid CORS on local
+  app.get('/api/detect-country', async (req, res) => {
+    try {
+      const response = await axios.get('https://ipapi.co/json/', { timeout: 5000 });
+      res.json(response.data);
+    } catch (error) {
+      res.json({ country_code: null });
+    }
+  });
 
   // API routes FIRST
   app.use('/api', apiRoutes);
