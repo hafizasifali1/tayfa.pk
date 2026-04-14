@@ -3,21 +3,16 @@
     "target": "ES2022",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-
+    "module": "commonjs",
     "lib": ["ES2022"],
     "skipLibCheck": true,
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "allowJs": true,
-
     "outDir": "./dist",
     "rootDir": "./",
     "noEmit": false,
-
     "jsx": "react-jsx",
-
     "paths": {
       "@/*": ["./*"]
     }
