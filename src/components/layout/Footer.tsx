@@ -9,8 +9,8 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand Info */}
           <div className="space-y-6">
-            <Link to="/" className="text-3xl font-serif font-bold tracking-[0.2em]">
-              TAYFA<span className="text-brand-gold">.</span>
+            <Link to="/" className="inline-block">
+              <img src="/Tayfa.png" alt="TAYFA" className="h-10 w-auto brightness-0 invert" />
             </Link>
             <p className="text-white/60 text-sm leading-relaxed max-w-xs">
               Curating the finest fashion from Pakistan's top designers. Experience luxury, heritage, and style in every stitch.

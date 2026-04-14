@@ -124,8 +124,8 @@ const Navbar = () => {
 
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="text-lg sm:text-3xl font-serif font-bold tracking-[0.15em] sm:tracking-[0.2em] text-brand-dark">
-              TAYFA<span className="text-brand-gold">.</span>
+            <Link to="/" className="flex items-center">
+              <img src="/Tayfa.png" alt="TAYFA" className="h-4 sm:h-12 w-auto" />
             </Link>
           </div>
 
