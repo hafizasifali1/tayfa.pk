@@ -2289,7 +2289,8 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
       userId: adminId || 'system',
       action: 'reset_password',
       module: 'users',
-      details: { targetUserId: req.params.id }
+      details: { targetUserId: req.params.id },
+      createdAt: sql`CURRENT_TIMESTAMP`
     });
 
     res.json({ success: true, message: 'Password reset successfully' });
@@ -2454,7 +2455,7 @@ router.post('/auth/forgot-password', async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+    const expiresAt = new Date(Date.now() + 3600000).toISOString().slice(0, 19).replace('T', ' ');
 
     await db.update(users)
       .set({ resetToken: token, resetTokenExpiresAt: expiresAt })

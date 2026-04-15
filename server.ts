@@ -1,8 +1,9 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import axios from 'axios';
 import fs from 'fs';
 import apiRoutes from './src/server/routes';
@@ -13,8 +14,6 @@ import dashboardRoutes from './src/server/dashboardRoutes';
 import { migrate } from './src/db/migrate';
 import { db } from './src/db';
 import { sql } from 'drizzle-orm';
-
-dotenv.config();
 
 async function startServer() {
   // Run migrations

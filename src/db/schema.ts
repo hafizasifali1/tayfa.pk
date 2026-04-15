@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { 
   pgTable, 
   serial as pgSerial, 
@@ -25,7 +28,7 @@ import {
   alias as mysqlAlias
 } from 'drizzle-orm/mysql-core';
 
-const isMysql = process.env.DATABASE_URL?.startsWith('mysql');
+const isMysql = true; // Target specifically for your MySQL setup to prevent dialect mismatch
 
 const table: any = isMysql ? mysqlTable : pgTable;
 const text: any = isMysql ? mysqlText : pgText;
@@ -44,8 +47,8 @@ export const users = table('users', {
   fullName: varchar('full_name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   phone: varchar('phone', { length: 50 }),
-  password: text('password'), // Optional for manual creations
-  role: varchar('role', { length: 50 }).default('user'), // user, seller, admin, delivery_agent
+  password: text('password'), 
+  role: varchar('role', { length: 50 }).default('user'), 
   permissions: json('permissions'),
   status: varchar('status', { length: 50 }).default('active'),
   resetToken: varchar('reset_token', { length: 255 }),

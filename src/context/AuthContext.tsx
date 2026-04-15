@@ -58,8 +58,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const roleConfig = rolesArray.find(r => r.id === user.role);
     if (!roleConfig) return false;
 
-    const permissions = Array.isArray(roleConfig.permissions) ? roleConfig.permissions : [];
-    const modulePermission = permissions.find(p => p.module === module);
+    let permissions = roleConfig.permissions;
+    if (typeof permissions === 'string') {
+      try {
+        permissions = JSON.parse(permissions);
+      } catch (e) {
+        permissions = [];
+      }
+    }
+    
+    if (!Array.isArray(permissions)) permissions = [];
+    
+    const modulePermission = (permissions as any[]).find(p => p.module === module);
     return modulePermission?.actions.includes(action) || false;
   };
 

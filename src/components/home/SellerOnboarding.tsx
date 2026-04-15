@@ -24,10 +24,10 @@ const FeatureCard = ({ icon: Icon, title, description }: FeatureCardProps) => (
 
 const SellerOnboarding = () => {
   return (
-    <section className="max-w-7xl mx-auto px-4 py-20">
-      <div className="bg-brand-dark rounded-[4rem] p-12 md:p-20 relative overflow-hidden shadow-2xl">
+    <section className="max-w-7xl mx-auto px-4 py-12">
+      <div className="bg-[#2C2926] rounded-[4rem] p-12 md:p-20 relative overflow-hidden shadow-2xl">
         {/* Background Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-dark via-brand-dark to-[#1a1510]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#2C2926] via-[#2C2926] to-[#1a1510]" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-brand-gold/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-[100px]" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-brand-gold/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-[80px]" />
 

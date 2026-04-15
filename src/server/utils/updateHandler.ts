@@ -1,6 +1,6 @@
 import { db } from '../../db';
 import { auditLogs } from '../../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface UpdateOptions {
@@ -53,7 +53,7 @@ export async function handlePatchUpdate(options: UpdateOptions) {
   }
 
   // 4. Perform Update
-  // Ensure updatedAt is set if it exists in schema
+  // Ensure updatedAt is always set to a new Date object
   if ('updatedAt' in table) {
     updateData.updatedAt = new Date();
   }

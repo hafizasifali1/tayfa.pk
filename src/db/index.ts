@@ -1,18 +1,16 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { drizzle as drizzleMysql } from 'drizzle-orm/mysql2';
 import { Pool as PgPool } from 'pg';
 import mysql from 'mysql2/promise';
 import * as schema from './schema';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
 const dbUrl = process.env.DATABASE_URL;
 
 if (!dbUrl) {
   console.warn('DATABASE_URL is not set. Database features will be disabled.');
 }
-
 let dbInstance: any;
 
 if (dbUrl?.startsWith('mysql')) {

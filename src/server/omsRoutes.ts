@@ -116,7 +116,7 @@ router.post('/orders', async (req, res) => {
         action: 'create_order',
         module: 'orders',
         details: { orderNumber, totalAmount },
-        createdAt: new Date()
+        createdAt: sql`CURRENT_TIMESTAMP`
       });
     });
 
@@ -140,7 +140,7 @@ router.put('/orders/:id/status', async (req, res) => {
 
       // Update Order Status
       await tx.update(orders)
-        .set({ status, updatedAt: new Date() })
+        .set({ status, updatedAt: sql`CURRENT_TIMESTAMP` })
         .where(eq(orders.id, id));
 
       // Add to History
@@ -167,7 +167,7 @@ router.put('/orders/:id/status', async (req, res) => {
             amount: order.totalAmount,
             taxAmount: order.taxAmount,
             status: order.paymentStatus === 'paid' ? 'paid' : 'unpaid',
-            createdAt: new Date()
+            createdAt: sql`CURRENT_TIMESTAMP`
           });
         }
       }
@@ -179,7 +179,7 @@ router.put('/orders/:id/status', async (req, res) => {
         action: 'update_order_status',
         module: 'orders',
         details: { orderId: id, oldStatus: order.status, newStatus: status },
-        createdAt: new Date()
+        createdAt: sql`CURRENT_TIMESTAMP`
       });
     });
 
@@ -207,7 +207,7 @@ router.post('/orders/:id/payments', async (req, res) => {
         gatewayId: method, // Simplified
         amount: amount.toFixed(2),
         status: 'completed',
-        createdAt: new Date()
+        createdAt: sql`CURRENT_TIMESTAMP`
       });
 
       await tx.insert(payments).values({
@@ -216,7 +216,7 @@ router.post('/orders/:id/payments', async (req, res) => {
         paymentMethod: method,
         paymentStatus: 'paid',
         gatewayResponse: { ref: transactionRef },
-        createdAt: new Date()
+        createdAt: sql`CURRENT_TIMESTAMP`
       });
 
       // Update Order Payment Status
@@ -230,7 +230,7 @@ router.post('/orders/:id/payments', async (req, res) => {
       }
 
       await tx.update(orders)
-        .set({ paymentStatus: newPaymentStatus, updatedAt: new Date() })
+        .set({ paymentStatus: newPaymentStatus, updatedAt: sql`CURRENT_TIMESTAMP` })
         .where(eq(orders.id, id));
 
       // Ledger Entry
@@ -243,7 +243,7 @@ router.post('/orders/:id/payments', async (req, res) => {
         balance: (0).toFixed(2), // Simplified balance tracking
         referenceId: transactionId,
         description: `Payment for order ${order.orderNumber}`,
-        createdAt: new Date()
+        createdAt: sql`CURRENT_TIMESTAMP`
       });
     });
 
@@ -278,7 +278,7 @@ router.post('/orders/:id/returns', async (req, res) => {
         quantity, // Assuming I added quantity to returns table or it's implied
         status: 'approved',
         refundAmount,
-        createdAt: new Date()
+        createdAt: sql`CURRENT_TIMESTAMP`
       });
 
       // Update Order Item
@@ -296,7 +296,7 @@ router.post('/orders/:id/returns', async (req, res) => {
           amount: refundAmount,
           reason: `Return: ${reason}`,
           status: 'issued',
-          createdAt: new Date()
+          createdAt: sql`CURRENT_TIMESTAMP`
         });
       }
 

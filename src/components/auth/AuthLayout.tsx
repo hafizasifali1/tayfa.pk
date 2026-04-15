@@ -12,17 +12,23 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitle }) =>
   return (
     <div className="min-h-screen bg-brand-cream/30 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link to="/" className="flex justify-center">
-          <span className="text-2xl sm:text-4xl font-serif font-bold tracking-[0.2em] text-brand-dark">
-            TAYFA<span className="text-brand-gold">.</span>
-          </span>
-        </Link>
-        <h2 className="mt-4 sm:mt-6 text-center text-xl sm:text-3xl font-serif text-brand-dark">
-          {title}
-        </h2>
-        <p className="mt-1.5 sm:mt-2 text-center text-[10px] sm:text-sm text-brand-dark/60">
-          {subtitle}
-        </p>
+        <div className="flex flex-col items-center">
+          <div className="flex items-center justify-center space-x-0">
+            <h2 className="text-2xl sm:text-4xl font-serif text-brand-dark">
+              {title}
+            </h2>
+            <Link to="/">
+              <img 
+                src="/Tayfa.png" 
+                alt="TAYFA" 
+                className="h-10 sm:h-12 w-auto object-contain translate-y-1"
+              />
+            </Link>
+          </div>
+          <p className="mt-3 text-center text-[10px] sm:text-sm text-brand-dark/60">
+            {subtitle}
+          </p>
+        </div>
       </div>
 
       <motion.div 

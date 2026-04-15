@@ -40,7 +40,7 @@ const Home = () => {
   const { globalSettings, pageMetadata } = useSEO('/');
 
   return (
-    <div className="space-y-20 pb-20">
+    <div className="space-y-12 pb-12">
       <SEO metadata={pageMetadata || undefined} defaultMetadata={globalSettings?.defaultMetadata} />
       {/* Hero Section */}
       <section className="relative h-[95vh] overflow-hidden">
@@ -49,9 +49,9 @@ const Home = () => {
             initial={{ scale: 1.1 }}
             animate={{ scale: 1 }}
             transition={{ duration: 10, ease: "easeOut" }}
-            src="https://picsum.photos/seed/luxury-hero/1920/1080" 
+            src="/homepage-background-color.png" 
             alt="Luxury Fashion" 
-            className="w-full h-full object-cover"
+            className="w-full h-full object-fit"
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/80 via-brand-dark/40 to-transparent" />
@@ -67,13 +67,18 @@ const Home = () => {
             <span className="text-brand-gold uppercase tracking-[0.5em] font-bold text-xs mb-6 block">
               Est. 2026 • Global Luxury Marketplace
             </span>
-            <h1 className="text-4xl sm:text-7xl md:text-9xl font-serif mb-8 leading-[0.9] tracking-tight">
-              The Art of <br />
-              <span className="italic text-brand-gold">Modern</span> Heritage
-            </h1>
-            <p className="text-base sm:text-lg text-white/80 mb-10 max-w-lg leading-relaxed font-normal">
-              Curating the world's most exquisite designer collections. Experience the fusion of traditional craftsmanship and contemporary luxury.
-            </p>
+            {/* <h1 className="text-4xl sm:text-7xl md:text-9xl font-serif mb-8 leading-[0.9] tracking-tight">
+              Discover Comfort. <br />
+              <span className="italic text-brand-gold">Shop Effortlessly.</span>
+            </h1> */}
+   
+            <h1 className="text-3xl sm:text-6xl md:text-8xl font-serif mb-8 leading-[0.9] tracking-tight">
+  Discover Comfort. <br />
+  <span className="italic text-brand-gold">Shop Effortlessly.</span>
+</h1>
+           <p className="text-lg sm:text-xl text-white/80 mb-10 max-w-lg leading-relaxed font-normal">
+  A curated marketplace for modern everyday wear.
+</p>
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
               <Link 
                 to="/shop" 
@@ -123,24 +128,33 @@ const Home = () => {
           </div>
           <div className="space-y-8">
             <span className="text-brand-gold uppercase tracking-[0.3em] font-bold text-xs">Our Heritage</span>
-            <h2 className="text-5xl md:text-6xl font-serif leading-tight font-medium">Redefining Luxury for the Global Citizen</h2>
+            <h2 className="text-5xl md:text-6xl font-serif leading-tight font-medium">Where Comfort Meets Curated Style
+</h2>
             <p className="text-brand-dark-muted leading-relaxed text-lg font-normal">
-              TAYFA was born from a passion for preserving the rich heritage of South Asian craftsmanship while embracing the bold spirit of modern fashion. We bridge the gap between local artisans and the global stage, bringing you a curated selection of the finest designer wear.
+              At TAYFA, we believe fashion should feel as good as it looks. That’s why we bring together brands that focus on comfort, quality, and effortless design. Our platform makes it easy to explore, discover, and shop pieces that fit seamlessly into your everyday life.
             </p>
-            <div className="grid grid-cols-2 gap-8 pt-4">
-              <div>
-                <h4 className="text-2xl font-serif mb-2 font-bold">200+</h4>
-                <p className="text-xs text-brand-dark-muted uppercase tracking-widest font-bold">Global Brands</p>
-              </div>
-              <div>
-                <h4 className="text-2xl font-serif mb-2 font-bold">50k+</h4>
-                <p className="text-xs text-brand-dark-muted uppercase tracking-widest font-bold">Happy Clients</p>
-              </div>
+            <div className="grid grid-cols-2 gap-x-12 gap-y-10 pt-10">
+              {[
+                { icon: '/OurHeritage/Free-shipping.png', title: 'Free Shipping', desc: 'On orders over PKR 3,000' },
+                { icon: '/OurHeritage/Easy-returns.png', title: 'Easy Returns', desc: '7-day return policy' },
+                { icon: '/OurHeritage/Secure-payment.png', title: 'Secure Payment', desc: '100% secure checkout' },
+                { icon: '/OurHeritage/Support.png', title: 'Support', desc: '24/7 customer service' },
+              ].map((item) => (
+                <div key={item.title} className="flex items-center space-x-5 group">
+                  <div className="w-10 h-10 shrink-0 transition-transform duration-500 group-hover:scale-110">
+                    <img src={item.icon} alt={item.title} className="w-full h-full object-contain" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-xl font-serif font-semibold text-brand-dark tracking-tight leading-none">{item.title}</h4>
+                    <p className="text-xs font-medium text-brand-dark/60 tracking-wide uppercase">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-            <Link to="/about" className="inline-flex items-center space-x-2 text-brand-gold font-bold uppercase tracking-widest text-xs hover:underline pt-4">
+            {/* <Link to="/about" className="inline-flex items-center space-x-2 text-brand-gold font-bold uppercase tracking-widest text-xs hover:underline pt-4">
               <span>Read Our Story</span>
               <ArrowRight size={14} />
-            </Link>
+            </Link> */}
           </div>
         </div>
       </section>
@@ -185,7 +199,7 @@ const Home = () => {
       )}
 
       {/* Featured Products */}
-      <section className="bg-white py-20">
+      <section className="bg-white py-12">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-end mb-12">
             <div>
@@ -207,7 +221,7 @@ const Home = () => {
       </section>
 
       {/* Features */}
-      <section className="max-w-7xl mx-auto px-4 py-20">
+      <section className="max-w-7xl mx-auto px-4 py-7">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
             { icon: Truck, title: 'Global Express', desc: 'Fast and secure delivery to over 100+ countries with real-time tracking.' },
@@ -239,7 +253,7 @@ const Home = () => {
 
       {/* Newsletter */}
       <section className="max-w-7xl mx-auto px-4">
-        <div className="bg-brand-dark rounded-[3rem] p-12 md:p-20 text-center text-white relative overflow-hidden">
+        <div className="bg-[#2C2926] rounded-[3rem] p-12 md:p-20 text-center text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-brand-gold/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
           <div className="relative z-10 max-w-2xl mx-auto space-y-8">
             <h2 className="text-4xl md:text-5xl font-serif">Join the TAYFA Circle</h2>

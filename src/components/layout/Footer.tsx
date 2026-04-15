@@ -4,7 +4,7 @@ import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from 'lucide-react'
 
 const Footer = () => {
   return (
-    <footer className="bg-brand-dark text-white pt-20 pb-10">
+    <footer className="bg-[#2C2926] text-white pt-20 pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand Info */}
@@ -15,11 +15,34 @@ const Footer = () => {
             <p className="text-white/60 text-sm leading-relaxed max-w-xs">
               Curating the finest fashion from Pakistan's top designers. Experience luxury, heritage, and style in every stitch.
             </p>
-            <div className="flex space-x-4">
-              <a href="#" className="hover:text-brand-gold transition-colors"><Instagram size={20} /></a>
-              <a href="#" className="hover:text-brand-gold transition-colors"><Facebook size={20} /></a>
-              <a href="#" className="hover:text-brand-gold transition-colors"><Twitter size={20} /></a>
-            </div>
+           <div className="flex space-x-4">
+  <a 
+    href="https://www.instagram.com/tayfa.pk?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="hover:text-brand-gold transition-colors"
+  >
+    <Instagram size={20} />
+  </a>
+
+  <a 
+    href="https://www.facebook.com/profile.php?id=61572128667627" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="hover:text-brand-gold transition-colors"
+  >
+    <Facebook size={20} />
+  </a>
+
+  <a 
+    href="#" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="hover:text-brand-gold transition-colors"
+  >
+    <Twitter size={20} />
+  </a>
+</div>
           </div>
 
           {/* Quick Links */}
@@ -53,7 +76,7 @@ const Footer = () => {
               </li>
               <li className="flex items-center space-x-3">
                 <Mail size={16} className="text-brand-gold" />
-                <span>support@laam.pk</span>
+                <span>support@tayfa.pk</span>
               </li>
               <li className="flex items-center space-x-3">
                 <MapPin size={16} className="text-brand-gold" />

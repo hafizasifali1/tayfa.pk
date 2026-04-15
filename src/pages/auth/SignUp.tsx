@@ -97,7 +97,7 @@ const SignUp = () => {
 
   return (
     <AuthLayout 
-      title="Join TAYFA" 
+      title="Join" 
       subtitle="Create your account to experience curated luxury fashion."
     >
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -112,9 +112,9 @@ const SignUp = () => {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 gap-5">
+        <div className="grid grid-cols-1 gap-6">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2 ml-1">
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-brand-dark/80 mb-2.5 ml-1">
               Full Name
             </label>
             <div className="relative group">
@@ -128,14 +128,14 @@ const SignUp = () => {
                 autoFocus
                 value={formData.fullName}
                 onChange={handleChange}
-                className="block w-full pl-12 pr-4 py-4 bg-brand-cream/20 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
+                className="block w-full pl-12 pr-4 py-4.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
                 placeholder="John Doe"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2 ml-1">
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-brand-dark/80 mb-2.5 ml-1">
               Email Address
             </label>
             <div className="relative group">
@@ -155,7 +155,7 @@ const SignUp = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2 ml-1">
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-brand-dark/80 mb-2.5 ml-1">
               Phone (Optional)
             </label>
             <div className="relative group">
@@ -167,14 +167,14 @@ const SignUp = () => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className="block w-full pl-12 pr-4 py-4 bg-brand-cream/20 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
+                className="block w-full pl-12 pr-4 py-4.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
                 placeholder="+92 300 1234567"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2 ml-1">
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-brand-dark/80 mb-2.5 ml-1">
               Password
             </label>
             <div className="relative group">
@@ -187,7 +187,7 @@ const SignUp = () => {
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="block w-full pl-12 pr-12 py-4 bg-brand-cream/20 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
+                className="block w-full pl-12 pr-12 py-4.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
                 placeholder="••••••••"
               />
               <button
@@ -202,7 +202,7 @@ const SignUp = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2 ml-1">
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-brand-dark/80 mb-2.5 ml-1">
               Confirm Password
             </label>
             <div className="relative group">
@@ -215,7 +215,7 @@ const SignUp = () => {
                 required
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className="block w-full pl-12 pr-4 py-4 bg-brand-cream/20 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
+                className="block w-full pl-12 pr-4 py-4.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 text-sm transition-all placeholder:text-brand-dark/20"
                 placeholder="••••••••"
               />
             </div>
@@ -230,16 +230,16 @@ const SignUp = () => {
               type="checkbox"
               checked={formData.terms}
               onChange={handleChange}
-              className="h-4 w-4 text-brand-gold focus:ring-brand-gold border-brand-dark/10 rounded"
+              className="h-4 w-4 text-brand-gold focus:ring-brand-gold border-brand-dark/10 rounded cursor-pointer"
             />
           </div>
-          <div className="ml-3 text-[11px] text-brand-dark/40 leading-relaxed uppercase tracking-widest font-medium">
+          <div className="ml-3 text-[11px] text-brand-dark/50 leading-relaxed uppercase tracking-widest font-bold">
             I agree to the{' '}
-            <Link to="/terms" className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">
+            <Link to="/terms" className="text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">
               Terms of Service
             </Link>
             {' '}and{' '}
-            <Link to="/privacy" className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">
+            <Link to="/privacy" className="text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">
               Privacy Policy
             </Link>
           </div>
@@ -248,20 +248,20 @@ const SignUp = () => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full flex items-center justify-center space-x-3 py-4 px-4 border border-transparent rounded-2xl shadow-xl shadow-brand-dark/5 text-[11px] font-bold uppercase tracking-[0.2em] text-white bg-brand-dark hover:bg-brand-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-dark disabled:opacity-50 transition-all group"
+          className="w-full flex items-center justify-center space-x-3 py-4.5 px-4 border border-transparent rounded-2xl shadow-2xl shadow-brand-dark/10 text-xs font-bold uppercase tracking-[0.2em] text-white bg-brand-dark hover:bg-brand-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-dark disabled:opacity-50 transition-all group"
         >
           <span>{isLoading ? 'Creating Account...' : 'Create Account'}</span>
-          {!isLoading && <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />}
+          {!isLoading && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
         </button>
       </form>
 
-      <div className="mt-8">
+      <div className="mt-10">
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-brand-dark/5" />
           </div>
           <div className="relative flex justify-center text-[10px]">
-            <span className="px-4 bg-white text-brand-dark/30 uppercase tracking-[0.3em] font-bold">
+            <span className="px-5 bg-white text-brand-dark/30 uppercase tracking-[0.3em] font-bold">
               Rapid Social Sign-Up
             </span>
           </div>
@@ -270,16 +270,16 @@ const SignUp = () => {
         <div className="mt-8 grid grid-cols-2 gap-4">
           <button 
             onClick={() => handleSocialSignUp('google')}
-            className="w-full flex items-center justify-center space-x-3 py-3.5 px-4 border border-brand-dark/5 rounded-2xl bg-brand-cream/20 text-[11px] font-bold uppercase tracking-widest text-brand-dark hover:bg-white hover:shadow-lg hover:border-brand-gold/20 transition-all group"
+            className="w-full flex items-center justify-center space-x-3 py-4 px-4 border border-brand-dark/5 rounded-2xl bg-brand-cream/5 text-xs font-bold uppercase tracking-widest text-brand-dark hover:bg-white hover:shadow-xl hover:border-brand-gold/20 transition-all group"
           >
-            <Chrome size={18} className="text-rose-500 group-hover:scale-110 transition-transform" />
+            <Chrome size={20} className="text-rose-500 group-hover:scale-110 transition-transform" />
             <span>Google</span>
           </button>
           <button 
             onClick={() => handleSocialSignUp('apple')}
-            className="w-full flex items-center justify-center space-x-3 py-3.5 px-4 border border-brand-dark/5 rounded-2xl bg-brand-cream/20 text-[11px] font-bold uppercase tracking-widest text-brand-dark hover:bg-white hover:shadow-lg hover:border-brand-gold/20 transition-all group"
+            className="w-full flex items-center justify-center space-x-3 py-4 px-4 border border-brand-dark/5 rounded-2xl bg-brand-cream/5 text-xs font-bold uppercase tracking-widest text-brand-dark hover:bg-white hover:shadow-xl hover:border-brand-gold/20 transition-all group"
           >
-            <Apple size={18} className="text-brand-dark group-hover:scale-110 transition-transform" />
+            <Apple size={20} className="text-brand-dark group-hover:scale-110 transition-transform" />
             <span>Apple</span>
           </button>
         </div>

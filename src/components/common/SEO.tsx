@@ -9,7 +9,7 @@ interface SEOProps {
 
 const SEO: React.FC<SEOProps> = ({ metadata, defaultMetadata }) => {
   const seo = {
-    title: metadata?.title || defaultMetadata?.title || 'Vibrant - Luxury Fashion',
+    title: metadata?.title || defaultMetadata?.title || 'Tayfa - Luxury Fashion',
     description: metadata?.description || defaultMetadata?.description || 'Discover luxury fashion trends.',
     keywords: metadata?.keywords || defaultMetadata?.keywords || 'fashion, luxury',
     canonicalUrl: metadata?.canonicalUrl || defaultMetadata?.canonicalUrl || '',

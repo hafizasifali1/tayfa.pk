@@ -198,7 +198,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     const { status, comment, changedBy } = req.body;
     
     await db.update(orders)
-      .set({ status, updatedAt: new Date() })
+      .set({ status, updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(orders.id, req.params.id));
 
     const [updatedOrder] = await db.select().from(orders).where(eq(orders.id, req.params.id));
@@ -239,7 +239,7 @@ router.post('/orders/:id/shipments', async (req, res) => {
 
     // Auto-update order status if all items shipped (simplified)
     await db.update(orders)
-      .set({ status: 'shipped', updatedAt: new Date() })
+      .set({ status: 'shipped', updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(orders.id, req.params.id));
 
     await db.insert(orderStatusHistory).values({
@@ -332,7 +332,7 @@ router.patch('/returns/:id/status', async (req, res) => {
     const { status, refundAmount, comment } = req.body;
     
     await db.update(returns)
-      .set({ status, refundAmount: refundAmount?.toString(), updatedAt: new Date() })
+      .set({ status, refundAmount: refundAmount?.toString(), updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(returns.id, req.params.id));
 
     const [updatedReturn] = await db.select().from(returns).where(eq(returns.id, req.params.id));
@@ -348,7 +348,7 @@ router.patch('/returns/:id/status', async (req, res) => {
       
       // Update order status to partially_returned or returned
       await db.update(orders)
-        .set({ status: 'returned', paymentStatus: 'refunded', updatedAt: new Date() })
+        .set({ status: 'returned', paymentStatus: 'refunded', updatedAt: sql`CURRENT_TIMESTAMP` })
         .where(eq(orders.id, updatedReturn.orderId));
     }
 
