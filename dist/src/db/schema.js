@@ -1,9 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.refunds = exports.payments = exports.transactions = exports.communicationLogs = exports.communicationTemplates = exports.communicationProviders = exports.currencyRates = exports.countries = exports.returns = exports.shipments = exports.orderStatusHistory = exports.orderItems = exports.orders = exports.localizations = exports.notifications = exports.gatewayRules = exports.gatewayConfigs = exports.paymentMethods = exports.paymentGateways = exports.taxRules = exports.settings = exports.seo = exports.pages = exports.blogs = exports.auditLogs = exports.ledgers = exports.creditNotes = exports.invoices = exports.discounts = exports.pricelists = exports.coupons = exports.promotions = exports.productFilterValues = exports.filterValues = exports.filters = exports.products = exports.categories = exports.sellerApplications = exports.companies = exports.brands = exports.roles = exports.users = exports.alias = void 0;
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const pg_core_1 = require("drizzle-orm/pg-core");
 const mysql_core_1 = require("drizzle-orm/mysql-core");
-const isMysql = process.env.DATABASE_URL?.startsWith('mysql');
+const isMysql = true; // Target specifically for your MySQL setup to prevent dialect mismatch
 const table = isMysql ? mysql_core_1.mysqlTable : pg_core_1.pgTable;
 const text = isMysql ? mysql_core_1.text : pg_core_1.text;
 const varchar = isMysql ? mysql_core_1.varchar : pg_core_1.varchar;
@@ -20,8 +25,8 @@ exports.users = table('users', {
     fullName: varchar('full_name', { length: 255 }).notNull(),
     email: varchar('email', { length: 255 }).notNull().unique(),
     phone: varchar('phone', { length: 50 }),
-    password: text('password'), // Optional for manual creations
-    role: varchar('role', { length: 50 }).default('user'), // user, seller, admin, delivery_agent
+    password: text('password'),
+    role: varchar('role', { length: 50 }).default('user'),
     permissions: json('permissions'),
     status: varchar('status', { length: 50 }).default('active'),
     resetToken: varchar('reset_token', { length: 255 }),

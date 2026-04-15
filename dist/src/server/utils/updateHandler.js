@@ -39,7 +39,7 @@ async function handlePatchUpdate(options) {
         throw new Error(`${module} not found`);
     }
     // 4. Perform Update
-    // Ensure updatedAt is set if it exists in schema
+    // Ensure updatedAt is always set to a new Date object
     if ('updatedAt' in table) {
         updateData.updatedAt = new Date();
     }

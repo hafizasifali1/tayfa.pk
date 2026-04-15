@@ -37,6 +37,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.migrate = migrate;
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const index_1 = require("./index");
 const drizzle_orm_1 = require("drizzle-orm");
 const schema_1 = require("./schema");
@@ -429,6 +431,77 @@ async function migrate() {
             await addColumnPg('users', 'reset_token_expires_at', 'TIMESTAMP');
             await addColumnPg('brands', 'company_id', 'UUID');
         }
+        // Seed/Sync roles and permissions
+        try {
+            console.log('Synchronizing roles and permissions...');
+            const defaultRoles = [
+                {
+                    id: 'admin',
+                    name: 'Administrator',
+                    description: 'Full system access',
+                    isSystem: true,
+                    permissions: [] // Admin bypasses checks
+                },
+                {
+                    id: 'seller',
+                    name: 'Seller',
+                    description: 'Manage products and orders',
+                    isSystem: true,
+                    permissions: [
+                        { module: 'overview', actions: ['view'] },
+                        { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'bulk_upload', actions: ['view', 'create'] },
+                        { module: 'orders', actions: ['view', 'edit'] },
+                        { module: 'analytics', actions: ['view'] },
+                        { module: 'pricelist', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'promotions', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'coupons', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'discounts', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'shipping', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'payments', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'invoices', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'ledger', actions: ['view'] },
+                        { module: 'system', actions: ['view'] },
+                        { module: 'settings', actions: ['view', 'edit'] }
+                    ]
+                },
+                {
+                    id: 'user',
+                    name: 'Customer',
+                    description: 'Standard customer access',
+                    isSystem: true,
+                    permissions: [
+                        { module: 'overview', actions: ['view'] }
+                    ]
+                }
+            ];
+            const { roles } = await Promise.resolve().then(() => __importStar(require('./schema')));
+            for (const role of defaultRoles) {
+                const [existing] = await index_1.db.select().from(roles).where((0, drizzle_orm_1.eq)(roles.id, role.id));
+                if (!existing) {
+                    console.log(`Creating role: ${role.id}`);
+                    await index_1.db.insert(roles).values({
+                        ...role,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    });
+                }
+                else if (role.isSystem) {
+                    // Force update system roles to ensure latest permissions
+                    console.log(`Syncing system role: ${role.id}`);
+                    await index_1.db.update(roles)
+                        .set({
+                        permissions: role.permissions,
+                        updatedAt: new Date()
+                    })
+                        .where((0, drizzle_orm_1.eq)(roles.id, role.id));
+                }
+            }
+            console.log('Roles synchronization completed.');
+        }
+        catch (roleError) {
+            console.error('Failed to sync roles:', roleError);
+        }
         console.log('Migrations completed successfully.');
         // Seed default admin user
         try {
@@ -502,6 +575,5 @@ async function migrate() {
     }
     catch (error) {
         console.error('Migration failed:', error);
-        // Don't throw error to allow server to start even if migration fails
     }
 }

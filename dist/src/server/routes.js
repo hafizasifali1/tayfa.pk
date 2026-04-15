@@ -2340,7 +2340,8 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
             userId: adminId || 'system',
             action: 'reset_password',
             module: 'users',
-            details: { targetUserId: req.params.id }
+            details: { targetUserId: req.params.id },
+            createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
         });
         res.json({ success: true, message: 'Password reset successfully' });
     }
@@ -2491,7 +2492,7 @@ router.post('/auth/forgot-password', async (req, res) => {
             return res.json({ message: 'If an account with that email exists, we have sent a reset link.' });
         }
         const token = crypto_1.default.randomBytes(32).toString('hex');
-        const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+        const expiresAt = new Date(Date.now() + 3600000).toISOString().slice(0, 19).replace('T', ' ');
         await db_1.db.update(schema_1.users)
             .set({ resetToken: token, resetTokenExpiresAt: expiresAt })
             .where((0, drizzle_orm_1.eq)(schema_1.users.id, user.id));

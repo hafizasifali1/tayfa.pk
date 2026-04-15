@@ -37,13 +37,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.db = void 0;
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const node_postgres_1 = require("drizzle-orm/node-postgres");
 const mysql2_1 = require("drizzle-orm/mysql2");
 const pg_1 = require("pg");
 const promise_1 = __importDefault(require("mysql2/promise"));
 const schema = __importStar(require("./schema"));
-const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
 const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl) {
     console.warn('DATABASE_URL is not set. Database features will be disabled.');

@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const express_1 = __importDefault(require("express"));
 const vite_1 = require("vite");
 const path_1 = __importDefault(require("path"));
 const cors_1 = __importDefault(require("cors"));
-const dotenv_1 = __importDefault(require("dotenv"));
 const axios_1 = __importDefault(require("axios"));
 const fs_1 = __importDefault(require("fs"));
 const routes_1 = __importDefault(require("./src/server/routes"));
@@ -18,7 +19,6 @@ const dashboardRoutes_1 = __importDefault(require("./src/server/dashboardRoutes"
 const migrate_1 = require("./src/db/migrate");
 const db_1 = require("./src/db");
 const drizzle_orm_1 = require("drizzle-orm");
-dotenv_1.default.config();
 async function startServer() {
     // Run migrations
     await (0, migrate_1.migrate)();

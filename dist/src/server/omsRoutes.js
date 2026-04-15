@@ -86,7 +86,7 @@ router.post('/orders', async (req, res) => {
                 action: 'create_order',
                 module: 'orders',
                 details: { orderNumber, totalAmount },
-                createdAt: new Date()
+                createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
             });
         });
         res.status(201).json({ id: orderId, orderNumber });
@@ -107,7 +107,7 @@ router.put('/orders/:id/status', async (req, res) => {
                 throw new Error('Order not found');
             // Update Order Status
             await tx.update(schema_1.orders)
-                .set({ status, updatedAt: new Date() })
+                .set({ status, updatedAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP` })
                 .where((0, drizzle_orm_1.eq)(schema_1.orders.id, id));
             // Add to History
             await tx.insert(schema_1.orderStatusHistory).values({
@@ -132,7 +132,7 @@ router.put('/orders/:id/status', async (req, res) => {
                         amount: order.totalAmount,
                         taxAmount: order.taxAmount,
                         status: order.paymentStatus === 'paid' ? 'paid' : 'unpaid',
-                        createdAt: new Date()
+                        createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
                     });
                 }
             }
@@ -143,7 +143,7 @@ router.put('/orders/:id/status', async (req, res) => {
                 action: 'update_order_status',
                 module: 'orders',
                 details: { orderId: id, oldStatus: order.status, newStatus: status },
-                createdAt: new Date()
+                createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
             });
         });
         res.json({ success: true });
@@ -168,7 +168,7 @@ router.post('/orders/:id/payments', async (req, res) => {
                 gatewayId: method, // Simplified
                 amount: amount.toFixed(2),
                 status: 'completed',
-                createdAt: new Date()
+                createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
             });
             await tx.insert(schema_1.payments).values({
                 id: (0, uuid_1.v4)(),
@@ -176,7 +176,7 @@ router.post('/orders/:id/payments', async (req, res) => {
                 paymentMethod: method,
                 paymentStatus: 'paid',
                 gatewayResponse: { ref: transactionRef },
-                createdAt: new Date()
+                createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
             });
             // Update Order Payment Status
             // Calculate total paid so far
@@ -187,7 +187,7 @@ router.post('/orders/:id/payments', async (req, res) => {
                 newPaymentStatus = 'paid';
             }
             await tx.update(schema_1.orders)
-                .set({ paymentStatus: newPaymentStatus, updatedAt: new Date() })
+                .set({ paymentStatus: newPaymentStatus, updatedAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP` })
                 .where((0, drizzle_orm_1.eq)(schema_1.orders.id, id));
             // Ledger Entry
             await tx.insert(schema_1.ledgers).values({
@@ -199,7 +199,7 @@ router.post('/orders/:id/payments', async (req, res) => {
                 balance: (0).toFixed(2), // Simplified balance tracking
                 referenceId: transactionId,
                 description: `Payment for order ${order.orderNumber}`,
-                createdAt: new Date()
+                createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
             });
         });
         res.json({ success: true });
@@ -230,7 +230,7 @@ router.post('/orders/:id/returns', async (req, res) => {
                 quantity, // Assuming I added quantity to returns table or it's implied
                 status: 'approved',
                 refundAmount,
-                createdAt: new Date()
+                createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
             });
             // Update Order Item
             await tx.update(schema_1.orderItems)
@@ -246,7 +246,7 @@ router.post('/orders/:id/returns', async (req, res) => {
                     amount: refundAmount,
                     reason: `Return: ${reason}`,
                     status: 'issued',
-                    createdAt: new Date()
+                    createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
                 });
             }
             // Restock product

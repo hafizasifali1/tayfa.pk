@@ -161,7 +161,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     try {
         const { status, comment, changedBy } = req.body;
         await db_1.db.update(schema_1.orders)
-            .set({ status, updatedAt: new Date() })
+            .set({ status, updatedAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP` })
             .where((0, drizzle_orm_1.eq)(schema_1.orders.id, req.params.id));
         const [updatedOrder] = await db_1.db.select().from(schema_1.orders).where((0, drizzle_orm_1.eq)(schema_1.orders.id, req.params.id));
         await db_1.db.insert(schema_1.orderStatusHistory).values({
@@ -196,7 +196,7 @@ router.post('/orders/:id/shipments', async (req, res) => {
         const [newShipment] = await db_1.db.select().from(schema_1.shipments).where((0, drizzle_orm_1.eq)(schema_1.shipments.id, shipmentId));
         // Auto-update order status if all items shipped (simplified)
         await db_1.db.update(schema_1.orders)
-            .set({ status: 'shipped', updatedAt: new Date() })
+            .set({ status: 'shipped', updatedAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP` })
             .where((0, drizzle_orm_1.eq)(schema_1.orders.id, req.params.id));
         await db_1.db.insert(schema_1.orderStatusHistory).values({
             id: (0, uuid_1.v4)(),
@@ -282,7 +282,7 @@ router.patch('/returns/:id/status', async (req, res) => {
     try {
         const { status, refundAmount, comment } = req.body;
         await db_1.db.update(schema_1.returns)
-            .set({ status, refundAmount: refundAmount?.toString(), updatedAt: new Date() })
+            .set({ status, refundAmount: refundAmount?.toString(), updatedAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP` })
             .where((0, drizzle_orm_1.eq)(schema_1.returns.id, req.params.id));
         const [updatedReturn] = await db_1.db.select().from(schema_1.returns).where((0, drizzle_orm_1.eq)(schema_1.returns.id, req.params.id));
         if (status === 'refunded') {
@@ -295,7 +295,7 @@ router.patch('/returns/:id/status', async (req, res) => {
             });
             // Update order status to partially_returned or returned
             await db_1.db.update(schema_1.orders)
-                .set({ status: 'returned', paymentStatus: 'refunded', updatedAt: new Date() })
+                .set({ status: 'returned', paymentStatus: 'refunded', updatedAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP` })
                 .where((0, drizzle_orm_1.eq)(schema_1.orders.id, updatedReturn.orderId));
         }
         res.json(updatedReturn);
