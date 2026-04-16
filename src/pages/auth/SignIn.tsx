@@ -99,14 +99,14 @@ const SignIn = () => {
               onClick={() => setRole(r.id as any)}
               className={`flex-1 flex items-center justify-center space-x-2 py-3 rounded-xl transition-all relative ${
                 role === r.id 
-                  ? 'text-brand-dark font-bold' 
+                  ? 'text-white font-bold' 
                   : 'text-brand-dark/40 hover:text-brand-dark/60'
               }`}
             >
               {role === r.id && (
                 <motion.div 
                   layoutId="active-role"
-                  className="absolute inset-0 bg-white shadow-sm rounded-xl border border-brand-dark/5"
+                  className="absolute inset-0 bg-brand-dark shadow-xl shadow-brand-dark/20 rounded-xl"
                 />
               )}
               <r.icon size={16} className="relative z-10" />
@@ -249,13 +249,15 @@ const SignIn = () => {
       )}
 
       <div className="mt-12 text-center space-y-4">
-        <p className="text-[11px] text-brand-dark/40 uppercase tracking-widest font-medium">
-          New to the platform?{' '}
-          <Link to="/signup" className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">
-            Create Account
-          </Link>
-        </p>
-        {role !== 'seller' && (
+        {role === 'user' && (
+          <p className="text-[11px] text-brand-dark/40 uppercase tracking-widest font-medium">
+            New to the platform?{' '}
+            <Link to="/signup" className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">
+              Create Account
+            </Link>
+          </p>
+        )}
+        {role === 'seller' && (
           <p className="text-[11px] text-brand-dark/40 uppercase tracking-widest font-medium">
             Want to showcase your brand?{' '}
             <Link to="/seller/register" className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">

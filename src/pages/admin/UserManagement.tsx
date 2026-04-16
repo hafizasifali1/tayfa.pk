@@ -12,6 +12,7 @@ import { Badge } from '../../components/ui/Badge';
 import { EditModal } from '../../components/admin/EditModal';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
 
 interface User {
   id: string;
@@ -30,7 +31,7 @@ const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   
-  // Edit Modal State
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({
@@ -46,6 +47,11 @@ const UserManagement = () => {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+
+  // Delete Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -108,6 +114,31 @@ const UserManagement = () => {
       alert('Failed to reset password');
     } finally {
       setIsResetting(false);
+    }
+  };
+
+  const handleDeleteClick = (user: User) => {
+    setUserToDelete(user);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      await axios.delete(`/api/admin/users/${userToDelete.id}`, {
+        data: { adminId: currentUser?.id }
+      });
+      
+      setUsers(users.filter(u => u.id !== userToDelete.id));
+      setIsDeleteModalOpen(false);
+      setUserToDelete(null);
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      alert(error.response?.data?.error || 'Failed to delete user');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -251,7 +282,10 @@ const UserManagement = () => {
                         >
                           <Edit2 size={16} />
                         </button>
-                        <button className="p-3 text-brand-dark/40 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all">
+                        <button 
+                          onClick={() => handleDeleteClick(user)}
+                          className="p-3 text-brand-dark/40 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                        >
                           <Trash2 size={16} />
                         </button>
                         <button className="p-3 text-brand-dark/40 hover:text-brand-dark hover:bg-brand-dark/5 rounded-xl transition-all">
@@ -393,6 +427,17 @@ const UserManagement = () => {
           </Button>
         </Card>
       </div>
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        title="Confirm Deletion"
+        message={`Are you sure you want to delete the user "${userToDelete?.fullName}"? This action cannot be undone and will remove all associated profile data.`}
+        confirmText="Delete User"
+        variant="danger"
+      />
     </div>
   );
 };

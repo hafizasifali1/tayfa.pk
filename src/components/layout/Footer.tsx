@@ -61,7 +61,7 @@ const Footer = () => {
             <h4 className="text-brand-gold font-serif text-lg mb-6">Support</h4>
             <ul className="space-y-4 text-sm text-white/60">
               <li><a href="#" className="hover:text-white transition-colors">Shipping Policy</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Returns & Exchanges</a></li>
+              <li><Link to="/returns-exchanges" className="hover:text-white transition-colors">Returns &amp; Exchanges</Link></li>
               <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
             </ul>
           </div>

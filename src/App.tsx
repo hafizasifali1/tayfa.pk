@@ -28,6 +28,7 @@ const AccountSettings = lazy(() => import('./pages/AccountSettings'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const Orders = lazy(() => import('./pages/Orders'));
 const OrderHistory = lazy(() => import('./pages/customer/OrderHistory'));
+const ReturnsAndExchanges = lazy(() => import('./pages/ReturnsAndExchanges'));
 
 // --- Blog Pages ---
 const BlogList = lazy(() => import('./pages/blogs/BlogList'));
@@ -122,6 +123,7 @@ export default function App() {
                       <Route path="account" element={<Account />} />
                       <Route path="orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
                       <Route path="account-settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+                      <Route path="returns-exchanges" element={<ReturnsAndExchanges />} />
                     </Route>
 
                     {/* Auth Routes */}

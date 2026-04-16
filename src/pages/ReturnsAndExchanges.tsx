@@ -1,0 +1,518 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { twMerge } from 'tailwind-merge';
+import { clsx, type ClassValue } from 'clsx';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// ─── Scroll Reveal Hook ────────────────────────────────────────────────────────
+function useScrollReveal() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return { ref, visible };
+}
+
+// ─── Animated Section Wrapper ─────────────────────────────────────────────────
+const Reveal = ({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) => {
+  const { ref, visible } = useScrollReveal();
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(20px)',
+        transition: `opacity 0.5s ease ${delay}ms, transform 0.5s ease ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+// ─── Card Wrapper with hover ───────────────────────────────────────────────────
+const HoverCard = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      className={cn("transition-all duration-300", className)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        boxShadow: hovered ? '0 12px 32px rgba(0,0,0,0.06)' : '0 2px 8px rgba(0,0,0,0.03)'
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+// ─── Desktop & Mobile Steps UI ────────────────────────────────────────────────
+const StepsRow = () => {
+  const steps = [
+    { num: '01', title: 'Initiate Return', desc: 'Contact our support via WhatsApp or email within 7 days of delivery. Share your order number and reason for return.' },
+    { num: '02', title: 'Approval', desc: 'Our team reviews your request within 24 hours and sends a confirmation with pickup details.' },
+    { num: '03', title: 'Free Pickup', desc: 'A courier partner will collect the item from your address at your convenience. Keep the original packaging.' },
+    { num: '04', title: 'Quality Check (QC)', desc: 'Once received, our team inspects the item within 1–2 business days to ensure it meets return conditions.' },
+    { num: '05', title: 'Refund / Exchange', desc: 'After QC approval, your refund is processed or exchange is dispatched within the timelines stated below.' },
+  ];
+
+  return (
+    <div className="relative">
+      {/* Horizontal connecting line (hidden on mobile) */}
+      <div className="hidden md:block absolute top-[28px] left-8 right-8 h-[1px] bg-brand-gold/30" />
+
+      <div className="flex flex-col md:flex-row justify-between gap-10 md:gap-6 relative z-10">
+        {steps.map((step, i) => (
+          <Reveal key={step.num} delay={i * 100}>
+            <HoverCard className="flex-1 bg-white/60 backdrop-blur-md rounded-2xl p-6 border border-white/50 text-center relative h-full flex flex-col items-center group">
+              <div className="w-14 h-14 rounded-full bg-[#C9A84C] border-2 border-[#C9A84C] flex items-center justify-center text-white font-serif text-xl font-bold mb-4 shadow-[0_0_15px_rgba(201,168,76,0.15)] group-hover:shadow-[0_0_25px_rgba(201,168,76,0.4)] transition-shadow duration-300">
+                {step.num}
+              </div>
+              <h3 className="font-serif text-lg font-bold text-[#1E1C1A] mb-2">{step.title}</h3>
+              <p className="text-sm text-[#8A8078] leading-relaxed max-w-[200px] mx-auto">{step.desc}</p>
+            </HoverCard>
+          </Reveal>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ReturnsAndExchanges = () => {
+  useEffect(() => {
+    document.title = 'Returns & Exchanges | TAYFA';
+  }, []);
+
+  return (
+    <div className="bg-white min-h-screen font-sans">
+
+
+      <section
+        style={{ background: '#1E1C1A', backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E\")" }}
+        className="w-full px-4 py-20 text-center"
+      >
+     
+        <Reveal>
+          <div className="flex justify-center mb-6">
+            <div
+              style={{ background: '#3A3520', border: '1px solid #C9A84C', borderRadius: '50%' }}
+              className="w-16 h-16 flex items-center justify-center"
+            >
+              <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M3 21v-5h5" />
+              </svg>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal delay={80}>
+          <h1 style={{ fontSize: 52, letterSpacing: '-0.5px', color: '#FFFFFF', fontFamily: 'Playfair Display, Georgia, serif', fontWeight: 700, lineHeight: 1.15 }} className="mb-4">
+            Returns &amp; Exchanges
+          </h1>
+        </Reveal>
+
+        <Reveal delay={160}>
+          <p style={{ color: '#B8B0A0', fontSize: 16, maxWidth: 540, lineHeight: 1.7 }} className="mx-auto mb-4">
+            Easy, hassle-free returns within{' '}
+            <span style={{ color: '#C9A84C', fontWeight: 600 }}>7 days</span>
+            {' '}of delivery. Your satisfaction is our priority.
+          </p>
+        </Reveal>
+
+        {/* Thin gold divider */}
+        <Reveal delay={200}>
+          <div style={{ width: 120, height: 1, background: '#C9A84C', opacity: 0.2, margin: '0 auto 24px' }} />
+        </Reveal>
+
+        {/* Feature Pills */}
+        <Reveal delay={240}>
+          <div className="flex flex-wrap justify-center gap-4 mt-2">
+            {[
+              { icon: '⏱', label: '7-Day Return Window' },
+              { icon: '✓', label: 'Free Pickup (Defective Items)' },
+              { icon: '💳', label: 'Refund to Original Payment' },
+            ].map((pill) => (
+              <span
+                key={pill.label}
+                style={{
+                  border: '1px solid rgba(201,168,76,0.3)',
+                  background: 'rgba(201,168,76,0.07)',
+                  borderRadius: 999,
+                  padding: '8px 18px',
+                  color: '#D4CAB8',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <span aria-hidden="true">{pill.icon}</span> {pill.label}
+              </span>
+            ))}
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ── STEP PROCESS SECTION ────────────────────────────────────────────── */}
+      <section style={{ background: '#FFFFFF', padding: '80px 0', position: 'relative', overflow: 'hidden' }}>
+        {/* Subtle radial background glow */}
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+
+          {/* Section Heading */}
+          <Reveal>
+            <div className="text-center mb-16">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 32, color: '#1E1C1A', fontWeight: 700, margin: 0 }}>
+                  How to Return an Item
+                </h2>
+              </div>
+              {/* <p style={{ fontSize: 15, color: '#8A8078', margin: '0 auto', maxWidth: 460 }}>
+                7-day return window with easy pickup
+              </p> */}
+            </div>
+          </Reveal>
+
+          {/* Steps — Desktop: horizontal, Mobile: vertical */}
+          <StepsRow />
+
+        </div>
+      </section>
+
+      {/* ── SECTION 2: RETURN CONDITIONS ───────────────────────────────────── */}
+      <section style={{ padding: '64px 0' }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+
+          <Reveal>
+            <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 32, color: '#1E1C1A', borderLeft: '3px solid #C9A84C', paddingLeft: 14, marginBottom: 32 }}>
+              Return Conditions
+            </h2>
+          </Reveal>
+
+          {/* Two column cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 items-stretch">
+            {/* Eligible */}
+            <Reveal delay={80} className="h-full">
+              <HoverCard className="h-full">
+                <div style={{ background: '#F4FBF4', border: '1px solid rgba(80,160,100,0.2)', borderRadius: 16, padding: 28, borderTop: '4px solid #3D9970', height: '100%' }}>
+                  <div className="flex items-center gap-3 mb-5">
+                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3D9970" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 17, fontWeight: 600, color: '#1E1C1A' }}>Eligible for Return</span>
+                  </div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} className="space-y-3">
+                    {[
+                      'Item received in damaged or defective condition',
+                      'Wrong item delivered (size, color, or product)',
+                      'Item is significantly different from product description',
+                      'Missing accessories or parts upon delivery',
+                      'Unused & unworn items with original tags intact',
+                    ].map((item) => (
+                      <li key={item} style={{ color: '#3D3530', fontSize: 14, lineHeight: 1.8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <span style={{ color: '#3D9970', marginTop: 4, flexShrink: 0 }}>●</span> {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </HoverCard>
+            </Reveal>
+
+            {/* Not Eligible */}
+            <Reveal delay={160} className="h-full">
+              <HoverCard className="h-full">
+                <div style={{ background: '#FFF1F0', border: '1px solid rgba(200,70,60,0.2)', borderRadius: 16, padding: 28, borderTop: '4px solid #C8453C', height: '100%' }}>
+                  <div className="flex items-center gap-3 mb-5">
+                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8453C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                    <span style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 17, fontWeight: 600, color: '#1E1C1A' }}>Not Eligible</span>
+                  </div>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} className="space-y-3">
+                    {[
+                      'Items returned after 7 days of delivery',
+                      'Used, washed, or altered items',
+                      'Items with removed or damaged original tags',
+                      'Sale or clearance items (marked as Final Sale)',
+                      'Custom-stitched or personalised orders',
+                      'Lingerie, innerwear, or swimwear (hygiene policy)',
+                    ].map((item) => (
+                      <li key={item} style={{ color: '#3D3530', fontSize: 14, lineHeight: 1.8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <span style={{ color: '#C8453C', marginTop: 4, flexShrink: 0 }}>●</span> {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </HoverCard>
+            </Reveal>
+          </div>
+
+          {/* QC Process Card */}
+          <Reveal delay={240}>
+            <HoverCard>
+              <div style={{ background: '#F9FAFB', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 16, padding: '28px 32px' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div style={{ background: 'rgba(201,168,76,0.15)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      </svg>
+                    </div>
+                    <span style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 17, color: '#1E1C1A', fontWeight: 600 }}>Quality Check (QC) Process</span>
+                  </div>
+                  <span style={{ background: 'rgba(201,168,76,0.15)', color: '#8B6914', fontSize: 12, fontWeight: 600, borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap' }}>
+                    1–2 Business Days
+                  </span>
+                </div>
+                <p style={{ color: '#5A5248', fontSize: 15, lineHeight: 1.75, marginBottom: 16 }}>
+                  Once your return is received at our warehouse, our Quality Control team inspects the item to verify its condition matches the reason stated for return. This helps us maintain the highest standards for all customers and sellers on the platform.
+                </p>
+                <div style={{ background: '#FEFAE8', borderLeft: '3px solid #C9A84C', borderRadius: '0 8px 8px 0', padding: '12px 16px' }}>
+                  <p style={{ fontSize: 13, color: '#7A5C10', margin: 0, lineHeight: 1.6 }}>
+                    ⚠ If the returned item does not pass QC (e.g., shows signs of use, missing tags, or damage not matching the claim), the return will be rejected and the item will be shipped back to you at your expense.
+                  </p>
+                </div>
+              </div>
+            </HoverCard>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── SECTION 3: REFUND TIMELINES ────────────────────────────────────── */}
+      <section style={{ background: '#FFFFFF', padding: '64px 0' }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+
+          <Reveal>
+            <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 32, color: '#1E1C1A', borderLeft: '3px solid #C9A84C', paddingLeft: 14, marginBottom: 24 }}>
+              Refund Timelines
+            </h2>
+          </Reveal>
+
+          {/* Progress Track */}
+          <Reveal delay={80}>
+            <div className="flex items-center justify-center mb-10 overflow-x-auto">
+              <div className="flex items-center gap-0 min-w-max">
+                {['QC Check', 'Approval', 'Processing', 'Refund'].map((step, i) => (
+                  <React.Fragment key={step}>
+                    <div className="flex flex-col items-center">
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#C9A84C', border: '2px solid #C9A84C', flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: '#A09890', marginTop: 6, whiteSpace: 'nowrap' }}>{step}</span>
+                    </div>
+                    {i < 3 && (
+                      <div style={{ width: 60, height: 2, background: 'linear-gradient(90deg, #C9A84C, rgba(201,168,76,0.3))', flexShrink: 0, marginBottom: 16 }} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Timeline Cards */}
+          <div className="space-y-4 mb-8">
+            {[
+              {
+                icon: (
+                  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" />
+                  </svg>
+                ),
+                method: 'Debit / Credit Card',
+                desc: 'Refunded directly to your bank account after QC approval.',
+                duration: '5–7 business days',
+              },
+              {
+                icon: (
+                  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" />
+                  </svg>
+                ),
+                method: 'JazzCash / Easypaisa',
+                desc: 'Credited back to your mobile wallet.',
+                duration: '3–5 business days',
+              },
+              {
+                icon: (
+                  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                ),
+                method: 'Cash on Delivery (COD)',
+                desc: 'Transferred to your registered bank account via IBFT.',
+                duration: '7–10 business days',
+              },
+            ].map((card, i) => (
+              <Reveal key={card.method} delay={80 + i * 80}>
+                <HoverCard>
+                  <div
+                    style={{ background: '#FFFFFF', border: '1px solid #EAE5DC', borderRadius: 14, padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div style={{ color: '#C9A84C', flexShrink: 0 }}>{card.icon}</div>
+                      <div>
+                        <p style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 15, fontWeight: 600, color: '#1E1C1A', margin: 0 }}>{card.method}</p>
+                        <p style={{ fontSize: 13, color: '#8A8078', margin: '2px 0 0' }}>{card.desc}</p>
+                      </div>
+                    </div>
+                    <span style={{ background: '#F5EDD5', color: '#7A5C10', borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {card.duration}
+                    </span>
+                  </div>
+                </HoverCard>
+              </Reveal>
+            ))}
+          </div>
+
+          {/* Footer Note */}
+          <Reveal delay={320}>
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#A09890', fontStyle: 'italic', marginTop: 8 }}>
+              * All refund timelines begin after successful Quality Check approval.
+            </p>
+          </Reveal>
+        </div>
+      </section>
+
+
+      {/* ── SECTION 4: EXCHANGE POLICY ──────────────────────────────────────── */}
+      <section style={{ background: '#FFFFFF', padding: '56px 0' }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <Reveal>
+            <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 32, color: '#1E1C1A', borderLeft: '3px solid #C9A84C', paddingLeft: 14, marginBottom: 32 }}>
+              Exchange Policy
+            </h2>
+          </Reveal>
+          <Reveal delay={80}>
+            <HoverCard>
+              <div style={{ background: '#FFFFFF', border: '1px solid #EAE5DC', borderRadius: 16, padding: '28px 32px', maxWidth: 800, margin: '0 auto', position: 'relative' }}>
+                <span style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(201,168,76,0.12)', color: '#8B6914', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
+                  One-time only
+                </span>
+                <div className="flex items-center gap-4 mb-5">
+                  <div style={{ background: 'rgba(201,168,76,0.12)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />
+                      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" />
+                    </svg>
+                  </div>
+                  <span style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 17, fontWeight: 600, color: '#1E1C1A' }}>Exchange Policy</span>
+                </div>
+                <p style={{ fontSize: 14, color: '#5A5248', lineHeight: 1.75, marginBottom: 20 }}>
+                  TAYFA offers a <strong style={{ color: '#1E1C1A' }}>one-time exchange</strong> on eligible items within 7 days of delivery. Exchanges are subject to product availability and must meet the same eligibility conditions as returns.
+                </p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} className="space-y-3">
+                  {[
+                    'Exchange must be requested within 7 days of delivery',
+                    'Item must be unused, unworn, and in original packaging with all tags',
+                    'Exchange is subject to stock availability of the desired variant',
+                    'If desired size/colour is unavailable, a store credit or refund will be issued',
+                  ].map((item) => (
+                    <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, fontSize: 14, color: '#3D3530', lineHeight: 1.75 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', background: 'rgba(61,153,112,0.12)', color: '#3D9970', flexShrink: 0, marginTop: 2 }}>
+                        <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </HoverCard>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── SECTION 5: RETURN ABUSE POLICY ─────────────────────────────────── */}
+      <section style={{ background: '#FFFFFF', paddingBottom: 56, paddingTop: 0 }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <Reveal delay={80}>
+            <div style={{ background: '#FFFCF0', border: '1px solid rgba(201,168,76,0.3)', borderLeft: '3px solid #C9A84C', borderRadius: '0 14px 14px 0', padding: '24px 28px', maxWidth: 800, margin: '0 auto' }}>
+              <div className="flex items-start gap-4">
+                <div style={{ flexShrink: 0, color: '#C9A84C', marginTop: 2 }}>
+                  <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <div>
+                  <p style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 16, fontWeight: 600, color: '#1E1C1A', marginBottom: 10 }}>Return Abuse Policy</p>
+                  <p style={{ fontSize: 14, color: '#5A5248', lineHeight: 1.75, margin: 0 }}>
+                    TAYFA reserves the right to refuse returns or exchanges where abuse is suspected. This includes, but is not limited to, returning{' '}
+                    <mark style={{ background: 'rgba(201,168,76,0.12)', color: '#7A5010', padding: '1px 5px', borderRadius: 3 }}>worn or used items</mark>,{' '}
+                    submitting returns for{' '}
+                    <mark style={{ background: 'rgba(201,168,76,0.12)', color: '#7A5010', padding: '1px 5px', borderRadius: 3 }}>mismatched or swapped products</mark>, or accounts with{' '}
+                    <mark style={{ background: 'rgba(201,168,76,0.12)', color: '#7A5010', padding: '1px 5px', borderRadius: 3 }}>unusually high return rates</mark>.{' '}
+                    Accounts flagged for abuse may have return privileges suspended or accounts permanently restricted.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── SECTION 6: CONTACT / SUPPORT CTA ───────────────────────────────── */}
+      <section style={{ background: '#1E1C1A', padding: '56px 24px' }}>
+        <Reveal>
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 20, padding: '40px 32px', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+            <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 26, color: '#FFFFFF', marginBottom: 12 }}>
+              Need help with a return?
+            </h2>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#25D366', animation: 'pulse-green 1.5s infinite' }} />
+              <p style={{ fontSize: 14, color: '#B8B0A0', margin: 0 }}>
+                Our support team is available Mon–Sat, 9 AM – 6 PM PKT
+              </p>
+            </div>
+            <style>{`@keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(37,211,102,0.4); } 70% { box-shadow: 0 0 0 8px rgba(37,211,102,0); } 100% { box-shadow: 0 0 0 0 rgba(37,211,102,0); } }`}</style>
+            <div className="flex flex-wrap justify-center gap-4 mt-8">
+              <a
+                href="https://wa.me/923001234567" target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#25D366', color: '#FFFFFF', borderRadius: 999, padding: '13px 28px', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'opacity 200ms' }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.88')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+                WhatsApp
+              </a>
+              <a
+                href="mailto:support@tayfa.pk"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1px solid rgba(201,168,76,0.4)', color: '#D4CAB8', borderRadius: 999, padding: '13px 28px', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'border-color 200ms, color 200ms' }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#C9A84C'; e.currentTarget.style.color = '#C9A84C'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)'; e.currentTarget.style.color = '#D4CAB8'; }}
+              >
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" />
+                </svg>
+                Email Support
+              </a>
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+    </div>
+  );
+};
+
+export default ReturnsAndExchanges;

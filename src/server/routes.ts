@@ -2300,6 +2300,46 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
   }
 });
 
+router.delete('/admin/users/:id', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
+    
+    const userId = req.params.id;
+
+    // 1. Delete dependent notifications
+    await db.delete(notifications).where(eq(notifications.userId, userId));
+    
+    // 2. Delete seller applications
+    await db.delete(sellerApplications).where(eq(sellerApplications.userId, userId));
+
+    // 3. Delete linked companies (if seller)
+    await db.delete(companies).where(eq(companies.sellerId, userId));
+    
+    // 4. Delete the user
+    await db.delete(users).where(eq(users.id, userId));
+    
+    // 5. Audit Log (use a system ID if the user record is gone, but we try to log before delete if possible)
+    // Actually log after is fine if we use the ID string
+    try {
+      await db.insert(auditLogs).values({
+        id: uuidv4(),
+        userId: req.body.adminId || 'system',
+        action: 'delete_user',
+        module: 'users',
+        details: { targetUserId: userId },
+        createdAt: sql`CURRENT_TIMESTAMP`
+      });
+    } catch (e) {
+      console.warn('Failed to create audit log for deletion:', e);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user. The user may have existing orders or financial records that prevent deletion.' });
+  }
+});
+
 router.post('/users', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
@@ -2345,7 +2385,6 @@ router.post('/auth/register', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const { email, password, fullName, phone, role, businessData } = req.body;
 
-    // Restrict admin registration
     if (role === 'admin') {
       return res.status(403).json({ error: 'Admin registration is not allowed' });
     }
@@ -2358,7 +2397,6 @@ router.post('/auth/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const id = uuidv4();
 
-    // If role is seller, status is pending
     const status = role === 'seller' ? 'pending' : 'active';
 
     await db.insert(users).values({
