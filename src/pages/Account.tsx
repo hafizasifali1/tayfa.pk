@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Package, Heart, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { User, Package, Heart, Settings, LogOut, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -47,10 +47,10 @@ const Account = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 sm:py-20">
       <div className="flex flex-col md:flex-row items-center md:items-start gap-4 sm:gap-8 mb-10 sm:mb-16">
-        <div className="w-20 h-20 sm:w-32 sm:h-32 bg-brand-gold rounded-full flex items-center justify-center text-white text-2xl sm:text-4xl font-serif shadow-lg shadow-brand-gold/20">
+        <div className="w-20 h-20 sm:w-32 sm:h-32 bg-brand-gold rounded-full flex items-center justify-center text-white text-2xl sm:text-4xl font-serif shadow-lg shadow-brand-gold/20 flex-shrink-0">
           {initials}
         </div>
-        <div className="text-center md:text-left space-y-1 sm:space-y-2">
+        <div className="text-center md:text-left space-y-1 sm:space-y-2 flex-grow">
           <h1 className="text-2xl sm:text-4xl font-serif">{user.fullName}</h1>
           <p className="text-xs sm:text-base text-brand-dark/60">{user.email}</p>
           <div className="pt-1.5 sm:pt-2">
@@ -59,6 +59,19 @@ const Account = () => {
             </span>
           </div>
         </div>
+        
+        {/* Dashboard Shortcut */}
+        {(user.role === 'admin' || user.role === 'seller') && (
+          <div className="mt-6 md:mt-4">
+            <button 
+              onClick={() => navigate(user.role === 'admin' ? '/admin/dashboard' : '/seller/dashboard')}
+              className="group flex items-center space-x-3 bg-white border border-brand-gold/30 text-brand-gold px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-gold hover:text-white transition-all shadow-sm hover:shadow-brand/20"
+            >
+              <LayoutDashboard size={16} className="group-hover:rotate-12 transition-transform" />
+              <span>Go to Dashboard</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">

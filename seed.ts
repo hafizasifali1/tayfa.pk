@@ -98,7 +98,7 @@ async function seed() {
         categoryId: catId,
         price: '12500.00',
         description: 'A beautiful silk evening gown for special occasions.',
-        images: ['https://picsum.photos/seed/gown/800/1200'],
+        images: ['https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=800&auto=format&fit=crop'],
         status: 'published',
         isFeatured: true,
       });

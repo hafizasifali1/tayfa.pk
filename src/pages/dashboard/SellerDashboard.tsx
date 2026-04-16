@@ -38,10 +38,11 @@ import {
   Cell
 } from 'recharts';
 
+
 const SellerDashboard = () => {
   const { user } = useAuth();
-  const [statusFilter, setStatusFilter] = React.useState<'all' | 'published' | 'draft' | 'archived'>('all');
-  const [timePeriod, setTimePeriod] = React.useState('30d');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'archived'>('all');
+  const [timePeriod, setTimePeriod] = useState('30d');
   const [stats, setStats] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,14 +95,76 @@ const SellerDashboard = () => {
     return filtered;
   }, [products, statusFilter]);
 
-  const statCards = [
-    { name: 'Total Revenue', value: stats?.revenue || 0, icon: DollarSign, change: '+12.5%', isPositive: true },
-    { name: 'Total Orders', value: stats?.orders || 0, icon: ShoppingBag, change: '+5.2%', isPositive: true },
-    { name: 'Low Stock Items', value: stats?.lowStock || 0, icon: Package, change: 'Alert', isPositive: false },
-    { name: 'Top Selling', value: stats?.topProducts?.[0]?.name || 'None', icon: TrendingUp, change: 'Best', isPositive: true },
-  ];
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-12 h-12 border-4 border-brand-gold border-t-transparent rounded-full"
+        />
+        <p className="text-brand-dark/40 font-bold uppercase tracking-[0.2em] text-[10px]">Loading Dashboard...</p>
+      </div>
+    );
+  }
 
-  const COLORS = ['#D4AF37', '#1A1A1A', '#8B7355', '#C0C0C0', '#E5E5E5'];
+  if (error) {
+    return (
+      <div className="p-12 text-center bg-white rounded-[2.5rem] border border-brand-dark/5 shadow-sm">
+        <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 mx-auto mb-6">
+          <AlertCircle size={40} />
+        </div>
+        <h3 className="text-2xl font-serif text-brand-dark mb-3">Dashboard Error</h3>
+        <p className="text-brand-dark/60 mb-8">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-8 py-3 bg-brand-dark text-white rounded-full font-bold uppercase tracking-widest hover:bg-brand-gold transition-all"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  const statCards = [
+    { 
+      name: 'Total Revenue', 
+      value: stats?.revenue || 0, 
+      icon: DollarSign, 
+      isCurrency: true,
+      change: '+12.5%',
+      isPositive: true,
+      color: 'gold',
+      trend: [4000, 5500, 4800, 6200, 5900, 7500, 8200]
+    },
+    { 
+      name: 'Active Products', 
+      value: products.filter(p => p.status === 'published').length, 
+      icon: Package, 
+      change: '+3',
+      isPositive: true,
+      color: 'dark',
+      trend: [42, 43, 43, 44, 45, 45, 46]
+    },
+    { 
+      name: 'Total Orders', 
+      value: stats?.orders || 0, 
+      icon: ShoppingBag, 
+      change: '+8.2%',
+      isPositive: true,
+      color: 'gold',
+      trend: [120, 145, 130, 160, 155, 180, 175]
+    },
+    { 
+      name: 'Growth Rate', 
+      value: '24.8%', 
+      icon: TrendingUp, 
+      change: '+4.1%',
+      isPositive: true,
+      color: 'dark',
+      trend: [18, 20, 19, 22, 23, 24, 25]
+    },
+  ];
 
   const quickActions = [
     { name: 'Add Product', icon: PlusCircle, path: '/seller/add-product', variant: 'primary' as const },
@@ -235,68 +298,118 @@ const SellerDashboard = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {statCards.map((stat, idx) => (
-            <Card
+            <motion.div
               key={stat.name}
-              title={stat.name}
-              icon={stat.icon}
-              delay={idx * 0.1}
-              className="group hover:border-brand-gold/30 transition-all"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
             >
-              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <stat.icon size={80} />
-              </div>
-              <div className="flex items-center justify-between mb-4 relative z-10">
-                <div className={`flex items-center text-[9px] font-bold px-2.5 py-1 rounded-full ${stat.isPositive ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'} uppercase tracking-[0.15em]`}>
-                  {stat.change}
-                  {stat.isPositive ? <ArrowUpRight size={12} className="ml-1" /> : <ArrowDownRight size={12} className="ml-1" />}
+              <Card
+                className={`p-8 sm:p-10 group hover:border-brand-gold/30 transition-all relative overflow-hidden h-full ${
+                  stat.isPositive ? 'bg-gradient-to-br from-white to-emerald-50/30' : 'bg-gradient-to-br from-white to-rose-50/30'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-6 sm:mb-8 relative z-10">
+                  <div className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-${stat.color}-500/10 text-${stat.color}-600 group-hover:scale-110 transition-transform`}>
+                    <stat.icon size={24} />
+                  </div>
+                  <Badge 
+                    variant={stat.isPositive ? 'success' : 'danger'}
+                    className="flex items-center text-[9px] sm:text-[10px] pr-3"
+                  >
+                    <div className={`w-1 h-1 rounded-full mr-2 animate-pulse ${stat.isPositive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    {stat.change}
+                  </Badge>
                 </div>
-              </div>
-              <div className="relative z-10">
-                {typeof stat.value === 'number' ? (
-                  <Price amount={stat.value} className="text-3xl sm:text-4xl font-serif text-brand-dark tracking-tighter" />
-                ) : (
-                  <h3 className="text-3xl sm:text-4xl font-serif text-brand-dark tracking-tighter truncate">{stat.value}</h3>
-                )}
-              </div>
-            </Card>
+                
+                <div className="relative z-10">
+                  <h3 className="text-[#262626] text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] mb-2 sm:mb-3">{stat.name}</h3>
+                  <div className="text-3xl sm:text-4xl font-serif tracking-tighter text-brand-dark">
+                    <Counter value={stat.value} isCurrency={stat.isCurrency} />
+                  </div>
+                </div>
+
+                {/* Sparkline */}
+                <div className="absolute bottom-0 left-0 right-0 h-16 opacity-20 group-hover:opacity-40 transition-opacity">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={stat.trend.map((val, i) => ({ val, i }))}>
+                      <Area 
+                        type="monotone" 
+                        dataKey="val" 
+                        stroke={stat.isPositive ? '#10B981' : '#EF4444'} 
+                        strokeWidth={2}
+                        fill={stat.isPositive ? '#10B981' : '#EF4444'}
+                        fillOpacity={0.1}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </motion.div>
           ))}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* Order Status Distribution */}
           <Card 
-            title="Order Status" 
-            className="lg:col-span-1 p-8 sm:p-10"
+            className="lg:col-span-1 p-8 sm:p-10 border-brand-dark/5 shadow-sm overflow-hidden"
           >
-            <div className="h-64 mt-8">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-serif text-brand-dark">Orders by Status</h3>
+            </div>
+            <div className="h-64 relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={stats?.ordersByStatus || []}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
+                    innerRadius={70}
+                    outerRadius={90}
+                    paddingAngle={8}
                     dataKey="count"
                     nameKey="status"
+                    stroke="none"
+                    animationBegin={0}
+                    animationDuration={1500}
                   >
                     {(stats?.ordersByStatus || []).map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={STATUS_COLORS[entry.status.toLowerCase() as keyof typeof STATUS_COLORS] || COLORS[index % COLORS.length]} 
+                      />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-brand-dark px-3 py-2 rounded-lg shadow-xl border border-white/10">
+                            <p className="text-[10px] font-bold text-white uppercase tracking-widest">{data.status}: {data.count}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
+              
+              {/* Center Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <p className="text-4xl font-serif text-brand-dark leading-none">{stats?.orders || 0}</p>
+                <p className="text-[8px] font-bold text-brand-dark/30 uppercase tracking-[0.2em] mt-1 text-center">Orders<br/>This Period</p>
+              </div>
             </div>
-            <div className="mt-6 space-y-3">
+
+            {/* Advanced Legend */}
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
               {(stats?.ordersByStatus || []).map((entry: any, index: number) => (
-                <div key={entry.status} className="flex items-center justify-between p-3 rounded-2xl bg-brand-cream/20 border border-brand-dark/5">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/60">{entry.status}</span>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold">{entry.count}</span>
+                <div key={entry.status} className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-brand-cream/40 border border-brand-dark/5 hover:bg-white transition-all cursor-default">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[entry.status.toLowerCase() as keyof typeof STATUS_COLORS] || COLORS[index % COLORS.length] }} />
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-brand-dark/60">{entry.status}</span>
+                  <span className="text-[9px] font-mono font-bold text-brand-dark">{entry.count}</span>
                 </div>
               ))}
             </div>
@@ -304,32 +417,75 @@ const SellerDashboard = () => {
 
           {/* Revenue Trends Chart */}
           <Card 
-            title="Revenue Trends" 
-            variant="premium" 
-            className="lg:col-span-2 p-6 sm:p-10"
+            className="lg:col-span-2 p-0 border-brand-dark/10 shadow-lg shadow-brand-dark/5 overflow-hidden"
           >
-            <div className="absolute top-6 sm:top-8 right-6 sm:right-8">
-              <select 
-                value={timePeriod}
-                onChange={(e) => setTimePeriod(e.target.value)}
-                className="bg-brand-cream/50 border-none rounded-full px-4 sm:px-6 py-1.5 sm:py-2 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest focus:ring-2 focus:ring-brand-gold/20"
-              >
-                <option value="7d">7 Days</option>
-                <option value="30d">30 Days</option>
-                <option value="90d">90 Days</option>
-              </select>
+            <div className="p-8 sm:p-10 border-b border-brand-dark/5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8 mb-12">
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-serif text-brand-dark">Revenue Trends</h2>
+                  <p className="text-[8px] sm:text-[10px] text-brand-dark/60 uppercase tracking-[0.3em] font-bold mt-1">Earnings performance overview</p>
+                </div>
+                
+                {/* Advanced Tab Switcher */}
+                <div className="relative flex items-center bg-brand-cream/50 p-1.5 rounded-2xl border border-brand-dark/5">
+                  <div className="absolute inset-y-1.5 bg-brand-dark rounded-xl shadow-lg transition-all duration-300 ease-out" 
+                    style={{ 
+                      width: 'calc(33.33% - 4px)', 
+                      left: timePeriod === '7d' ? '6px' : timePeriod === '30d' ? '33.33%' : '66.66%',
+                      transform: timePeriod === '30d' ? 'translateX(0)' : timePeriod === '90d' ? 'translateX(-6px)' : 'translateX(0)'
+                    }} 
+                  />
+                  {['7d', '30d', '90d'].map((p) => (
+                    <button 
+                      key={p} 
+                      onClick={() => setTimePeriod(p)}
+                      className={`relative z-10 px-8 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${p === timePeriod ? 'text-white' : 'text-brand-dark/40 hover:text-brand-dark'}`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Summary Stats Above Chart */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-4">
+                <div className="space-y-1">
+                  <p className="text-[9px] font-bold text-brand-dark/40 uppercase tracking-widest">Gross Revenue</p>
+                  <div className="flex items-baseline space-x-2">
+                    <p className="text-2xl font-serif text-brand-dark"><Price amount={stats?.revenue || 0} /></p>
+                    <span className="text-[10px] text-emerald-600 font-bold">+18.4%</span>
+                  </div>
+                </div>
+                <div className="space-y-1 sm:border-x border-brand-dark/5 sm:px-8">
+                  <p className="text-[9px] font-bold text-brand-dark/40 uppercase tracking-widest">Avg. Daily Sales</p>
+                  <p className="text-2xl font-serif text-brand-dark"><Price amount={(stats?.revenue || 0) / 30} /></p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[9px] font-bold text-brand-dark/40 uppercase tracking-widest">Market Share</p>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-2xl font-serif text-brand-dark">12.4%</p>
+                    <div className="w-12 h-1 bg-brand-cream rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-gold w-[65%]" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            <div className="mt-8 sm:mt-10 h-80 w-full">
+            <div className="h-[400px] w-full p-8">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats?.salesOverTime || []}>
                   <defs>
                     <linearGradient id="colorRevenueSeller" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#C9A84C" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#C9A84C" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorPrevSeller" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1A1A1A" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#1A1A1A" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E5E5" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1A1A1A05" />
                   <XAxis 
                     dataKey="date" 
                     axisLine={false} 
@@ -341,116 +497,160 @@ const SellerDashboard = () => {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fontSize: 10, fill: '#1A1A1A40', fontWeight: 'bold' }}
-                    tickFormatter={(value) => `$${value}`}
                   />
                   <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1A1A1A', 
-                      border: 'none', 
-                      borderRadius: '12px',
-                      color: '#FFFFFF',
-                      fontSize: '10px',
-                      fontWeight: 'bold',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.1em'
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-brand-dark p-4 rounded-xl shadow-2xl border border-brand-gold/20 backdrop-blur-xl">
+                            <p className="text-[10px] font-bold text-brand-gold uppercase tracking-widest mb-3">{label}</p>
+                            <div className="space-y-2">
+                              {payload.map((entry: any, index: number) => (
+                                <div key={index} className="flex items-center justify-between space-x-8">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest">{entry.name}</span>
+                                  </div>
+                                  <span className="text-[10px] font-mono font-bold text-white"><Price amount={entry.value} /></span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
                     }}
-                    itemStyle={{ color: '#D4AF37' }}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="revenue" 
-                    stroke="#D4AF37" 
+                    name="Current Period"
+                    stroke="#C9A84C" 
                     strokeWidth={3}
                     fillOpacity={1} 
                     fill="url(#colorRevenueSeller)" 
+                    animationDuration={2000}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey={(d: any) => d.revenue * 0.85} // Mock previous period
+                    name="Previous Period"
+                    stroke="#1A1A1A20" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    fillOpacity={1} 
+                    fill="url(#colorPrevSeller)" 
+                    animationDuration={2000}
                   />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
-            
-            <div className="mt-8 sm:mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8 p-6 sm:p-8 bg-brand-cream/30 rounded-2xl sm:rounded-[2.5rem] border border-brand-dark/5">
-              <div className="flex items-center space-x-3 sm:space-x-4">
-                <div className="p-2 sm:p-3 bg-white rounded-xl sm:rounded-2xl text-brand-gold shadow-sm">
-                  <CheckCircle2 size={16} className="sm:w-5 sm:h-5" />
-                </div>
-                <div>
-                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-brand-dark/40">Total Sold</p>
-                  <p className="font-serif text-lg sm:text-xl">{stats?.orders || 0} Orders</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 sm:space-x-4 sm:border-x border-brand-dark/5 sm:px-8">
-                <div className="p-2 sm:p-3 bg-white rounded-xl sm:rounded-2xl text-brand-gold shadow-sm">
-                  <TrendingUp size={16} className="sm:w-5 sm:h-5" />
-                </div>
-                <div>
-                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-brand-dark/40">Growth</p>
-                  <p className="font-serif text-lg sm:text-xl text-emerald-600">+18.4%</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 sm:space-x-4">
-                <div className="p-2 sm:p-3 bg-white rounded-xl sm:rounded-2xl text-rose-500 shadow-sm">
-                  <AlertCircle size={16} className="sm:w-5 sm:h-5" />
-                </div>
-                <div>
-                  <p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-brand-dark/40">Low Stock</p>
-                  <p className="font-serif text-lg sm:text-xl text-rose-500">{stats?.lowStock || 0} Items</p>
-                </div>
-              </div>
             </div>
           </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           {/* Recent Orders */}
-          <Card title="Recent Orders" className="p-8 sm:p-10">
-            <div className="space-y-4 mt-6">
-              {(stats?.recentOrders || []).map((order: any) => (
-                <div key={order.id} className="p-5 rounded-3xl bg-brand-cream/20 border border-brand-dark/5 hover:border-brand-gold/20 transition-all group">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="text-xs font-bold text-brand-dark">{order.customer || 'Guest'}</p>
-                      <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40">{order.id}</p>
-                    </div>
-                    <div className="text-right">
+          <Card className="p-0 border-brand-dark/5 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-8 sm:p-10 border-b border-brand-dark/5">
+              <h2 className="text-xl sm:text-2xl font-serif text-brand-dark">Recent Orders</h2>
+            </div>
+            <div className="flex-grow overflow-y-auto">
+              {(stats?.recentOrders || []).map((order: any, idx: number) => (
+                <motion.div 
+                  key={order.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  className={`flex items-start space-x-5 px-8 sm:px-10 py-6 border-b border-brand-dark/5 last:border-0 hover:bg-brand-cream/20 transition-all cursor-pointer group ${idx % 2 === 0 ? 'bg-white' : 'bg-brand-cream/5'}`}
+                >
+                  <div className="w-10 h-10 rounded-full bg-brand-dark text-white flex items-center justify-center text-[10px] font-bold shadow-lg transition-transform group-hover:scale-110">
+                    {(order.customer || 'G').charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="text-sm font-bold text-brand-dark group-hover:text-brand-gold transition-colors">{order.customer || 'Guest User'}</p>
+                        <p className="text-[9px] text-brand-dark/30 uppercase tracking-widest font-mono mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">#{order.id}</p>
+                      </div>
                       <Price amount={order.total} className="text-sm font-bold text-brand-dark" />
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Clock size={12} className="text-brand-dark/40" />
-                      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40">
-                        {new Date(order.createdAt).toLocaleDateString()}
+                    <div className="flex justify-between items-center">
+                      <div className={`px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-widest border ${
+                        order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                        order.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                        'bg-blue-50 text-blue-600 border-blue-100'
+                      }`}>
+                        {order.status}
+                      </div>
+                      <span className="text-[9px] text-brand-dark/30 font-bold italic">
+                        2 hours ago
                       </span>
                     </div>
-                    <Badge variant={order.status === 'delivered' ? 'success' : 'warning'} className="text-[9px]">
-                      {order.status}
-                    </Badge>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </Card>
 
           {/* Top Products */}
-          <Card title="Top Performing Products" className="p-8 sm:p-10">
-            <div className="space-y-6 mt-6">
-              {(stats?.topProducts || []).map((product: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between group p-4 rounded-2xl bg-brand-cream/20 border border-brand-dark/5">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xs font-bold text-brand-gold shadow-sm">
-                      {idx + 1}
+          <Card className="p-8 sm:p-10 border-brand-dark/5 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between mb-10">
+              <h3 className="text-xl font-serif text-brand-dark">Top Performing Products</h3>
+            </div>
+            <div className="space-y-8">
+              {(stats?.topProducts || []).map((product: any, idx: number) => {
+                const revenuePercent = 100 - (idx * 15);
+                return (
+                  <motion.div 
+                    key={idx}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 + (idx * 0.1) }}
+                    className="group relative"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-5">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shadow-sm transition-transform group-hover:scale-110 ${
+                          idx === 0 ? 'bg-amber-100 text-amber-600 border border-amber-200' :
+                          idx === 1 ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+                          idx === 2 ? 'bg-orange-100 text-orange-600 border border-orange-200' :
+                          'bg-brand-cream text-brand-dark/40'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 rounded-xl bg-brand-cream overflow-hidden border border-brand-dark/10 group-hover:border-brand-gold/50 transition-colors">
+                            <img 
+                              src={`https://api.dicebear.com/7.x/shapes/svg?seed=${product.name}`} 
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-brand-dark group-hover:text-brand-gold transition-colors">{product.name}</p>
+                            <span className="text-[9px] font-bold text-brand-dark/30 uppercase tracking-widest">{product.totalSold} Units Sold</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-brand-dark"><Price amount={product.totalSold * 250} /></p>
+                        <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mt-0.5">↑ 14%</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-brand-dark">{product.name}</p>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-brand-dark/40">Best Seller</p>
+                    <div className="pl-[104px] pr-2">
+                      <div className="h-1 bg-brand-cream rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${revenuePercent}%` }}
+                          transition={{ duration: 1.5, delay: 1 }}
+                          className="h-full bg-gradient-to-r from-brand-gold/60 to-brand-gold"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-brand-dark">{product.totalSold}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-brand-dark/40">Units Sold</p>
-                  </div>
-                </div>
-              ))}
+                    <div className="absolute inset-0 -mx-4 -my-2 rounded-2xl bg-brand-gold/0 group-hover:bg-brand-gold/5 transition-all pointer-events-none" />
+                  </motion.div>
+                );
+              })}
             </div>
           </Card>
         </div>
@@ -561,6 +761,44 @@ const SellerDashboard = () => {
       </div>
     </div>
   );
+};
+
+const COLORS = ['#D4AF37', '#1A1A1A', '#8B7355', '#C0C0C0', '#E5E5E5'];
+
+const STATUS_COLORS = {
+  pending: '#F59E0B',
+  processing: '#3B82F6',
+  shipped: '#8B5CF6',
+  delivered: '#10B981',
+  cancelled: '#EF4444'
+};
+
+// Animated Counter Component
+const Counter = ({ value, isCurrency }: { value: number | string, isCurrency?: boolean }) => {
+  const numericValue = typeof value === 'number' ? value : 0;
+  const [displayValue, setDisplayValue] = useState(0);
+  
+  useEffect(() => {
+    let start = 0;
+    const end = numericValue;
+    const duration = 1500;
+    const increment = end / (duration / 16);
+    
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= end) {
+        setDisplayValue(end);
+        clearInterval(timer);
+      } else {
+        setDisplayValue(Math.floor(start));
+      }
+    }, 16);
+    
+    return () => clearInterval(timer);
+  }, [numericValue]);
+
+  if (typeof value === 'string' && isNaN(Number(value))) return <span>{value}</span>;
+  return <span>{isCurrency ? <Price amount={displayValue} /> : displayValue.toLocaleString()}</span>;
 };
 
 export default SellerDashboard;

@@ -14,7 +14,7 @@ export default defineConfig(({mode}) => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
-      // allowedHosts: ['rosalie-mirky-queenie.ngrok-free.dev'],
+      allowedHosts: ['rosalie-mirky-queenie.ngrok-free.dev'],
     },
   };
 });

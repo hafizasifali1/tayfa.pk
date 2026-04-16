@@ -70,18 +70,18 @@ const Footer = () => {
           <div>
             <h4 className="text-brand-gold font-serif text-lg mb-6">Get in Touch</h4>
             <ul className="space-y-4 text-sm text-white/60">
-              <li className="flex items-center space-x-3">
+              {/* <li className="flex items-center space-x-3">
                 <Phone size={16} className="text-brand-gold" />
                 <span>+92 300 1234567</span>
-              </li>
+              </li> */}
               <li className="flex items-center space-x-3">
                 <Mail size={16} className="text-brand-gold" />
                 <span>support@tayfa.pk</span>
               </li>
-              <li className="flex items-center space-x-3">
+              {/* <li className="flex items-center space-x-3">
                 <MapPin size={16} className="text-brand-gold" />
                 <span>Lahore, Pakistan</span>
-              </li>
+              </li> */}
             </ul>
           </div>
         </div>

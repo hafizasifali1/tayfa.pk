@@ -115,7 +115,8 @@ const Home = () => {
           <div className="relative">
             <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl">
               <img 
-                src="https://picsum.photos/seed/craft/800/1000" 
+                // src="https://picsum.photos/seed/crt/800/1000" 
+                src="/OurHeritage/OurHeritage-image.png"
                 alt="Craftsmanship" 
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
@@ -135,13 +136,13 @@ const Home = () => {
             </p>
             <div className="grid grid-cols-2 gap-x-12 gap-y-10 pt-10">
               {[
-                { icon: '/OurHeritage/Free-shipping.png', title: 'Free Shipping', desc: 'On orders over PKR 3,000' },
+                { icon: '/OurHeritage/Free_shipping_v2.png', title: 'Free Shipping', desc: 'On orders over PKR 3,000' },
                 { icon: '/OurHeritage/Easy-returns.png', title: 'Easy Returns', desc: '7-day return policy' },
                 { icon: '/OurHeritage/Secure-payment.png', title: 'Secure Payment', desc: '100% secure checkout' },
                 { icon: '/OurHeritage/Support.png', title: 'Support', desc: '24/7 customer service' },
               ].map((item) => (
                 <div key={item.title} className="flex items-center space-x-5 group">
-                  <div className="w-10 h-10 shrink-0 transition-transform duration-500 group-hover:scale-110">
+                  <div className={`${item.title === 'Free Shipping' ? 'w-14 h-14' : 'w-12 h-12'} shrink-0 transition-transform duration-500 group-hover:scale-110 flex items-center justify-center`}>
                     <img src={item.icon} alt={item.title} className="w-full h-full object-contain" />
                   </div>
                   <div className="space-y-1">

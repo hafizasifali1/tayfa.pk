@@ -136,6 +136,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             loading="lazy"
             className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.src = 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+            }}
           />
         </Link>
         

@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, Package, BarChart3, Shield, Settings, 
-  LogOut, Menu, X, Bell, Search, User, ChevronRight, Sparkles,
+  LogOut, Menu, X, Bell, Search, User, ChevronRight, ChevronDown, Sparkles,
   Ticket, Tag, FileText, Globe, Layers, Award, CreditCard, Percent,
   ShoppingBag, BookOpen, Building, MessageSquare
 } from 'lucide-react';
@@ -15,28 +15,15 @@ const AdminLayout = () => {
   const { user, logout, hasPermission, isAuthReady } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  if (!isAuthReady) {
-    return (
-      <div className="min-h-screen bg-brand-cream flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-brand-gold border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // Redirect if not logged in
-  if (!user) {
-    return <Navigate to="/signin" state={{ from: location }} replace />;
-  }
-
-  // Show Access Denied if logged in but not admin
-  if (user.role !== 'admin') {
-    return (
-      <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
-        <AccessDenied requiredRole="admin" />
-      </div>
-    );
-  }
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('admin_sidebar_expanded');
+    return saved ? JSON.parse(saved) : {
+      'Operations': true,
+      'Reporting': true,
+      'Configurations': true,
+      'Settings': true
+    };
+  });
 
   const modules = [
     {
@@ -89,6 +76,36 @@ const AdminLayout = () => {
     }
   ];
 
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-brand-gold border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Redirect if not logged in
+  if (!user) {
+    return <Navigate to="/signin" state={{ from: location }} replace />;
+  }
+
+  // Show Access Denied if logged in but not admin
+  if (user.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
+        <AccessDenied requiredRole="admin" />
+      </div>
+    );
+  }
+
+  const toggleSection = (label: string) => {
+    setExpandedSections(prev => {
+      const next = { ...prev, [label]: !prev[label] };
+      localStorage.setItem('admin_sidebar_expanded', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const filteredModules = modules.map(mod => ({
     ...mod,
     items: mod.items.filter(item => hasPermission(item.module as any, 'view'))
@@ -97,61 +114,84 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-brand-cream flex">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-80 bg-brand-dark text-white border-r border-white/5 sticky top-0 h-screen overflow-y-auto">
-        <div className="p-10 border-b border-white/5">
-          <Link to="/" className="group block">
-            <h1 className="text-4xl font-serif tracking-tighter text-brand-gold group-hover:text-white transition-colors">TAYFA</h1>
-            <span className="text-[9px] font-mono font-bold uppercase tracking-[0.4em] text-white/20 block mt-2 group-hover:text-brand-gold/40 transition-colors">ADMIN_PROTOCOL_v2.0</span>
+      <aside className="hidden lg:flex flex-col w-80 bg-brand-dark text-white border-r border-white/5 sticky top-0 h-screen overflow-y-auto custom-scrollbar">
+        <div className="px-10 py-6 border-b border-white/5">
+          <Link to="/" className="inline-block transition-transform hover:scale-105">
+            <img src="/Tayfa.png" alt="TAYFA" className="h-14 w-auto brightness-0 invert" />
           </Link>
         </div>
 
-        <nav className="flex-grow p-6 space-y-8">
-          {filteredModules.map((module) => (
-            <div key={module.label} className="space-y-2">
-              <div className="px-4 mb-4">
-                <h3 className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/20 font-serif italic">{module.label}</h3>
-              </div>
-              <div className="space-y-1">
-                {module.items.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all group relative overflow-hidden ${
-                      location.pathname === item.path 
-                        ? 'bg-brand-gold text-white shadow-xl shadow-brand-gold/20' 
-                        : 'text-white/40 hover:bg-white/5 hover:text-white'
-                    }`}
+        <nav className="flex-grow p-6 space-y-4">
+          {filteredModules.map((module) => {
+            const isExpanded = expandedSections[module.label] ?? true;
+            return (
+              <div key={module.label} className="space-y-1">
+                <button 
+                  onClick={() => toggleSection(module.label)}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all group border-l-2 ${
+                    isExpanded ? 'border-brand-gold/50 bg-white/5 shadow-[2px_0_15px_rgba(201,168,76,0.05)]' : 'border-transparent hover:bg-white/5'
+                  }`}
+                >
+                  <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/80 group-hover:text-white group-hover:brightness-150 transition-all">
+                    {module.label}
+                  </h3>
+                  <motion.div
+                    animate={{ rotate: isExpanded ? 0 : -90 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
                   >
-                    <item.icon size={18} className={location.pathname === item.path ? 'text-white' : 'text-brand-gold/40 group-hover:text-brand-gold transition-colors'} />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{item.label}</span>
-                    {location.pathname === item.path && (
-                      <motion.div layoutId="active-indicator" className="ml-auto">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
-                      </motion.div>
-                    )}
-                  </Link>
-                ))}
+                    <ChevronDown size={14} className="text-white/20 group-hover:text-brand-gold transition-colors" />
+                  </motion.div>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0, y: -10 }}
+                      transition={{ 
+                        height: { type: 'spring', damping: 25, stiffness: 200 },
+                        opacity: { duration: 0.2 }
+                      }}
+                      className="overflow-hidden space-y-1"
+                    >
+                      {module.items.map((item) => {
+                        const isActive = location.pathname === item.path;
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all group relative overflow-hidden ${
+                              isActive
+                                ? 'bg-brand-gold text-white shadow-[0_10px_20px_rgba(201,168,76,0.2)]' 
+                                : 'text-white/40 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <item.icon size={18} className={isActive ? 'text-white' : 'text-brand-gold/40 group-hover:text-brand-gold transition-colors'} />
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{item.label}</span>
+                            {isActive && (
+                              <motion.div layoutId="active-indicator" className="ml-auto">
+                                <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+                              </motion.div>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="p-8 border-t border-white/5 space-y-6 bg-black/20">
-          <div className="flex items-center space-x-4 px-4 py-3 bg-white/5 rounded-2xl border border-white/5 group cursor-default">
-            <div className="w-10 h-10 rounded-xl bg-brand-gold/10 flex items-center justify-center text-brand-gold font-bold border border-brand-gold/20 group-hover:bg-brand-gold group-hover:text-white transition-all">
-              {(user.fullName || '?').charAt(0)}
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-[11px] font-bold truncate uppercase tracking-wider">{user.fullName}</p>
-              <p className="text-[9px] text-white/20 uppercase tracking-[0.2em] font-mono">AUTH_LEVEL_01</p>
-            </div>
-          </div>
           <button 
             onClick={logout}
             className="w-full flex items-center space-x-4 px-6 py-4 rounded-2xl text-rose-400/60 hover:text-rose-400 hover:bg-rose-500/10 transition-all group border border-transparent hover:border-rose-500/20"
           >
             <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Terminate_Session</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Logout</span>
           </button>
         </div>
       </aside>
@@ -167,27 +207,21 @@ const AdminLayout = () => {
             >
               <Menu size={20} />
             </button>
-            <Link to="/" className="ml-4 text-xl font-serif tracking-tighter text-brand-gold">TAYFA</Link>
+            <Link to="/" className="ml-4">
+              <img src="/Tayfa.png" alt="TAYFA" className="h-8 w-auto" />
+            </Link>
           </div>
 
           <div className="hidden lg:flex items-center flex-grow max-w-2xl relative group">
-            <Search size={16} className="absolute left-6 text-brand-dark/20 group-focus-within:text-brand-gold transition-colors" />
+            <Search size={16} className="absolute left-6 text-brand-dark/40 group-focus-within:text-brand-gold transition-colors" />
             <input 
               type="text" 
-              placeholder="GLOBAL_PLATFORM_SEARCH..." 
-              className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-2xl pl-14 pr-8 py-4 text-[10px] font-mono uppercase tracking-[0.2em] focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all placeholder:text-brand-dark/20"
+              placeholder="Search" 
+              className="w-full bg-white border border-brand-dark/10 rounded-2xl pl-14 pr-8 py-4 text-[10px] font-mono uppercase tracking-[0.2em] focus:ring-4 focus:ring-brand-gold/10 focus:border-brand-gold/30 transition-all placeholder:text-brand-dark/30 shadow-sm"
             />
-            <div className="absolute right-6 flex items-center space-x-2">
-              <span className="px-2 py-1 rounded-md bg-brand-dark/5 text-[8px] font-mono text-brand-dark/30">CMD</span>
-              <span className="px-2 py-1 rounded-md bg-brand-dark/5 text-[8px] font-mono text-brand-dark/30">K</span>
-            </div>
           </div>
 
           <div className="flex items-center space-x-6">
-            <div className="hidden xl:flex items-center space-x-4 px-4 py-2 bg-emerald-50 rounded-xl border border-emerald-100">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest font-mono">SYSTEM_ONLINE</span>
-            </div>
 
             <button className="p-4 bg-brand-cream/50 text-brand-dark rounded-2xl hover:bg-brand-gold hover:text-white transition-all relative group shadow-sm">
               <Bell size={18} className="group-hover:rotate-12 transition-transform" />
@@ -199,7 +233,7 @@ const AdminLayout = () => {
             <div className="flex items-center space-x-4 group cursor-pointer">
               <div className="text-right hidden sm:block">
                 <p className="text-[11px] font-bold leading-none mb-1 uppercase tracking-wider">{user.fullName}</p>
-                <p className="text-[9px] text-brand-dark/30 uppercase tracking-[0.2em] font-mono">ROOT_ADMIN</p>
+                {/* <p className="text-[9px] text-brand-dark/30 uppercase tracking-[0.2em] font-mono">ROOT_ADMIN</p> */}
               </div>
               <div className="w-12 h-12 rounded-2xl bg-brand-dark text-white flex items-center justify-center font-bold shadow-xl shadow-brand-dark/20 group-hover:bg-brand-gold transition-all overflow-hidden relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -234,7 +268,9 @@ const AdminLayout = () => {
               className="fixed inset-y-0 left-0 w-80 bg-brand-dark text-white p-8 z-[70] flex flex-col"
             >
               <div className="flex justify-between items-center mb-12">
-                <Link to="/" className="text-3xl font-serif tracking-tighter text-brand-gold">TAYFA</Link>
+                <Link to="/" className="inline-block">
+                  <img src="/Tayfa.png" alt="TAYFA" className="h-10 w-auto brightness-0 invert" />
+                </Link>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-white/60 hover:text-white">
                   <X size={24} />
                 </button>
