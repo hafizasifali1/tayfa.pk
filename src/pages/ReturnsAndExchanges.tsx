@@ -65,11 +65,11 @@ const HoverCard = ({ children, className = '' }: { children: React.ReactNode; cl
 // ─── Desktop & Mobile Steps UI ────────────────────────────────────────────────
 const StepsRow = () => {
   const steps = [
-    { num: '01', title: 'Initiate Return', desc: 'Contact our support via WhatsApp or email within 7 days of delivery. Share your order number and reason for return.' },
-    { num: '02', title: 'Approval', desc: 'Our team reviews your request within 24 hours and sends a confirmation with pickup details.' },
-    { num: '03', title: 'Free Pickup', desc: 'A courier partner will collect the item from your address at your convenience. Keep the original packaging.' },
-    { num: '04', title: 'Quality Check (QC)', desc: 'Once received, our team inspects the item within 1–2 business days to ensure it meets return conditions.' },
-    { num: '05', title: 'Refund / Exchange', desc: 'After QC approval, your refund is processed or exchange is dispatched within the timelines stated below.' },
+    { num: '1', title: 'Request Return', desc: 'Contact us within 7 days of delivery with order number and reason.' },
+    { num: '2', title: 'Approval', desc: 'Our team reviews and confirms within 24 hours.' },
+    { num: '3', title: 'Pickup', desc: 'A courier picks up the item from your address.' },
+    { num: '4', title: 'Inspection', desc: 'We inspect the item (1–2 business days).' },
+    { num: '5', title: 'Refund / Exchange', desc: 'Refund in 5–7 days or exchange dispatched in 2–3 days.' },
   ];
 
   return (
@@ -104,7 +104,7 @@ const ReturnsAndExchanges = () => {
 
 
       <section
-        style={{ background: '#1E1C1A', backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E\")" }}
+        style={{ background: '#2c2926', backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E\")" }}
         className="w-full px-4 py-20 text-center"
       >
      
@@ -129,19 +129,21 @@ const ReturnsAndExchanges = () => {
             Returns &amp; Exchanges
           </h1>
         </Reveal>
+<Reveal delay={160}>
+  <p 
+    style={{ color: '#B8B0A0', fontSize: 16, maxWidth: 540, lineHeight: 1.7 }} 
+    className="mx-auto mb-8"
+  >
+    Easy, hassle-free returns within{' '}
+    <span style={{ color: '#C9A84C', fontWeight: 600 }}>7 days</span>
+    {' '}of delivery. Your satisfaction is our priority.
+  </p>
+</Reveal>
 
-        <Reveal delay={160}>
-          <p style={{ color: '#B8B0A0', fontSize: 16, maxWidth: 540, lineHeight: 1.7 }} className="mx-auto mb-4">
-            Easy, hassle-free returns within{' '}
-            <span style={{ color: '#C9A84C', fontWeight: 600 }}>7 days</span>
-            {' '}of delivery. Your satisfaction is our priority.
-          </p>
-        </Reveal>
-
-        {/* Thin gold divider */}
+        {/* Thin gold divider
         <Reveal delay={200}>
           <div style={{ width: 120, height: 1, background: '#C9A84C', opacity: 0.2, margin: '0 auto 24px' }} />
-        </Reveal>
+        </Reveal> */}
 
         {/* Feature Pills */}
         <Reveal delay={240}>
@@ -175,12 +177,9 @@ const ReturnsAndExchanges = () => {
 
       {/* ── STEP PROCESS SECTION ────────────────────────────────────────────── */}
       <section style={{ background: '#FFFFFF', padding: '80px 0', position: 'relative', overflow: 'hidden' }}>
-        {/* Subtle radial background glow */}
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-
-          {/* Section Heading */}
           <Reveal>
             <div className="text-center mb-16">
               <div className="flex items-center justify-center gap-3 mb-4">
@@ -188,9 +187,7 @@ const ReturnsAndExchanges = () => {
                   How to Return an Item
                 </h2>
               </div>
-              {/* <p style={{ fontSize: 15, color: '#8A8078', margin: '0 auto', maxWidth: 460 }}>
-                7-day return window with easy pickup
-              </p> */}
+  
             </div>
           </Reveal>
 
@@ -211,11 +208,11 @@ const ReturnsAndExchanges = () => {
           </Reveal>
 
           {/* Two column cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-14 items-stretch">
             {/* Eligible */}
             <Reveal delay={80} className="h-full">
               <HoverCard className="h-full">
-                <div style={{ background: '#F4FBF4', border: '1px solid rgba(80,160,100,0.2)', borderRadius: 16, padding: 28, borderTop: '4px solid #3D9970', height: '100%' }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid rgba(80,160,100,0.2)', borderRadius: 16, padding: 28, borderTop: '4px solid #3D9970', height: '100%' }}>
                   <div className="flex items-center gap-3 mb-5">
                     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3D9970" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
@@ -224,11 +221,11 @@ const ReturnsAndExchanges = () => {
                   </div>
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} className="space-y-3">
                     {[
-                      'Item received in damaged or defective condition',
-                      'Wrong item delivered (size, color, or product)',
-                      'Item is significantly different from product description',
-                      'Missing accessories or parts upon delivery',
-                      'Unused & unworn items with original tags intact',
+                      'Item must be unused, unworn, and unwashed',
+                      'All original tags and labels must be attached',
+                      'Item must be in its original packaging / brand box',
+                      'All accessories, parts, and packaging materials must be included',
+                      'Return must be initiated within 7 days of delivery',
                     ].map((item) => (
                       <li key={item} style={{ color: '#3D3530', fontSize: 14, lineHeight: 1.8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <span style={{ color: '#3D9970', marginTop: 4, flexShrink: 0 }}>●</span> {item}
@@ -251,12 +248,12 @@ const ReturnsAndExchanges = () => {
                   </div>
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} className="space-y-3">
                     {[
-                      'Items returned after 7 days of delivery',
-                      'Used, washed, or altered items',
-                      'Items with removed or damaged original tags',
-                      'Sale or clearance items (marked as Final Sale)',
-                      'Custom-stitched or personalised orders',
-                      'Lingerie, innerwear, or swimwear (hygiene policy)',
+                      'Items that are worn, washed, or damaged by the customer',
+                      'Items with missing or removed tags',
+                      'Sale / clearance items (unless defective)',
+                      'Items returned after the 7-day window',
+                      'Innerwear and personal care items (hygiene reasons)',
+                      'Customized or personalized products',
                     ].map((item) => (
                       <li key={item} style={{ color: '#3D3530', fontSize: 14, lineHeight: 1.8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <span style={{ color: '#C8453C', marginTop: 4, flexShrink: 0 }}>●</span> {item}
@@ -271,7 +268,7 @@ const ReturnsAndExchanges = () => {
           {/* QC Process Card */}
           <Reveal delay={240}>
             <HoverCard>
-              <div style={{ background: '#F9FAFB', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 16, padding: '28px 32px' }}>
+              <div style={{ background: '#f8f6f4', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 16, padding: '28px 32px' }}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-4">
                     <div style={{ background: 'rgba(201,168,76,0.15)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -286,11 +283,11 @@ const ReturnsAndExchanges = () => {
                   </span>
                 </div>
                 <p style={{ color: '#5A5248', fontSize: 15, lineHeight: 1.75, marginBottom: 16 }}>
-                  Once your return is received at our warehouse, our Quality Control team inspects the item to verify its condition matches the reason stated for return. This helps us maintain the highest standards for all customers and sellers on the platform.
+                  Once your item is picked up, it goes through a thorough Quality Check at our facility. This ensures the item matches the return conditions stated above. The QC process takes 1–2 business days.
                 </p>
                 <div style={{ background: '#FEFAE8', borderLeft: '3px solid #C9A84C', borderRadius: '0 8px 8px 0', padding: '12px 16px' }}>
                   <p style={{ fontSize: 13, color: '#7A5C10', margin: 0, lineHeight: 1.6 }}>
-                    ⚠ If the returned item does not pass QC (e.g., shows signs of use, missing tags, or damage not matching the claim), the return will be rejected and the item will be shipped back to you at your expense.
+                    <strong>Important:</strong> If an item fails QC (worn, damaged, missing tags), it will be returned to you and no refund will be issued. Your refund is only processed after successful QC approval.
                   </p>
                 </div>
               </div>
@@ -300,7 +297,7 @@ const ReturnsAndExchanges = () => {
       </section>
 
       {/* ── SECTION 3: REFUND TIMELINES ────────────────────────────────────── */}
-      <section style={{ background: '#FFFFFF', padding: '64px 0' }}>
+      <section style={{ background: '#FFFFFF', padding: '64px 0 10px 0', marginBottom: '40px' }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
 
           <Reveal>
@@ -308,28 +305,9 @@ const ReturnsAndExchanges = () => {
               Refund Timelines
             </h2>
           </Reveal>
-
-          {/* Progress Track */}
-          <Reveal delay={80}>
-            <div className="flex items-center justify-center mb-10 overflow-x-auto">
-              <div className="flex items-center gap-0 min-w-max">
-                {['QC Check', 'Approval', 'Processing', 'Refund'].map((step, i) => (
-                  <React.Fragment key={step}>
-                    <div className="flex flex-col items-center">
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#C9A84C', border: '2px solid #C9A84C', flexShrink: 0 }} />
-                      <span style={{ fontSize: 11, color: '#A09890', marginTop: 6, whiteSpace: 'nowrap' }}>{step}</span>
-                    </div>
-                    {i < 3 && (
-                      <div style={{ width: 60, height: 2, background: 'linear-gradient(90deg, #C9A84C, rgba(201,168,76,0.3))', flexShrink: 0, marginBottom: 16 }} />
-                    )}
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-          </Reveal>
-
+          
           {/* Timeline Cards */}
-          <div className="space-y-4 mb-8">
+          <div className="space-y-4 mb-7 bg-[#f8f6f4]">
             {[
               {
                 icon: (
@@ -386,7 +364,7 @@ const ReturnsAndExchanges = () => {
           {/* Footer Note */}
           <Reveal delay={320}>
             <p style={{ textAlign: 'center', fontSize: 12, color: '#A09890', fontStyle: 'italic', marginTop: 8 }}>
-              * All refund timelines begin after successful Quality Check approval.
+               All refund timelines begin after successful Quality Check approval.
             </p>
           </Reveal>
         </div>
@@ -394,16 +372,16 @@ const ReturnsAndExchanges = () => {
 
 
       {/* ── SECTION 4: EXCHANGE POLICY ──────────────────────────────────────── */}
-      <section style={{ background: '#FFFFFF', padding: '56px 0' }}>
+      <section style={{ background: '#FFFFFF', padding: '10px 0 40px 0' }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <Reveal>
+          {/* <Reveal>
             <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 32, color: '#1E1C1A', borderLeft: '3px solid #C9A84C', paddingLeft: 14, marginBottom: 32 }}>
               Exchange Policy
             </h2>
-          </Reveal>
+          </Reveal> */}
           <Reveal delay={80}>
             <HoverCard>
-              <div style={{ background: '#FFFFFF', border: '1px solid #EAE5DC', borderRadius: 16, padding: '28px 32px', maxWidth: 800, margin: '0 auto', position: 'relative' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #EAE5DC', borderRadius: 16, padding: '28px 32px', position: 'relative' }}>
                 <span style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(201,168,76,0.12)', color: '#8B6914', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 600 }}>
                   One-time only
                 </span>
@@ -444,7 +422,7 @@ const ReturnsAndExchanges = () => {
       <section style={{ background: '#FFFFFF', paddingBottom: 56, paddingTop: 0 }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <Reveal delay={80}>
-            <div style={{ background: '#FFFCF0', border: '1px solid rgba(201,168,76,0.3)', borderLeft: '3px solid #C9A84C', borderRadius: '0 14px 14px 0', padding: '24px 28px', maxWidth: 800, margin: '0 auto' }}>
+            <div style={{ background: '#FFFCF0', border: '1px solid rgba(201,168,76,0.3)', borderLeft: '3px solid #C9A84C', borderRadius: '0 14px 14px 0', padding: '24px 28px' }}>
               <div className="flex items-start gap-4">
                 <div style={{ flexShrink: 0, color: '#C9A84C', marginTop: 2 }}>
                   <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -470,15 +448,16 @@ const ReturnsAndExchanges = () => {
       </section>
 
       {/* ── SECTION 6: CONTACT / SUPPORT CTA ───────────────────────────────── */}
-      <section style={{ background: '#1E1C1A', padding: '56px 24px' }}>
-        <Reveal>
-          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 20, padding: '40px 32px', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
-            <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 26, color: '#FFFFFF', marginBottom: 12 }}>
+      {/* <section style={{ background: '#FFFFFF', padding: '30px 0' }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <Reveal>
+            <div style={{ background: '#FAF9F6', border: '1px solid #C9A84C', borderRadius: 20, padding: '40px 32px', textAlign: 'center' }}>
+            <h2 style={{ fontFamily: 'Playfair Display, Georgia, serif', fontSize: 26, color: '#1E1C1A', marginBottom: 12 }}>
               Need help with a return?
             </h2>
             <div className="flex items-center justify-center gap-2 mb-2">
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#25D366', animation: 'pulse-green 1.5s infinite' }} />
-              <p style={{ fontSize: 14, color: '#B8B0A0', margin: 0 }}>
+              <p style={{ fontSize: 14, color: '#1E1C1A', margin: 0 }}>
                 Our support team is available Mon–Sat, 9 AM – 6 PM PKT
               </p>
             </div>
@@ -497,9 +476,9 @@ const ReturnsAndExchanges = () => {
               </a>
               <a
                 href="mailto:support@tayfa.pk"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1px solid rgba(201,168,76,0.4)', color: '#D4CAB8', borderRadius: 999, padding: '13px 28px', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'border-color 200ms, color 200ms' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1px solid rgba(201,168,76,0.4)', color: '#1E1C1A', borderRadius: 999, padding: '13px 28px', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'border-color 200ms, color 200ms' }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#C9A84C'; e.currentTarget.style.color = '#C9A84C'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)'; e.currentTarget.style.color = '#D4CAB8'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)'; e.currentTarget.style.color = '#1E1C1A'; }}
               >
                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" />
@@ -509,7 +488,8 @@ const ReturnsAndExchanges = () => {
             </div>
           </div>
         </Reveal>
-      </section>
+        </div>
+      </section> */}
 
     </div>
   );
