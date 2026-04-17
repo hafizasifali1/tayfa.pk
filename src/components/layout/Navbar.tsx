@@ -8,6 +8,7 @@ import { useCurrency } from '../../context/CurrencyContext';
 import { useWishlist } from '../../context/WishlistContext';
 import CountrySelector from '../common/CountrySelector';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuthModal } from '../../context/AuthModalContext';
 
 interface SubCategory {
   name: string;
@@ -33,6 +34,7 @@ const Navbar = () => {
   const { wishlist } = useWishlist();
   const location = useLocation();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { openModal } = useAuthModal();
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -200,18 +202,18 @@ const Navbar = () => {
                 </div>
               ) : (
                 <div className="flex items-center space-x-4">
-                  <Link 
-                    to="/seller/register" 
-                    className="text-[10px] font-bold uppercase tracking-widest text-brand-gold hover:text-brand-gold/80"
+                  <button
+                    onClick={() => openModal('seller')}
+                    className="text-[10px] font-bold uppercase tracking-widest text-brand-gold hover:text-brand-gold/80 transition-colors"
                   >
                     Sell on TAYFA
-                  </Link>
-                  <Link 
-                    to="/signin" 
-                    className="text-[10px] font-bold uppercase tracking-widest text-brand-dark hover:text-brand-gold"
+                  </button>
+                  <button 
+                    onClick={() => openModal('signin')}
+                    className="text-[10px] font-bold uppercase tracking-widest text-brand-dark hover:text-brand-gold transition-colors"
                   >
                     Sign In
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>

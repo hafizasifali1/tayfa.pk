@@ -16,6 +16,8 @@ import AdminLayout from './components/layout/AdminLayout';
 import SellerLayout from './components/layout/SellerLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import { AuthModalProvider } from './context/AuthModalContext';
+import AuthModal from './components/auth/AuthModal';
 
 // --- Store Pages ---
 const Home = lazy(() => import('./pages/Home'));
@@ -104,10 +106,12 @@ export default function App() {
       <CurrencyProvider>
         <CartProvider>
           <WishlistProvider>
-            <Router>
-              <ErrorBoundary>
-                <ScrollToTop />
-                <ScrollToTopButton />
+            <AuthModalProvider>
+              <Router>
+                <AuthModal />
+                <ErrorBoundary>
+                  <ScrollToTop />
+                  <ScrollToTopButton />
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                     {/* Store Routes */}
@@ -188,10 +192,11 @@ export default function App() {
                       <Route path="taxes" element={<ProtectedRoute module="tax_rules"><TaxManager /></ProtectedRoute>} />
                       <Route path="*" element={<PortalNotFound />} />
                     </Route>
-                  </Routes>
-                </Suspense>
-              </ErrorBoundary>
-            </Router>
+                    </Routes>
+                  </Suspense>
+                </ErrorBoundary>
+              </Router>
+            </AuthModalProvider>
           </WishlistProvider>
         </CartProvider>
       </CurrencyProvider>

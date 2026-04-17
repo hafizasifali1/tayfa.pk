@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Store, TrendingUp, Users, ShieldCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useAuthModal } from '../../context/AuthModalContext';
 
 interface FeatureCardProps {
   icon: React.ElementType;
@@ -23,6 +23,7 @@ const FeatureCard = ({ icon: Icon, title, description }: FeatureCardProps) => (
 );
 
 const SellerOnboarding = () => {
+  const { openModal } = useAuthModal();
   return (
     <section className="max-w-7xl mx-auto px-4 py-12">
       <div className="bg-[#2C2926] rounded-[4rem] p-12 md:p-20 relative overflow-hidden shadow-2xl">
@@ -66,12 +67,12 @@ const SellerOnboarding = () => {
               viewport={{ once: true }}
               transition={{ delay: 0.3 }}
             >
-              <Link 
-                to="/seller/register" 
+              <button
+                onClick={() => openModal('seller')}
                 className="inline-block bg-brand-gold text-white px-10 py-5 rounded-full font-bold tracking-widest uppercase hover:bg-white hover:text-brand-dark transition-all duration-500 shadow-xl shadow-brand-gold/20"
               >
                 Start Selling Today
-              </Link>
+              </button>
             </motion.div>
           </div>
 

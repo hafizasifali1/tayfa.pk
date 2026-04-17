@@ -25,6 +25,7 @@ import {
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { useAuthModal } from '../context/AuthModalContext';
 import Price from '../components/common/Price';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -39,6 +40,7 @@ const Checkout = () => {
   const { user } = useAuth();
   const { selectedCountry, convertPrice } = useCurrency();
   const navigate = useNavigate();
+  const { openModal } = useAuthModal();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -115,7 +117,7 @@ const Checkout = () => {
 
   const handleSubmitOrder = async () => {
     if (!user) {
-      navigate('/signin', { state: { from: '/checkout' } });
+      openModal('signin');
       return;
     }
     setIsSubmitting(true);

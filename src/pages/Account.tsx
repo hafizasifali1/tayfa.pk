@@ -3,10 +3,12 @@ import { User, Package, Heart, Settings, LogOut, ChevronRight, LayoutDashboard }
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useAuthModal } from '../context/AuthModalContext';
 
 const Account = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { openModal } = useAuthModal();
 
   const menuItems = [
     { icon: Package, label: 'My Orders', description: 'Track, return or buy things again', path: '/orders' },
@@ -29,7 +31,7 @@ const Account = () => {
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
         <h1 className="text-4xl font-serif mb-8">Please sign in to view your account</h1>
         <button 
-          onClick={() => navigate('/signin')}
+          onClick={() => openModal('signin')}
           className="bg-brand-dark text-white px-12 py-4 rounded-full font-bold uppercase tracking-widest hover:bg-brand-gold transition-all"
         >
           Sign In
