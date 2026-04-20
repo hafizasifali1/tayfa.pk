@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Filter, CheckCircle2, XCircle, Eye, MoreVertical, 
@@ -31,6 +32,19 @@ import { Badge } from '../../components/ui/Badge';
 import { Table } from '../../components/ui/Table';
 import { productService } from '../../services/api';
 
+const getProductImage = (images: any) => {
+  if (!images) return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+  try {
+    const parsed = typeof images === 'string' ? JSON.parse(images) : images;
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+    if (typeof parsed === 'string' && parsed.length > 10) return parsed;
+    return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+  } catch (e) {
+    if (typeof images === 'string' && images.length > 10) return images;
+    return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+  }
+};
+
 const SortableProductCard = ({ product, onStatusChange }: { product: Product, onStatusChange: (id: string, status: any) => void }) => {
   const {
     attributes,
@@ -52,7 +66,7 @@ const SortableProductCard = ({ product, onStatusChange }: { product: Product, on
       <Card className="p-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-brand-dark/5">
         <div className="flex space-x-4">
           <div className="w-16 h-20 rounded-xl overflow-hidden bg-brand-cream flex-shrink-0">
-            <img src={Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : null} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <img src={getProductImage(product.images)} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           </div>
           <div className="flex-grow">
             <div className="flex justify-between items-start">
@@ -67,8 +81,9 @@ const SortableProductCard = ({ product, onStatusChange }: { product: Product, on
                 {product.status}
               </Badge>
               <div className="flex space-x-1">
-                <Button variant="ghost" size="sm" icon={Eye} className="h-6 w-6 p-0 text-brand-dark/40" />
-                <Button variant="ghost" size="sm" icon={MoreVertical} className="h-6 w-6 p-0 text-brand-dark/40" />
+                <Link to={`/product/${product.slug}`} target="_blank">
+                  <Button variant="ghost" size="sm" icon={Eye} className="h-6 w-6 p-0 text-brand-dark/40" />
+                </Link>
               </div>
             </div>
           </div>
@@ -396,7 +411,7 @@ const ProductModeration = () => {
                       <td className="px-8 py-6">
                         <div className="flex items-center space-x-5">
                           <div className="w-16 h-20 rounded-2xl overflow-hidden bg-brand-cream flex-shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-                            <img src={Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : null} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={getProductImage(product.images)} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </div>
                           <div>
                             <p className="font-serif text-xl leading-none mb-1.5 text-brand-dark">{product.name}</p>
@@ -458,12 +473,11 @@ const ProductModeration = () => {
                               <XCircle size={18} />
                             </button>
                           )}
-                          <button className="p-3 rounded-xl bg-brand-cream/50 text-brand-dark/40 hover:bg-brand-gold hover:text-white transition-all shadow-sm">
-                            <Eye size={18} />
-                          </button>
-                          <button className="p-3 rounded-xl bg-brand-cream/50 text-brand-dark/40 hover:bg-brand-dark hover:text-white transition-all shadow-sm">
-                            <MoreVertical size={18} />
-                          </button>
+                          <Link to={`/product/${product.slug}`} target="_blank">
+                            <button className="p-3 rounded-xl bg-brand-cream/50 text-brand-dark/40 hover:bg-brand-gold hover:text-white transition-all shadow-sm">
+                              <Eye size={18} />
+                            </button>
+                          </Link>
                         </div>
                       </td>
                     </motion.tr>

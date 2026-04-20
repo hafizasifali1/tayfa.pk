@@ -1,6 +1,6 @@
 /**
  * @license
- * SPDX-License-Identifier: Apache-2.0
+
  */
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
@@ -51,6 +51,7 @@ const SellerLedger = lazy(() => import('./pages/dashboard/SellerLedger'));
 const SellerAnalytics = lazy(() => import('./pages/dashboard/SellerAnalytics'));
 const SellerLogs = lazy(() => import('./pages/dashboard/SellerLogs'));
 const Transactions = lazy(() => import('./pages/seller/Transactions'));
+const SellerProductList = lazy(() => import('./pages/dashboard/SellerProductList'));
 const AddProduct = lazy(() => import('./pages/dashboard/AddProduct'));
 const EditProduct = lazy(() => import('./pages/dashboard/EditProduct'));
 const BulkUpload = lazy(() => import('./pages/dashboard/BulkUpload'));
@@ -147,7 +148,7 @@ export default function App() {
                       <Route path="add-product" element={<ProtectedRoute module="products" action="create"><AddProduct /></ProtectedRoute>} />
                       <Route path="edit-product/:id" element={<ProtectedRoute module="products" action="edit"><EditProduct /></ProtectedRoute>} />
                       <Route path="bulk-upload" element={<ProtectedRoute module="bulk_upload"><BulkUpload /></ProtectedRoute>} />
-                      <Route path="products" element={<ProtectedRoute module="products"><SellerDashboard /></ProtectedRoute>} />
+                      <Route path="products" element={<ProtectedRoute module="products"><SellerProductList /></ProtectedRoute>} />
                       <Route path="pricelists" element={<ProtectedRoute module="pricelist"><PricelistManagement /></ProtectedRoute>} />
                       <Route path="promotions" element={<ProtectedRoute module="promotions"><PromotionManager /></ProtectedRoute>} />
                       <Route path="coupons" element={<ProtectedRoute module="coupons"><CouponManager /></ProtectedRoute>} />

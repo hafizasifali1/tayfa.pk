@@ -21,6 +21,32 @@ const ShoppingBagPage = () => {
   const [couponError, setCouponError] = useState('');
   const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(true);
 
+  const getProductImage = (images: any) => {
+    if (!images) return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+    try {
+      const parsed = typeof images === 'string' ? JSON.parse(images) : images;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      if (typeof parsed === 'string' && parsed.length > 10) return parsed;
+      return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+    } catch (e) {
+      if (typeof images === 'string' && images.length > 10) return images;
+      return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+    }
+  };
+
+  const parseJsonSafe = (field: any) => {
+    if (Array.isArray(field)) return field;
+    if (typeof field === 'string') {
+      try {
+        const parsed = JSON.parse(field);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  };
+
   const FREE_SHIPPING_THRESHOLD = 200;
   const SHIPPING_COST = 15;
   const TAX_RATE = 0.08;
@@ -129,9 +155,9 @@ const ShoppingBagPage = () => {
           <h3 className="text-3xl font-serif mb-12">You may also like</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {recommendedItems.map((p) => (
-              <Link key={p.id} to={`/product/${p.id}`} className="group text-left space-y-4">
+              <Link key={p.id} to={`/product/${p.slug}`} className="group text-left space-y-4">
                 <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-white shadow-sm group-hover:shadow-xl transition-all duration-500">
-                  <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
+                  <img src={getProductImage(p.images)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-brand-gold/60">{p.brand}</span>
@@ -181,8 +207,8 @@ const ShoppingBagPage = () => {
                   className="bg-white p-6 rounded-2xl shadow-sm border border-brand-dark/5 flex flex-col sm:flex-row gap-6 group relative"
                 >
                   {/* Product Image */}
-                  <Link to={`/product/${item.id}`} className="block w-24 sm:w-40 aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 bg-brand-cream mx-auto sm:mx-0">
-                    <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                  <Link to={`/product/${item.slug}`} className="block w-24 sm:w-40 aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 bg-brand-cream mx-auto sm:mx-0">
+                    <img src={getProductImage(item.images)} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                   </Link>
                   
                   {/* Product Details */}
@@ -192,21 +218,25 @@ const ShoppingBagPage = () => {
                         <div className="w-full sm:w-auto">
                           <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 mb-0.5 sm:mb-1 block">{item.brand}</span>
                           <h3 className="text-base sm:text-xl font-serif hover:text-brand-gold transition-colors truncate sm:whitespace-normal">
-                            <Link to={`/product/${item.id}`}>{item.name}</Link>
+                            <Link to={`/product/${item.slug}`}>{item.name}</Link>
                           </h3>
                           
                           {/* Size and Quantity */}
                           <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
                             <div className="relative inline-block">
-                              <select 
-                                value={item.selectedSize}
-                                onChange={(e) => updateSize(item.id, item.selectedSize, e.target.value)}
-                                className="appearance-none bg-brand-cream/50 border border-brand-dark/5 rounded-lg pl-2 sm:pl-3 pr-7 sm:pr-8 py-1 sm:py-1.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-brand-gold cursor-pointer"
-                              >
-                                {item.sizes.map(size => (
-                                  <option key={size} value={size}>{size}</option>
-                                ))}
-                              </select>
+                                <select 
+                                  value={item.selectedSize}
+                                  onChange={(e) => updateSize(item.id, item.selectedSize, e.target.value)}
+                                  className="appearance-none bg-brand-cream/50 border border-brand-dark/5 rounded-lg pl-2 sm:pl-3 pr-7 sm:pr-8 py-1.5 sm:py-2 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-brand-gold cursor-pointer"
+                                >
+                                  {parseJsonSafe(item.sizes).length > 0 ? (
+                                    parseJsonSafe(item.sizes).map(size => (
+                                      <option key={size} value={size}>{size}</option>
+                                    ))
+                                  ) : (
+                                    <option value={item.selectedSize}>{item.selectedSize}</option>
+                                  )}
+                                </select>
                               <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/40" />
                             </div>
 
@@ -283,9 +313,9 @@ const ShoppingBagPage = () => {
               <h3 className="text-2xl font-serif mb-8">Complete the look</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
                 {recommendedItems.map((p) => (
-                  <Link key={p.id} to={`/product/${p.id}`} className="group space-y-3">
+                  <Link key={p.id} to={`/product/${p.slug}`} className="group space-y-3">
                     <div className="aspect-[3/4] rounded-xl overflow-hidden bg-white shadow-sm group-hover:shadow-md transition-all">
-                      <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                      <img src={getProductImage(p.images)} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                     </div>
                     <div>
                       <h4 className="text-sm font-serif truncate">{p.name}</h4>

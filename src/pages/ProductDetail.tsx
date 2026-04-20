@@ -33,6 +33,20 @@ const ProductDetail = () => {
   const [currentImage, setCurrentImage] = useState(0);
   const [isAdded, setIsAdded] = useState(false);
 
+  const getProductImages = (images: any): string[] => {
+    const fallback = ['https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop'];
+    if (!images) return fallback;
+    try {
+      const parsed = typeof images === 'string' ? JSON.parse(images) : images;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (typeof parsed === 'string' && parsed.length > 10) return [parsed];
+      return fallback;
+    } catch (e) {
+      if (typeof images === 'string' && images.length > 10) return [images];
+      return fallback;
+    }
+  };
+
   useEffect(() => {
     const fetchProduct = async () => {
       setIsLoading(true);
@@ -41,7 +55,6 @@ const ProductDetail = () => {
         const currentProduct = response.data;
         setProduct(currentProduct);
         
-        // Fetch related products
         const allProductsResponse = await axios.get('/api/products');
         const allProducts = allProductsResponse.data;
         
@@ -49,17 +62,14 @@ const ProductDetail = () => {
           .filter((p: any) => {
             if (p.id === currentProduct.id) return false;
             
-            // Check category match
             const categoryMatch = p.categoryId === currentProduct.categoryId || 
                                 p.parentCategoryId === currentProduct.parentCategoryId;
             
-            // Check tags match
             const tagMatch = p.tags?.some((tag: string) => currentProduct.tags?.includes(tag));
             
             return categoryMatch || tagMatch;
           })
           .sort((a: any, b: any) => {
-            // Priority: both category and tags match > category match > tags match
             const aCatMatch = a.categoryId === currentProduct.categoryId;
             const bCatMatch = b.categoryId === currentProduct.categoryId;
             const aTagMatch = a.tags?.some((tag: string) => currentProduct.tags?.includes(tag));
@@ -116,11 +126,12 @@ const ProductDetail = () => {
   }
 
   const handleAddToCart = () => {
-    if (!selectedSize && product.sizes.length > 0 && product.sizes[0] !== 'Unstitched') {
+    const sizes = Array.isArray(product.sizes) ? product.sizes : [];
+    if (!selectedSize && sizes.length > 0 && sizes[0] !== 'Unstitched') {
       alert('Please select a size');
       return;
     }
-    addToCart(product, selectedSize || product.sizes[0]);
+    addToCart(product, selectedSize || (sizes.length > 0 ? sizes[0] : ''));
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
@@ -134,7 +145,7 @@ const ProductDetail = () => {
             <AnimatePresence mode="wait">
               <motion.img
                 key={currentImage}
-                src={product.images[currentImage]}
+                src={getProductImages(product.images)[currentImage] || getProductImages(product.images)[0]}
                 alt={product.name}
                 initial={{ opacity: 0, scale: 1.1 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -145,16 +156,16 @@ const ProductDetail = () => {
               />
             </AnimatePresence>
             
-            {product.images.length > 1 && (
+            {getProductImages(product.images).length > 1 && (
               <>
                 <button 
-                  onClick={() => setCurrentImage(prev => (prev === 0 ? product.images.length - 1 : prev - 1))}
+                  onClick={() => setCurrentImage(prev => (prev === 0 ? getProductImages(product.images).length - 1 : prev - 1))}
                   className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-brand-dark hover:bg-brand-gold hover:text-white transition-all shadow-lg z-10"
                 >
                   <ChevronLeft size={24} />
                 </button>
                 <button 
-                  onClick={() => setCurrentImage(prev => (prev === product.images.length - 1 ? 0 : prev + 1))}
+                  onClick={() => setCurrentImage(prev => (prev === getProductImages(product.images).length - 1 ? 0 : prev + 1))}
                   className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-brand-dark hover:bg-brand-gold hover:text-white transition-all shadow-lg z-10"
                 >
                   <ChevronRight size={24} />
@@ -174,7 +185,7 @@ const ProductDetail = () => {
           </div>
           
           <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-hide">
-            {product.images.map((img, idx) => (
+            {getProductImages(product.images).map((img, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentImage(idx)}
@@ -233,11 +244,11 @@ const ProductDetail = () => {
           </div>
 
           {/* Color Selection */}
-          {product.colors && product.colors.length > 0 && (
+          {Array.isArray(product.colors) && product.colors.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-widest text-brand-dark">Color: <span className="text-brand-dark-muted font-semibold">{selectedColor || 'Select'}</span></h3>
               <div className="flex flex-wrap gap-4">
-                {product.colors.map((color) => (
+                {product.colors.map((color: string) => (
                   <button
                     key={color}
                     onClick={() => setSelectedColor(color)}
@@ -256,14 +267,14 @@ const ProductDetail = () => {
           )}
 
           {/* Size Selection */}
-          {product.sizes.length > 0 && (
+          {Array.isArray(product.sizes) && product.sizes.length > 0 && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-brand-dark">Size: <span className="text-brand-dark-muted font-semibold">{selectedSize || 'Select'}</span></h3>
                 <button className="text-xs text-brand-gold-dark underline uppercase tracking-widest font-bold hover:text-brand-dark transition-colors">Size Guide</button>
               </div>
               <div className="flex flex-wrap gap-3">
-                {product.sizes.map((size) => (
+                {product.sizes.map((size: string) => (
                   <button
                     key={size}
                     onClick={() => setSelectedSize(size)}

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Eye, Star, Heart, Sparkles } from 'lucide-react';
+import { ShoppingBag, Eye, Star, Heart, Sparkles, Check } from 'lucide-react';
 import { Product, Promotion } from '../../types';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -15,6 +15,20 @@ interface ProductCardProps {
 const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' }) => {
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const [isAdding, setIsAdding] = React.useState(false);
+
+  const getProductImage = (images: any) => {
+    if (!images) return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+    try {
+      const parsed = typeof images === 'string' ? JSON.parse(images) : images;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      if (typeof parsed === 'string' && parsed.length > 10) return parsed;
+      return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+    } catch (e) {
+      if (typeof images === 'string' && images.length > 10) return images;
+      return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+    }
+  };
 
   const activePromotion = useMemo(() => {
     const promotions: Promotion[] = JSON.parse(localStorage.getItem('tayfa_promotions') || '[]');
@@ -24,7 +38,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addToCart(product, product.sizes[0]);
+    setIsAdding(true);
+    const defaultSize = Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes[0] : '';
+    addToCart(product, defaultSize);
+    setTimeout(() => setIsAdding(false), 2000);
   };
 
   const handleToggleWishlist = (e: React.MouseEvent) => {
@@ -38,30 +55,25 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
   if (viewMode === 'list') {
     return (
       <div className="group flex flex-col sm:flex-row gap-8 bg-white p-6 rounded-3xl shadow-sm hover:shadow-md transition-shadow">
-        <div className="relative overflow-hidden rounded-2xl bg-white w-full sm:w-64 aspect-[3/4] flex-shrink-0">
-          <Link to={`/product/${product.id}`} className="block h-full">
+        <div className="relative w-full sm:w-64">
+          <Link 
+            to={`/product/${product.slug}`} 
+            className="block aspect-[3/4] rounded-2xl overflow-hidden bg-brand-cream relative group-hover:shadow-2xl transition-all duration-700"
+          >
             <img 
-              src={product.images[0]} 
+              src={getProductImage(product.images)} 
               alt={product.name} 
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
               referrerPolicy="no-referrer"
             />
           </Link>
           
-        <div className="absolute top-4 left-4 flex flex-col gap-2">
-          {product.isNew && (
-            <span className="bg-brand-gold text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] shadow-lg shadow-brand-gold/20">New</span>
-          )}
-          {product.isBestSeller && (
-            <span className="bg-brand-dark text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] shadow-lg shadow-brand-dark/20">Best Seller</span>
-          )}
           {activePromotion && (
-            <span className="bg-emerald-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] flex items-center shadow-lg shadow-emerald-500/20">
+            <span className="absolute top-4 left-4 bg-emerald-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] flex items-center shadow-lg shadow-emerald-500/20 z-20">
               <Sparkles size={10} className="mr-1" />
               Promo
             </span>
           )}
-        </div>
 
           <button 
             onClick={handleToggleWishlist}
@@ -85,7 +97,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
           </div>
           
           <h3 className="font-serif text-2xl font-semibold group-hover:text-brand-gold transition-colors">
-            <Link to={`/product/${product.id}`}>{product.name}</Link>
+            <Link to={`/product/${product.slug}`}>{product.name}</Link>
           </h3>
           
           <div className="flex items-center space-x-2">
@@ -117,7 +129,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             >
               Add to Cart
             </button>
-            <Link to={`/product/${product.id}`} className="border border-brand-dark text-brand-dark px-8 py-3 rounded-full text-sm font-bold tracking-widest uppercase hover:bg-brand-dark hover:text-white transition-colors">
+            <Link to={`/product/${product.slug}`} className="border border-brand-dark text-brand-dark px-8 py-3 rounded-full text-sm font-bold tracking-widest uppercase hover:bg-brand-dark hover:text-white transition-colors">
               View Details
             </Link>
           </div>
@@ -129,9 +141,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
   return (
     <div className="group">
       <div className="relative overflow-hidden rounded-2xl bg-brand-cream aspect-[4/5] mb-4">
-        <Link to={`/product/${product.id}`} className="block h-full">
+        <Link to={`/product/${product.slug}`} className="block h-full">
           <img 
-            src={product.images[0]} 
+            src={getProductImage(product.images)} 
             alt={product.name} 
             loading="lazy"
             className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
@@ -170,13 +182,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
         <div className="absolute inset-0 bg-brand-dark/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4">
           <button 
             onClick={handleAddToCart}
-            className="p-4 bg-white text-brand-dark rounded-full hover:bg-brand-gold hover:text-white transition-colors shadow-lg"
+            disabled={isAdding}
+            className={`p-4 rounded-full transition-all shadow-lg ${
+              isAdding ? 'bg-emerald-500 text-white' : 'bg-white text-brand-dark hover:bg-brand-gold hover:text-white'
+            }`}
             title="Add to Cart"
           >
-            <ShoppingBag size={20} />
+            {isAdding ? <Check size={20} /> : <ShoppingBag size={20} />}
           </button>
           <Link 
-            to={`/product/${product.id}`}
+            to={`/product/${product.slug}`}
             className="p-4 bg-white text-brand-dark rounded-full hover:bg-brand-gold hover:text-white transition-colors shadow-lg"
             title="View Details"
           >
@@ -197,7 +212,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
         </div>
         
         <h3 className="font-serif text-base font-semibold group-hover:text-brand-gold transition-colors line-clamp-1">
-          <Link to={`/product/${product.id}`}>{product.name}</Link>
+          <Link to={`/product/${product.slug}`}>{product.name}</Link>
         </h3>
         
         <div className="flex items-center space-x-2">

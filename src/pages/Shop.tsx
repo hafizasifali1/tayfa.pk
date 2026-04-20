@@ -34,6 +34,19 @@ const Shop = () => {
   // Top filter dropdown states
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
+  const parseJsonSafe = (field: any) => {
+    if (Array.isArray(field)) return field;
+    if (typeof field === 'string') {
+      try {
+        const parsed = JSON.parse(field);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  };
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -101,7 +114,10 @@ const Shop = () => {
   const allTags = useMemo(() => {
     const tags = new Set<string>();
     if (Array.isArray(products)) {
-      products.forEach(p => p.tags?.forEach((t: string) => tags.add(t)));
+      products.forEach(p => {
+        const tagsList = parseJsonSafe(p.tags);
+        tagsList.forEach((t: string) => tags.add(t));
+      });
     }
     return Array.from(tags).sort();
   }, [products]);
@@ -109,7 +125,10 @@ const Shop = () => {
   const allColors = useMemo(() => {
     const colors = new Set<string>();
     if (Array.isArray(products)) {
-      products.forEach(p => p.colors?.forEach((c: string) => colors.add(c)));
+      products.forEach(p => {
+        const colorsList = parseJsonSafe(p.colors);
+        colorsList.forEach((c: string) => colors.add(c));
+      });
     }
     return Array.from(colors).sort();
   }, [products]);
@@ -204,11 +223,17 @@ const Shop = () => {
     });
 
     if (currentTags.length > 0) {
-      result = result.filter(p => p.tags?.some(t => currentTags.includes(t)));
+      result = result.filter(p => {
+        const tagsList = parseJsonSafe(p.tags);
+        return tagsList.some(t => currentTags.includes(t));
+      });
     }
 
     if (currentColors.length > 0) {
-      result = result.filter(p => p.colors?.some(c => currentColors.includes(c)));
+      result = result.filter(p => {
+        const colorsList = parseJsonSafe(p.colors);
+        return colorsList.some(c => currentColors.includes(c));
+      });
     }
 
     if (minPrice) {

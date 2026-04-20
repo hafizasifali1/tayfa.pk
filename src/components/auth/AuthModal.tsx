@@ -72,7 +72,7 @@ const BrandPanel = () => {
       className="hidden md:flex flex-col justify-between relative overflow-hidden"
       style={{
         background: 'linear-gradient(145deg,#1a1a1a 0%,#0f0e0c 60%,#1a1510 100%)',
-        padding: '60px 48px',
+        padding: '32px 48px',
         width: '50%',
         flexShrink: 0,
         flexGrow: 0,
@@ -85,9 +85,9 @@ const BrandPanel = () => {
       <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(ellipse 70% 50% at 20% 80%,rgba(201,168,76,.06) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 80% 20%,rgba(201,168,76,.04) 0%,transparent 60%)' }} />
 
       {/* Logo */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="relative z-10 flex flex-col items-center mt-12">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="relative z-10 flex flex-col items-center mt-4">
         <Link to="/">
-          <div style={{ width: 200, height: 68, backgroundColor: '#C9A84C', WebkitMaskImage: 'url("/Tayfa.png")', maskImage: 'url("/Tayfa.png")', WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' }} />
+          <div style={{ width: 180, height: 56, backgroundColor: '#C9A84C', WebkitMaskImage: 'url("/Tayfa.png")', maskImage: 'url("/Tayfa.png")', WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' }} />
         </Link>
       </motion.div>
 
@@ -100,15 +100,7 @@ const BrandPanel = () => {
           TAYFA streamlines your fashion operations, so you can focus on creativity while we handle the complexity.
         </motion.p>
 
-        {/* Feature Pills */}
-        <div className="flex flex-col items-center gap-2 mb-6">
-          {['Curated Fashion Marketplace', '24/7 Seller Support', 'Secure Payments'].map((pill, i) => (
-            <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 + i * 0.1 }} className="flex items-center gap-2">
-              <span style={{ color: '#C9A84C' }}>✦</span>
-              <span className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>{pill}</span>
-            </motion.div>
-          ))}
-        </div>
+
 
         {/* Social Media */}
         <div className="flex flex-col items-center gap-4 my-4">
@@ -131,7 +123,7 @@ const BrandPanel = () => {
       </div>
 
       {/* Seller community */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="relative z-10 flex flex-col items-center gap-5">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="relative z-10 flex flex-col items-center gap-4 mb-4">
         <div className="flex -space-x-3">
           {[
             { color: '#C9A84C', delay: 0 }, { color: '#A0896A', delay: 0.1 },
@@ -146,8 +138,7 @@ const BrandPanel = () => {
           ))}
         </div>
         <div className="text-center">
-          <p className="text-base font-bold tracking-widest uppercase" style={{ color: '#C9A84C' }}>500+ Active Sellers</p>
-          <p className="text-[12px] uppercase tracking-[0.3em] mt-1.5" style={{ color: '#7A726A' }}>Growing every day</p>
+          <p className="text-sm font-bold tracking-[0.3em] uppercase" style={{ color: '#C9A84C' }}>Growing every day</p>
         </div>
       </motion.div>
     </div>
@@ -278,7 +269,7 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
       </AnimatePresence>
 
       {/* Google Login */}
-      {role !== 'admin' && (
+      {role === 'user' && (
         <div className="pt-1">
           <div className="relative mb-4">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-brand-dark/5" /></div>
@@ -846,21 +837,10 @@ const AuthModal: React.FC = () => {
 
               <div className="flex flex-col bg-white" style={{ width: '50%', flexShrink: 0, flexGrow: 0, height: '100%', overflow: 'hidden' }}>
                 {/* Tab bar */}
-                <div className="flex-shrink-0 px-12 pt-8 pb-0">
-                  <h2 className="font-serif text-brand-dark text-center mb-6" style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2 }}>
+                <div className="flex-shrink-0 px-12 pt-12 pb-2">
+                  <h2 className="font-serif text-brand-dark text-center" style={{ fontSize: 32, fontWeight: 700, lineHeight: 1.2 }}>
                     {headings[activeTab]}
                   </h2>
-                  <div className="flex border-b border-brand-dark/5">
-                    {(['signin', 'signup', 'seller'] as AuthModalTab[]).map((tab) => (
-                      <button key={tab} onClick={() => setActiveTab(tab)}
-                        className={`flex-1 pb-3 text-[10px] font-bold uppercase tracking-widest transition-all relative ${activeTab === tab ? (tab === 'seller' ? 'text-brand-gold' : 'text-brand-dark') : 'text-brand-dark/30 hover:text-brand-dark/50'}`}>
-                        {tab === 'signin' ? 'Sign In' : tab === 'signup' ? 'Sign Up' : 'Sell on TAYFA'}
-                        {activeTab === tab && (
-                          <motion.div layoutId="tab-underline" className={`absolute bottom-0 left-0 right-0 h-0.5 ${tab === 'seller' ? 'bg-brand-gold' : 'bg-brand-dark'}`} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-12 py-6">

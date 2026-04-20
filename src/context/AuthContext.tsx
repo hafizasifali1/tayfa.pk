@@ -19,6 +19,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper to handle potentially double-stringified permissions from DB
+const safeParsePermissions = (permissions: any): ModulePermission[] => {
+  if (!permissions) return [];
+  if (Array.isArray(permissions)) return permissions;
+  
+  if (typeof permissions === 'string') {
+    try {
+      const parsed = JSON.parse(permissions);
+      // If it's still a string after one parse, it was double-stringified
+      if (typeof parsed === 'string') {
+        return safeParsePermissions(parsed);
+      }
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.warn('Failed to parse permissions string:', permissions);
+      return [];
+    }
+  }
+  
+  return [];
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | Seller | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -27,7 +49,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshRoles = async () => {
     try {
       const fetchedRoles = await rbacService.getRoles();
-      setRoles(Array.isArray(fetchedRoles) ? fetchedRoles : []);
+      const processedRoles = (Array.isArray(fetchedRoles) ? fetchedRoles : []).map(role => ({
+        ...role,
+        permissions: safeParsePermissions(role.permissions)
+      }));
+      setRoles(processedRoles);
     } catch (error) {
       console.error('Failed to fetch roles:', error);
       setRoles([]); // Fallback to empty array on error
@@ -40,7 +66,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await refreshRoles();
         const savedUser = localStorage.getItem('tayfa_user');
         if (savedUser) {
-          setUser(JSON.parse(savedUser));
+          const parsedUser = JSON.parse(savedUser);
+          // If the user has a role with permissions, we might need to parse them too if they were baked in
+          if (parsedUser.permissions) {
+            parsedUser.permissions = safeParsePermissions(parsedUser.permissions);
+          }
+          setUser(parsedUser);
         }
       } catch (error) {
         console.error('Auth initialization error:', error);

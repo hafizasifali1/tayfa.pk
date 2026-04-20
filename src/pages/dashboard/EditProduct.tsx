@@ -32,30 +32,12 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-// import SEOSettingsForm from '../../components/admin/SEO/SEOSettingsForm';
 import { SEOMetadata, Pricelist, TaxRule, Filter, FilterValue, Category } from '../../types';
 
 interface ProductImage {
   id: string;
   url: string;
 }
-
-const COLOR_OPTIONS = [
-  { name: 'Black', hex: '#000000' },
-  { name: 'White', hex: '#FFFFFF' },
-  { name: 'Red', hex: '#EF4444' },
-  { name: 'Blue', hex: '#3B82F6' },
-  { name: 'Green', hex: '#10B981' },
-  { name: 'Yellow', hex: '#F59E0B' },
-  { name: 'Purple', hex: '#8B5CF6' },
-  { name: 'Pink', hex: '#EC4899' },
-  { name: 'Beige', hex: '#F5F5DC' },
-  { name: 'Gold', hex: '#D4AF37' },
-  { name: 'Silver', hex: '#C0C0C0' },
-  { name: 'Navy', hex: '#000080' },
-  { name: 'Emerald', hex: '#50C878' },
-  { name: 'Maroon', hex: '#800000' },
-];
 
 const SortableImage = ({ img, index, onRemove }: { img: ProductImage, index: number, onRemove: (id: string) => void, key?: any }) => {
   const {
@@ -114,6 +96,8 @@ const EditProduct = () => {
   const [isFetching, setIsFetching] = useState(true);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [isDirty, setIsDirty] = useState(false);
+  const [initialData, setInitialData] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -161,13 +145,21 @@ const EditProduct = () => {
     })
   );
 
+  const parseJsonSafe = (val: any) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
+      try { return JSON.parse(val); } catch (e) { return []; }
+    }
+    return val || [];
+  };
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         const response = await axios.get(`/api/products?sellerId=${user?.id}`);
         const product = response.data.find((p: any) => p.id === id);
         if (product) {
-          setFormData({
+          const pData = {
             name: product.name || '',
             brand: product.brand || '',
             price: product.price?.toString() || '',
@@ -181,22 +173,26 @@ const EditProduct = () => {
             description: product.description || '',
             stock: product.stock?.toString() || '',
             sku: product.sku || '',
-            tags: product.tags || [],
-            colors: product.colors || [],
-            sizes: product.sizes || [],
+            tags: parseJsonSafe(product.tags),
+            colors: parseJsonSafe(product.colors),
+            sizes: parseJsonSafe(product.sizes),
             status: product.status || 'published',
             slug: product.slug || '',
             pricelistId: product.pricelistId || '',
             taxRuleId: product.taxRuleId || '',
-            dynamicFilters: product.dynamicFilters || {},
-            seo: product.seo || {
+            dynamicFilters: parseJsonSafe(product.dynamicFilters),
+            seo: parseJsonSafe(product.seo) || {
               title: '',
               description: '',
               keywords: '',
               robots: 'index, follow'
             },
-          });
-          setImages(product.images.map((url: string) => ({ id: Math.random().toString(36).substr(2, 9), url })));
+          };
+          setFormData(pData);
+          setInitialData(pData);
+          const pImages = parseJsonSafe(product.images).map((url: string) => ({ id: Math.random().toString(36).substr(2, 9), url }));
+          setImages(pImages);
+          setError('');
         } else {
           setError('Product not found');
         }
@@ -214,18 +210,21 @@ const EditProduct = () => {
   }, [id, user?.id]);
 
   useEffect(() => {
+    if (!initialData) return;
+    const isImagesDirty = JSON.stringify(images.map(i => i.url)) !== JSON.stringify(parseJsonSafe(initialData.images));
+    const isFormDirty = JSON.stringify(formData) !== JSON.stringify(initialData);
+    setIsDirty(isFormDirty || isImagesDirty);
+  }, [formData, images, initialData]);
+
+  useEffect(() => {
     const fetchPricelists = async () => {
       try {
         const response = await axios.get('/api/pricelists');
         if (Array.isArray(response.data)) {
           setPricelists(response.data);
-        } else {
-          console.error('Pricelists response is not an array:', response.data);
-          setPricelists([]);
         }
       } catch (err) {
         console.error('Error fetching pricelists:', err);
-        setPricelists([]);
       }
     };
     fetchPricelists();
@@ -276,9 +275,6 @@ const EditProduct = () => {
         const response = await axios.get(`/api/tax-rules?pricelistId=${formData.pricelistId}`);
         if (Array.isArray(response.data)) {
           setTaxRules(response.data.filter((rule: TaxRule) => rule.isActive));
-        } else {
-          console.error('Tax rules response is not an array:', response.data);
-          setTaxRules([]);
         }
       } catch (err) {
         console.error('Error fetching tax rules:', err);
@@ -292,7 +288,6 @@ const EditProduct = () => {
     const { name, value } = e.target;
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
-      // Auto-generate slug from name if slug is empty or was auto-generated
       if (name === 'name' && (!prev.slug || prev.slug === prev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))) {
         newData.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       }
@@ -344,7 +339,6 @@ const EditProduct = () => {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
     if (over && active.id !== over.id) {
       setImages((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
@@ -380,7 +374,6 @@ const EditProduct = () => {
     setFormData(prev => {
       const currentValues = prev.dynamicFilters[filterId] || [];
       let newValues: string[];
-
       if (type === 'dropdown') {
         newValues = [valueId];
       } else {
@@ -388,7 +381,6 @@ const EditProduct = () => {
           ? currentValues.filter(v => v !== valueId)
           : [...currentValues, valueId];
       }
-
       return {
         ...prev,
         dynamicFilters: {
@@ -397,31 +389,6 @@ const EditProduct = () => {
         }
       };
     });
-  };
-
-  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      const tag = tagInput.trim().replace(/,$/, '');
-      if (tag && !formData.tags.includes(tag)) {
-        setFormData(prev => ({
-          ...prev,
-          tags: [...prev.tags, tag]
-        }));
-        setTagInput('');
-      }
-    } else if (e.key === 'Backspace' && !tagInput && formData.tags.length > 0) {
-      const newTags = [...formData.tags];
-      newTags.pop();
-      setFormData(prev => ({ ...prev, tags: newTags }));
-    }
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
-    }));
   };
 
   const handleSubmit = async (overrideStatus?: 'draft' | 'published' | 'archived') => {
@@ -453,7 +420,6 @@ const EditProduct = () => {
       };
 
       await axios.put(`/api/products/${id}`, updatedProduct);
-      
       setSuccess(true);
       setTimeout(() => navigate('/seller/dashboard'), 2000);
     } catch (err: any) {
@@ -478,8 +444,9 @@ const EditProduct = () => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-20">
-      <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-widest text-brand-dark/40 mb-8">
+    <>
+      <div className="max-w-5xl mx-auto pb-20">
+        <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-widest text-brand-dark/40 mb-8">
           <span>Inventory</span>
           <ChevronRight size={14} />
           <span className="text-brand-gold">Edit Product</span>
@@ -489,12 +456,14 @@ const EditProduct = () => {
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 bg-green-50 border border-green-200 text-green-600 p-6 rounded-[2rem] flex items-center space-x-4"
+            className="mb-12 bg-emerald-50 border border-emerald-100/50 text-emerald-700 p-8 rounded-[2.5rem] flex items-center space-x-6 shadow-sm"
           >
-            <CheckCircle2 size={32} />
+            <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-500/20">
+              <CheckCircle2 size={24} />
+            </div>
             <div>
-              <h3 className="font-bold text-lg">Success!</h3>
-              <p className="text-sm opacity-80">Your product has been updated successfully. Redirecting to dashboard...</p>
+              <h3 className="font-serif text-xl">Updates Saved Successfully</h3>
+              <p className="text-sm opacity-70">Redirecting to inventory list...</p>
             </div>
           </motion.div>
         )}
@@ -503,15 +472,101 @@ const EditProduct = () => {
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 bg-red-50 border border-red-200 text-red-600 p-6 rounded-[2rem] flex items-center space-x-4"
+            className="mb-12 bg-rose-50 border border-rose-100 text-rose-600 p-8 rounded-[2.5rem] flex items-center space-x-6 shadow-sm"
           >
-            <AlertCircle size={32} />
+            <div className="w-12 h-12 bg-rose-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-lg shadow-rose-500/20">
+              <AlertCircle size={24} />
+            </div>
             <div>
-              <h3 className="font-bold text-lg">Oops! Something went wrong</h3>
-              <p className="text-sm opacity-80">{error}</p>
+              <h3 className="font-serif text-xl">Action Required</h3>
+              <p className="text-sm opacity-70">{error}</p>
             </div>
           </motion.div>
         )}
+
+        {/* Full-width Image Section at Top */}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-brand-dark/5 shadow-sm space-y-8 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-brand-dark/5 pb-6">
+            <div>
+              <h3 className="text-2xl font-serif text-brand-dark">Product Gallery</h3>
+              <p className="text-xs text-brand-dark/40 font-bold uppercase tracking-widest mt-1">Showcase your masterpiece in detail</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/30">Storage</p>
+                <p className="text-xs font-bold text-brand-dark">{images.length} / 8 Images</p>
+              </div>
+              <div className="w-px h-8 bg-brand-dark/5" />
+              <div className="flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('image-upload')?.click()}
+                  disabled={images.length >= 8}
+                  className="bg-brand-dark/5 text-brand-dark px-6 py-3 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-brand-dark/10 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  Upload New
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSubmit()}
+                  disabled={isLoading || !formData.name}
+                  className={`flex items-center space-x-3 px-8 py-3 rounded-full font-bold uppercase tracking-[0.2em] text-[10px] transition-all duration-500 shadow-lg relative ${
+                    isDirty 
+                      ? 'bg-brand-dark text-white hover:bg-brand-gold active:scale-95' 
+                      : 'bg-brand-dark/10 text-brand-dark/40 cursor-default'
+                  }`}
+                >
+                  {isLoading ? (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  ) : (
+                    <Save size={14} />
+                  )}
+                  <span>{isLoading ? 'Saving...' : 'Update Product'}</span>
+                  
+                  {isDirty && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-brand-gold rounded-full border-2 border-white animate-bounce shadow-sm" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6">
+            <div 
+              {...getRootProps()} 
+              className={`aspect-[4/5] border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center transition-all duration-500 group ${
+                isDragActive ? 'border-brand-gold bg-brand-gold/5 scale-[0.98]' : 'border-brand-dark/5 hover:border-brand-gold/40 hover:bg-brand-gold/5'
+              } ${images.length >= 8 ? 'hidden' : 'cursor-pointer'}`}
+            >
+              <input {...getInputProps()} id="image-upload" />
+              <div className="w-12 h-12 bg-brand-dark/5 rounded-2xl flex items-center justify-center text-brand-dark/20 group-hover:text-brand-gold group-hover:bg-brand-gold/10 transition-all duration-500 mb-4">
+                <Upload size={24} />
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 group-hover:text-brand-gold/80 transition-colors">Add Image</p>
+              <p className="text-[8px] text-brand-dark/20 mt-1 uppercase">4:5 ratio</p>
+            </div>
+
+            <DndContext 
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext 
+                items={images.map(img => img.id)}
+                strategy={rectSortingStrategy}
+              >
+                {images.map((img, idx) => (
+                  <SortableImage 
+                    key={img.id} 
+                    img={img} 
+                    index={idx} 
+                    onRemove={removeImage} 
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
@@ -609,80 +664,12 @@ const EditProduct = () => {
                 </div>
               </div>
             </div>
-
-            <div className="bg-white p-8 rounded-[2.5rem] border border-brand-dark/5 shadow-sm space-y-6">
-              <h3 className="text-xl font-serif text-brand-dark border-b border-brand-dark/5 pb-4">Product Images</h3>
-              <div className="space-y-4">
-                <div className="flex space-x-2">
-                  <input
-                    type="url"
-                    value={imageInput}
-                    onChange={(e) => setImageInput(e.target.value)}
-                    className="flex-1 px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
-                    placeholder="Paste image URL here..."
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddImage}
-                    disabled={!imageInput || images.length >= 8}
-                    className="px-6 py-3 bg-brand-dark text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-dark/90 transition-all disabled:opacity-50"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div 
-                  {...getRootProps()} 
-                  className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
-                    isDragActive ? 'border-brand-gold bg-brand-gold/5' : 'border-brand-dark/10 hover:border-brand-gold/40'
-                  } ${images.length >= 8 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <input {...getInputProps()} />
-                  <Upload size={32} className="mx-auto mb-3 text-brand-dark/20" />
-                  <p className="text-sm text-brand-dark/60">
-                    {isDragActive ? 'Drop images here' : 'Drag & drop multiple images or click to browse'}
-                  </p>
-                </div>
-
-                <div className="bg-brand-cream/30 p-4 rounded-2xl border border-brand-gold/10">
-                  <h5 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-2">Image Guidelines</h5>
-                  <ul className="text-[10px] text-brand-dark/60 space-y-1 list-disc pl-4">
-                    <li>Recommended Aspect Ratio: <span className="font-bold text-brand-dark">4:5 (Portrait)</span></li>
-                    <li>Recommended Dimensions: <span className="font-bold text-brand-dark">1000 x 1250 px</span></li>
-                    <li>Maximum file size: <span className="font-bold text-brand-dark">2MB per image</span></li>
-                    <li>Use high-quality, clear images with neutral backgrounds</li>
-                  </ul>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <DndContext 
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext 
-                      items={images.map(img => img.id)}
-                      strategy={rectSortingStrategy}
-                    >
-                      {images.map((img, idx) => (
-                        <SortableImage 
-                          key={img.id} 
-                          img={img} 
-                          index={idx} 
-                          onRemove={removeImage} 
-                        />
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="space-y-8">
             {/* SEO Settings */}
             <div className="bg-white p-8 rounded-[2.5rem] border border-brand-dark/5 shadow-sm space-y-6">
               <h3 className="text-xl font-serif text-brand-dark border-b border-brand-dark/5 pb-4">Search Engine Optimization (SEO)</h3>
-              
               <div className="space-y-6">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Product Slug / URL *</label>
@@ -698,14 +685,7 @@ const EditProduct = () => {
                       placeholder="e.g. embroidered-silk-suit"
                     />
                   </div>
-                  <p className="mt-1 text-[8px] text-brand-dark/40 uppercase tracking-widest">The unique URL path for this product.</p>
                 </div>
-
-                {/* <SEOSettingsForm 
-                  metadata={formData.seo} 
-                  onChange={(seo) => setFormData(prev => ({ ...prev, seo }))}
-                  pagePath={`/product/${formData.slug}`}
-                /> */}
               </div>
             </div>
 
@@ -720,13 +700,10 @@ const EditProduct = () => {
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                   >
-                    <option value="">Select Parent Category (Optional)</option>
-                    {categories
-                      .filter(c => !c.parentId)
-                      .map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))
-                    }
+                    <option value="">Select Parent Category</option>
+                    {categories.filter(c => !c.parentId).map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -740,12 +717,9 @@ const EditProduct = () => {
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                   >
                     <option value="">Select Child Category</option>
-                    {categories
-                      .filter(c => formData.parentCategoryId ? c.parentId === formData.parentCategoryId : c.parentId)
-                      .map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))
-                    }
+                    {categories.filter(c => formData.parentCategoryId ? c.parentId === formData.parentCategoryId : c.parentId).map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -759,7 +733,7 @@ const EditProduct = () => {
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                   >
                     <option value="">Select a Pricelist</option>
-                    {Array.isArray(pricelists) && pricelists.map(pl => (
+                    {pricelists.map(pl => (
                       <option key={pl.id} value={pl.id}>{pl.name} ({pl.currency})</option>
                     ))}
                   </select>
@@ -775,13 +749,10 @@ const EditProduct = () => {
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm disabled:opacity-50"
                   >
                     <option value="">No Tax / Select Tax Rule</option>
-                    {Array.isArray(taxRules) && taxRules.map(rule => (
-                      <option key={rule.id} value={rule.id}>{rule.name} ({rule.rate}%) - {rule.country}</option>
+                    {taxRules.map(rule => (
+                      <option key={rule.id} value={rule.id}>{rule.name} ({rule.rate}%)</option>
                     ))}
                   </select>
-                  {!formData.pricelistId && (
-                    <p className="mt-1 text-[8px] text-brand-dark/40 uppercase tracking-widest">Please select a pricelist first to see available tax rules.</p>
-                  )}
                 </div>
 
                 <div>
@@ -804,7 +775,6 @@ const EditProduct = () => {
                   </div>
                 </div>
 
-                {/* Dynamic Filters */}
                 {dynamicFilters.length > 0 && (
                   <div className="pt-6 border-t border-brand-dark/5 space-y-6">
                     <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Marketplace Filters</h4>
@@ -849,22 +819,14 @@ const EditProduct = () => {
                   <option value="archived">Archived</option>
                 </select>
               </div>
-              <div className="space-y-4 pt-4 border-t border-brand-dark/5">
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => handleSubmit()}
-                  className="w-full flex items-center justify-center space-x-2 py-4 px-6 bg-brand-dark text-white rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-brand-dark/90 transition-all disabled:opacity-50"
-                >
-                  <Save size={16} />
-                  <span>{isLoading ? 'Saving...' : 'Update Product'}</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
+
+        {/* Removed Sticky Bottom Actions */}
       </div>
-    );
+    </>
+  );
 };
 
 export default EditProduct;

@@ -36,7 +36,7 @@ const Home = () => {
     fetchData();
   }, []);
 
-  const featuredProducts = products.filter(p => p.isFeatured).slice(0, 4);
+  const featuredProducts = products.filter(p => p.status === 'published').slice(0, 6);
   const { globalSettings, pageMetadata } = useSEO('/');
 
   return (
@@ -207,13 +207,16 @@ const Home = () => {
               <h2 className="text-4xl font-serif mb-2 font-medium">Featured Collection</h2>
               <p className="text-brand-dark-muted font-medium">Handpicked luxury pieces for your wardrobe</p>
             </div>
-            <Link to="/shop" className="text-brand-gold font-medium hover:underline flex items-center space-x-2">
-              <span>View All</span>
-              <ArrowRight size={16} />
+            <Link 
+              to="/shop" 
+              className="group flex items-center space-x-2 px-6 py-3 bg-brand-gold/10 hover:bg-brand-gold text-brand-gold hover:text-white rounded-full transition-all duration-300 font-bold uppercase tracking-widest text-[10px]"
+            >
+              <span>View All Pieces</span>
+              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-8 sm:gap-10">
             {featuredProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

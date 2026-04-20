@@ -78,6 +78,16 @@ const runMigrations = async () => {
     // Products
     try { await db.execute(sql`ALTER TABLE products ADD COLUMN parent_category_id ${sql.raw(idType)}`); } catch (e) { }
     try { await db.execute(sql`ALTER TABLE products ADD COLUMN subcategory VARCHAR(100)`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN seller_id ${sql.raw(idType)}`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN sku VARCHAR(255)`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN pricelist_id ${sql.raw(idType)}`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN tax_rule_id ${sql.raw(idType)}`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN dynamic_filters JSON`); } catch (e) { }
+    // Ensure images column is large enough for Base64 (LONGTEXT for MySQL)
+    if (isMysql) {
+      try { await db.execute(sql`ALTER TABLE products MODIFY COLUMN images LONGTEXT`); } catch (e) { }
+      try { await db.execute(sql`ALTER TABLE products MODIFY COLUMN description LONGTEXT`); } catch (e) { }
+    }
 
     // Tax Rules
     try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN state VARCHAR(100)`); } catch (e) { }
@@ -180,6 +190,21 @@ const getPagination = (query: any) => {
   const limit = parseInt(query.limit as string) || 10;
   const offset = (page - 1) * limit;
   return { limit, offset };
+};
+
+// Helper to ensure JSON fields are parsed correctly (handles double-stringification)
+const parseJsonField = (field: any) => {
+  if (typeof field === 'string') {
+    try {
+      const parsed = JSON.parse(field);
+      // If the result is still a string, it might have been double-stringified
+      if (typeof parsed === 'string') return parseJsonField(parsed);
+      return parsed;
+    } catch (e) {
+      return field;
+    }
+  }
+  return field;
 };
 
 // --- Coupons API ---
@@ -535,6 +560,11 @@ router.get('/products', async (req, res) => {
       gender: products.gender,
       type: products.type,
       subcategory: products.subcategory,
+      sellerId: products.sellerId,
+      sku: products.sku,
+      pricelistId: products.pricelistId,
+      taxRuleId: products.taxRuleId,
+      dynamicFilters: products.dynamicFilters,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
     })
@@ -559,9 +589,23 @@ router.get('/products', async (req, res) => {
         filterMap[fv.productId][fv.filterId].push(fv.valueId);
       });
 
-      // Attach to products
+      // Attach to products and ensure JSON fields are parsed
       result.forEach((p: any) => {
-        p.dynamicFilters = filterMap[p.id] || {};
+        p.dynamicFilters = p.dynamicFilters || filterMap[p.id] || {};
+        p.images = parseJsonField(p.images);
+        p.sizes = parseJsonField(p.sizes);
+        p.colors = parseJsonField(p.colors);
+        p.tags = parseJsonField(p.tags);
+        p.dynamicFilters = parseJsonField(p.dynamicFilters);
+      });
+    } else {
+      // Still parse JSON fields even if no filters
+      result.forEach((p: any) => {
+        p.images = parseJsonField(p.images);
+        p.sizes = parseJsonField(p.sizes);
+        p.colors = parseJsonField(p.colors);
+        p.tags = parseJsonField(p.tags);
+        p.dynamicFilters = parseJsonField(p.dynamicFilters);
       });
     }
 
@@ -577,7 +621,16 @@ router.post('/products', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'Database not connected' });
     const id = uuidv4();
     const slug = (req.body.name || '').toLowerCase().replace(/ /g, '-') + '-' + id.substring(0, 8);
-    await db.insert(products).values({ ...req.body, id, slug });
+    
+    // Ensure JSON fields are properly parsed before insertion
+    const data = { ...req.body };
+    data.images = parseJsonField(data.images);
+    data.sizes = parseJsonField(data.sizes);
+    data.colors = parseJsonField(data.colors);
+    data.tags = parseJsonField(data.tags);
+    data.dynamicFilters = parseJsonField(data.dynamicFilters);
+    
+    await db.insert(products).values({ ...data, id, slug });
     const [newProduct] = await db.select().from(products).where(eq(products.id, id));
     res.status(201).json(newProduct);
   } catch (error) {
@@ -588,7 +641,15 @@ router.post('/products', async (req, res) => {
 
 router.put('/products/:id', async (req, res) => {
   try {
-    await db.update(products).set(req.body).where(eq(products.id, req.params.id));
+    // Ensure JSON fields are properly parsed before update
+    const data = { ...req.body };
+    if (data.images) data.images = parseJsonField(data.images);
+    if (data.sizes) data.sizes = parseJsonField(data.sizes);
+    if (data.colors) data.colors = parseJsonField(data.colors);
+    if (data.tags) data.tags = parseJsonField(data.tags);
+    if (data.dynamicFilters) data.dynamicFilters = parseJsonField(data.dynamicFilters);
+
+    await db.update(products).set(data).where(eq(products.id, req.params.id));
     const [updated] = await db.select().from(products).where(eq(products.id, req.params.id));
     res.json(updated);
   } catch (error) {
@@ -658,6 +719,12 @@ router.get('/products/:slug', async (req, res) => {
     });
 
     (product as any).dynamicFilters = dynamicFiltersMap;
+    
+    // Ensure JSON fields are parsed
+    product.images = parseJsonField(product.images);
+    product.sizes = parseJsonField(product.sizes);
+    product.colors = parseJsonField(product.colors);
+    product.tags = parseJsonField(product.tags);
 
     res.json(product);
   } catch (error) {
@@ -2105,7 +2172,7 @@ router.get('/roles', async (req, res) => {
         }
       ]);
     }
-    const result = await db.select().from(roles).orderBy(desc(roles.createdAt));
+    let result = await db.select().from(roles).orderBy(desc(roles.createdAt));
     if (result.length === 0) {
       // Seed default roles if empty
       const defaultRoles = [
@@ -2146,9 +2213,25 @@ router.get('/roles', async (req, res) => {
           ]
         }
       ];
-      return res.json(defaultRoles);
+      
+      for (const role of defaultRoles) {
+        try {
+          await db.insert(roles).values(role);
+        } catch (e) {
+          console.error(`Failed to seed role ${role.id}:`, e);
+        }
+      }
+      
+      result = await db.select().from(roles).orderBy(desc(roles.createdAt));
     }
-    res.json(result);
+    
+    // Ensure permissions are clean JSON objects
+    const cleanedResult = result.map(role => ({
+      ...role,
+      permissions: parseJsonField(role.permissions)
+    }));
+    
+    res.json(cleanedResult);
   } catch (error) {
     console.error('Error fetching roles:', error);
     res.status(500).json({ error: 'Failed to fetch roles' });
@@ -2159,9 +2242,19 @@ router.post('/roles', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const id = uuidv4();
-    await db.insert(roles).values({ ...req.body, id });
+    const data = { ...req.body, id };
+    
+    // Ensure permissions is a clean object
+    if (data.permissions) {
+      data.permissions = parseJsonField(data.permissions);
+    }
+    
+    await db.insert(roles).values(data);
     const [newRole] = await db.select().from(roles).where(eq(roles.id, id));
-    res.status(201).json(newRole);
+    res.status(201).json({
+      ...newRole,
+      permissions: parseJsonField(newRole.permissions)
+    });
   } catch (error) {
     console.error('Error creating role:', error);
     res.status(500).json({ error: 'Failed to create role' });
@@ -2173,34 +2266,53 @@ router.patch('/roles/:id', async (req, res) => {
     const adminId = req.body.adminId;
     const targetRoleId = req.params.id;
 
+    if (!idType) { // redundant but safe
+        // No checks needed if DB not used, though it currently always is
+    }
+
     if (process.env.DATABASE_URL) {
       // 1. Fetch requester
       const [requester] = await db.select().from(users).where(eq(users.id, adminId));
-      if (!requester) return res.status(401).json({ error: 'Unauthorized' });
+      if (!requester) {
+        console.error('UpdateRole: Requester not found', { adminId });
+        return res.status(401).json({ error: 'Unauthorized: User not found' });
+      }
 
       // 2. Enforce hierarchy
       if (targetRoleId === 'super_admin') {
         return res.status(403).json({ error: 'Super Administrator role cannot be modified via API for safety.' });
       }
 
-      if (targetRoleId === 'admin' && requester.role !== 'super_admin') {
+      const isAdmin = requester.role === 'admin' || requester.role === 'super_admin';
+      const isSuperAdmin = requester.role === 'super_admin';
+
+      if (targetRoleId === 'admin' && !isSuperAdmin) {
         return res.status(403).json({ error: 'Only a Super Administrator can modify the Administrator role.' });
       }
 
-      if (requester.role !== 'super_admin' && requester.role !== 'admin') {
+      if (!isAdmin) {
         return res.status(403).json({ error: 'Insufficient privileges to modify roles.' });
       }
+    }
+
+    const updateData = { ...req.body };
+    if (updateData.permissions) {
+      updateData.permissions = parseJsonField(updateData.permissions);
     }
 
     const updated = await handlePatchUpdate({
       table: roles,
       id: targetRoleId,
-      data: req.body,
+      data: updateData,
       userId: adminId || 'system',
       module: 'Role',
       allowedFields: ['name', 'description', 'permissions', 'isSystem']
     });
-    res.json(updated);
+    
+    res.json({
+      ...updated,
+      permissions: parseJsonField(updated.permissions)
+    });
   } catch (error: any) {
     console.error('Error updating role:', error);
     res.status(error.message.includes('not found') ? 404 : 400).json({ error: error.message });
@@ -2470,7 +2582,6 @@ router.post('/auth/login', async (req, res) => {
       return res.status(403).json({ error: 'Your account is inactive.' });
     }
 
-    // Don't send password back
     const { password: _, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
   } catch (error) {

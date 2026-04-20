@@ -61,7 +61,7 @@ const SellerLayout = () => {
         { icon: Ticket, label: 'Coupons', path: '/seller/coupons', module: 'coupons' },
         { icon: Tag, label: 'Discounts', path: '/seller/discounts', module: 'discounts' },
         { icon: Upload, label: 'Bulk Upload', path: '/seller/bulk-upload', module: 'bulk_upload' },
-        { icon: Plus, label: 'Add Product', path: '/seller/add-product', module: 'products' },
+        { icon: Package, label: 'Product', path: '/seller/products', module: 'products' },
       ]
     },
     {

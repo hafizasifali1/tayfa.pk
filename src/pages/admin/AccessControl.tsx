@@ -35,10 +35,10 @@ const AccessControl = () => {
   const { roles, refreshRoles, user } = useAuth();
   const [activeRoleId, setActiveRoleId] = useState<string>('admin');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [localRoles, setLocalRoles] = useState<RoleConfig[]>([]);
   const [showNewRoleModal, setShowNewRoleModal] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
-
   const isSuperAdmin = user?.role === 'super_admin';
   const isAdmin = user?.role === 'admin';
 
@@ -92,13 +92,16 @@ const AccessControl = () => {
   const handleSave = async () => {
     if (!activeRole) return;
     setIsSaving(true);
+    setSaveStatus('idle');
     try {
       await rbacService.updateRole(activeRole.id, activeRole, user?.id);
       await refreshRoles();
-      // alert('Permissions saved successfully!');
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
       console.error('Failed to save permissions:', error);
-      // alert('Failed to save permissions.');
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 5000);
     } finally {
       setIsSaving(false);
     }
@@ -145,22 +148,43 @@ const AccessControl = () => {
           <p className="text-brand-dark/60">Define and manage role-based access permissions across the platform.</p>
         </div>
         
-        <div className="flex items-center space-x-4">
-          <Button 
-            variant="outline"
-            onClick={() => setShowNewRoleModal(true)}
-            icon={<Plus size={20} />}
-          >
-            New Role
-          </Button>
-          <Button 
-            onClick={handleSave}
-            disabled={isSaving || !canEditActiveRole()}
-            icon={isSaving ? <RefreshCcw size={20} className="animate-spin" /> : <Save size={20} />}
-          >
-            {isSaving ? 'Saving...' : 'Save Permissions'}
-          </Button>
-        </div>
+          <div className="flex flex-col items-end space-y-2">
+            <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline"
+                onClick={() => setShowNewRoleModal(true)}
+                icon={<Plus size={20} />}
+              >
+                New Role
+              </Button>
+              <Button 
+                onClick={handleSave}
+                disabled={isSaving || !canEditActiveRole()}
+                icon={isSaving ? <RefreshCcw size={20} className="animate-spin" /> : <Save size={20} />}
+                className={saveStatus === 'success' ? 'bg-green-600 hover:bg-green-700' : ''}
+              >
+                {isSaving ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : 'Save Permissions'}
+              </Button>
+            </div>
+            {saveStatus === 'success' && (
+              <motion.span 
+                initial={{ opacity: 0, y: -10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="text-[10px] font-bold text-green-600 uppercase tracking-widest"
+              >
+                Permissions updated successfully
+              </motion.span>
+            )}
+            {saveStatus === 'error' && (
+              <motion.span 
+                initial={{ opacity: 0, y: -10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="text-[10px] font-bold text-rose-600 uppercase tracking-widest"
+              >
+                Failed to save. Check permissions.
+              </motion.span>
+            )}
+          </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
@@ -282,19 +306,7 @@ const AccessControl = () => {
               )}
             </div>
             
-            {canEditActiveRole() && (
-              <div className="p-8 bg-brand-cream/30 flex justify-between items-center">
-                <div className="flex items-center space-x-2 text-rose-600">
-                  <AlertCircle size={16} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Changes will affect all users immediately</span>
-                </div>
-                <Button 
-                  onClick={handleSave}
-                >
-                  Save Changes
-                </Button>
-              </div>
-            )}
+            {/* Removed redundant footer button */}
           </Card>
         </div>
       </div>
