@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | Seller | null;
   login: (email: string, password: string, role?: string) => Promise<void>;
   socialLogin: (provider: 'google' | 'apple', role: string) => Promise<void>;
+  googleLogin: (token: string, role: string) => Promise<void>;
   registerUser: (data: any) => Promise<void>;
   registerSeller: (data: any) => Promise<void>;
   updateProfile: (data: any) => Promise<void>;
@@ -109,6 +110,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('tayfa_last_role', role);
   };
 
+  const googleLogin = async (token: string, role: string) => {
+    try {
+      const response = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, role })
+      });
+
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (e) {
+        console.error("Server response was not JSON:", text);
+        throw new Error("Invalid response from server. Did you restart the server?");
+      }
+
+      if (response.ok) {
+        setUser(data);
+        localStorage.setItem('tayfa_user', JSON.stringify(data));
+        localStorage.setItem('tayfa_last_role', role);
+      } else {
+        throw new Error(data.error || 'Google login failed');
+      }
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      throw error;
+    }
+  };
+
   const registerUser = async (data: any) => {
     try {
       const response = await fetch('/api/auth/register', {
@@ -198,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, socialLogin, registerUser, registerSeller, updateProfile, logout, isAuthReady, hasPermission, roles, refreshRoles }}>
+    <AuthContext.Provider value={{ user, login, socialLogin, googleLogin, registerUser, registerSeller, updateProfile, logout, isAuthReady, hasPermission, roles, refreshRoles }}>
       {children}
     </AuthContext.Provider>
   );

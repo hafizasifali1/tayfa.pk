@@ -1,17 +1,17 @@
 import express from 'express';
 import { db } from '../db';
-import { 
-  products, 
-  brands, 
-  categories, 
-  promotions, 
+import {
+  products,
+  brands,
+  categories,
+  promotions,
   coupons,
   invoices,
   creditNotes,
   ledgers,
   auditLogs,
-  blogs, 
-  pages, 
+  blogs,
+  pages,
   settings,
   orders,
   pricelists,
@@ -44,6 +44,7 @@ import { eq, desc, and, gte, lte, like, sql, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
 import { SEOEntityType } from '../types';
 
 const router = express.Router();
@@ -53,55 +54,55 @@ const idType = isMysql ? 'CHAR(36)' : 'UUID';
 // --- Database Migration Helper ---
 const runMigrations = async () => {
   if (!process.env.DATABASE_URL) return;
-  
+
   console.log('Checking for missing columns in database...');
   try {
     // Brands
-    try { await db.execute(sql`ALTER TABLE brands ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE brands ADD COLUMN seo JSON`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE brands ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) {}
-    
+    try { await db.execute(sql`ALTER TABLE brands ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE brands ADD COLUMN seo JSON`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE brands ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
+
     // Categories
-    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN parent_id ${sql.raw(idType)}`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN display_order INTEGER DEFAULT 0`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN is_featured BOOLEAN DEFAULT FALSE`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN seo JSON`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) {}
-    try { 
+    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN parent_id ${sql.raw(idType)}`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN display_order INTEGER DEFAULT 0`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN is_featured BOOLEAN DEFAULT FALSE`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN seo JSON`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE categories ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
+    try {
       await db.execute(sql`ALTER TABLE categories ADD COLUMN icon TEXT`);
       // Try to migrate data from image column if it exists
-      try { await db.execute(sql`UPDATE categories SET icon = image WHERE icon IS NULL`); } catch (e) {}
-    } catch (e) {}
+      try { await db.execute(sql`UPDATE categories SET icon = image WHERE icon IS NULL`); } catch (e) { }
+    } catch (e) { }
 
     // Products
-    try { await db.execute(sql`ALTER TABLE products ADD COLUMN parent_category_id ${sql.raw(idType)}`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE products ADD COLUMN subcategory VARCHAR(100)`); } catch (e) {}
-    
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN parent_category_id ${sql.raw(idType)}`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN subcategory VARCHAR(100)`); } catch (e) { }
+
     // Tax Rules
-    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN state VARCHAR(100)`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN pricelist_id CHAR(36)`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) {}
-    
+    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN state VARCHAR(100)`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN pricelist_id CHAR(36)`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
+
     // Blogs
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN status VARCHAR(50) DEFAULT 'published'`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN seo JSON`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN excerpt TEXT`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN category VARCHAR(100)`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN published_at TIMESTAMP`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN cover_image TEXT`); } catch (e) {}
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) {}
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN status VARCHAR(50) DEFAULT 'published'`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN seo JSON`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN excerpt TEXT`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN category VARCHAR(100)`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN published_at TIMESTAMP`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN cover_image TEXT`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
 
     // Promote specific user to super_admin
     try {
       await db.execute(sql`UPDATE users SET role = 'super_admin' WHERE email = 'tayyab786fq@gmail.com'`);
-    } catch (e) {}
+    } catch (e) { }
 
     // Dynamic Filters
     const idTypeFilter = isMysql ? 'CHAR(36)' : 'TEXT';
     const jsonType = isMysql ? 'JSON' : 'TEXT';
-    
+
     try {
       await db.execute(sql`CREATE TABLE IF NOT EXISTS filters (
         id ${sql.raw(idTypeFilter)} PRIMARY KEY,
@@ -113,7 +114,7 @@ const runMigrations = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       await db.execute(sql`CREATE TABLE IF NOT EXISTS filter_values (
@@ -125,7 +126,7 @@ const runMigrations = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       await db.execute(sql`CREATE TABLE IF NOT EXISTS product_filter_values (
@@ -135,12 +136,12 @@ const runMigrations = async () => {
         value_id ${sql.raw(idTypeFilter)} NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`);
-      
+
       // Ensure columns exist if table was created with old schema
-      try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN filter_id ${sql.raw(idTypeFilter)}`); } catch (e) {}
-      try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN value_id ${sql.raw(idTypeFilter)}`); } catch (e) {}
-      try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
-    } catch (e) {}
+      try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN filter_id ${sql.raw(idTypeFilter)}`); } catch (e) { }
+      try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN value_id ${sql.raw(idTypeFilter)}`); } catch (e) { }
+      try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`); } catch (e) { }
+    } catch (e) { }
 
     // SEO
     try {
@@ -162,7 +163,7 @@ const runMigrations = async () => {
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`);
-    } catch (e) {}
+    } catch (e) { }
 
     console.log('Database migration check completed.');
   } catch (error) {
@@ -187,17 +188,17 @@ router.get('/coupons', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { sellerId, isActive } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (sellerId) conditions.push(eq(coupons.sellerId, sellerId as string));
     if (isActive !== undefined) conditions.push(eq(coupons.isActive, isActive === 'true'));
-    
+
     const result = await db.select().from(coupons)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(coupons.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch coupons' });
@@ -211,11 +212,11 @@ router.get('/filters', async (req, res) => {
     const { isActive } = req.query;
     let conditions = [];
     if (isActive !== undefined) conditions.push(eq(filters.isActive, isActive === 'true'));
-    
+
     const result = await db.select().from(filters)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(filters.displayOrder);
-      
+
     res.json(result);
   } catch (error) {
     console.error('Error fetching filters:', error);
@@ -227,13 +228,13 @@ router.post('/filters', async (req, res) => {
   try {
     const id = uuidv4();
     const { name, type, displayOrder, isActive, labels } = req.body;
-    await db.insert(filters).values({ 
-      id, 
-      name, 
-      type, 
-      displayOrder: displayOrder || 0, 
-      isActive: isActive !== undefined ? isActive : true, 
-      labels: labels || {} 
+    await db.insert(filters).values({
+      id,
+      name,
+      type,
+      displayOrder: displayOrder || 0,
+      isActive: isActive !== undefined ? isActive : true,
+      labels: labels || {}
     });
     const [newFilter] = await db.select().from(filters).where(eq(filters.id, id));
     res.status(201).json(newFilter);
@@ -277,11 +278,11 @@ router.get('/filter-values', async (req, res) => {
     const { filterId } = req.query;
     let conditions = [];
     if (filterId) conditions.push(eq(filterValues.filterId, filterId as string));
-    
+
     const result = await db.select().from(filterValues)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(filterValues.displayOrder);
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch filter values' });
@@ -292,12 +293,12 @@ router.post('/filter-values', async (req, res) => {
   try {
     const id = uuidv4();
     const { filterId, value, labels, displayOrder } = req.body;
-    await db.insert(filterValues).values({ 
-      id, 
-      filterId, 
-      value, 
-      labels: labels || {}, 
-      displayOrder: displayOrder || 0 
+    await db.insert(filterValues).values({
+      id,
+      filterId,
+      value,
+      labels: labels || {},
+      displayOrder: displayOrder || 0
     });
     const [newValue] = await db.select().from(filterValues).where(eq(filterValues.id, id));
     res.status(201).json(newValue);
@@ -368,17 +369,17 @@ router.get('/invoices', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { sellerId, status } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (sellerId) conditions.push(eq(invoices.sellerId, sellerId as string));
     if (status) conditions.push(eq(invoices.status, status as string));
-    
+
     const result = await db.select().from(invoices)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(invoices.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch invoices' });
@@ -411,17 +412,17 @@ router.get('/credit-notes', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { invoiceId, status } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (invoiceId) conditions.push(eq(creditNotes.invoiceId, invoiceId as string));
     if (status) conditions.push(eq(creditNotes.status, status as string));
-    
+
     const result = await db.select().from(creditNotes)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(creditNotes.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch credit notes' });
@@ -454,17 +455,17 @@ router.get('/ledgers', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { entityId, entityType } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (entityId) conditions.push(eq(ledgers.entityId, entityId as string));
     if (entityType) conditions.push(eq(ledgers.entityType, entityType as string));
-    
+
     const result = await db.select().from(ledgers)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(ledgers.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch ledger' });
@@ -477,17 +478,17 @@ router.get('/audit-logs', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { userId, module } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (userId) conditions.push(eq(auditLogs.userId, userId as string));
     if (module) conditions.push(eq(auditLogs.module, module as string));
-    
+
     const result = await db.select().from(auditLogs)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(auditLogs.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch audit logs' });
@@ -498,7 +499,7 @@ router.get('/audit-logs', async (req, res) => {
 router.get('/products', async (req, res) => {
   try {
     const { category, gender, type, minPrice, maxPrice, sortBy } = req.query;
-    
+
     // Check if DATABASE_URL is set
     if (!process.env.DATABASE_URL) {
       console.warn('DATABASE_URL is not set. Returning empty product list.');
@@ -507,7 +508,7 @@ router.get('/products', async (req, res) => {
 
     // Basic filtering logic (can be expanded)
     const parentCategories = alias(categories, 'parent_categories');
-    
+
     let query = db.select({
       id: products.id,
       name: products.name,
@@ -537,19 +538,19 @@ router.get('/products', async (req, res) => {
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
     })
-    .from(products)
-    .leftJoin(brands, eq(products.brandId, brands.id))
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id));
-    
+      .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id));
+
     // In a real app, you'd use a more dynamic query builder
     const result = await query.execute();
-    
+
     // Fetch dynamic filters for these products
     const productIds = result.map(p => p.id);
     if (productIds.length > 0) {
       const filterValues = await db.select().from(productFilterValues).where(inArray(productFilterValues.productId, productIds));
-      
+
       // Group by productId
       const filterMap: Record<string, Record<string, string[]>> = {};
       filterValues.forEach(fv => {
@@ -557,13 +558,13 @@ router.get('/products', async (req, res) => {
         if (!filterMap[fv.productId][fv.filterId]) filterMap[fv.productId][fv.filterId] = [];
         filterMap[fv.productId][fv.filterId].push(fv.valueId);
       });
-      
+
       // Attach to products
       result.forEach((p: any) => {
         p.dynamicFilters = filterMap[p.id] || {};
       });
     }
-    
+
     res.json(result);
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -610,7 +611,7 @@ router.get('/products/:slug', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(404).json({ error: 'Product not found' });
     const parentCategories = alias(categories, 'parent_categories');
-    
+
     const [product] = await db.select({
       id: products.id,
       name: products.name,
@@ -640,14 +641,14 @@ router.get('/products/:slug', async (req, res) => {
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
     })
-    .from(products)
-    .leftJoin(brands, eq(products.brandId, brands.id))
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id))
-    .where(eq(products.slug, req.params.slug));
-    
+      .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id))
+      .where(eq(products.slug, req.params.slug));
+
     if (!product) return res.status(404).json({ error: 'Product not found' });
-    
+
     // Fetch dynamic filters for this product
     const filterValues = await db.select().from(productFilterValues).where(eq(productFilterValues.productId, product.id));
     const dynamicFiltersMap: Record<string, string[]> = {};
@@ -655,9 +656,9 @@ router.get('/products/:slug', async (req, res) => {
       if (!dynamicFiltersMap[fv.filterId]) dynamicFiltersMap[fv.filterId] = [];
       dynamicFiltersMap[fv.filterId].push(fv.valueId);
     });
-    
+
     (product as any).dynamicFilters = dynamicFiltersMap;
-    
+
     res.json(product);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch product' });
@@ -693,9 +694,9 @@ router.get('/admin/seller-applications', async (req, res) => {
         phone: users.phone
       }
     })
-    .from(sellerApplications)
-    .innerJoin(users, eq(sellerApplications.userId, users.id))
-    .orderBy(desc(sellerApplications.createdAt));
+      .from(sellerApplications)
+      .innerJoin(users, eq(sellerApplications.userId, users.id))
+      .orderBy(desc(sellerApplications.createdAt));
 
     res.json(applications);
   } catch (error) {
@@ -770,7 +771,7 @@ const formatBlog = (blog: any) => {
   if (author && typeof author === 'string' && author.startsWith('{')) {
     try {
       author = JSON.parse(author);
-    } catch (e) {}
+    } catch (e) { }
   } else if (author && typeof author === 'string') {
     author = { id: '', name: author };
   } else if (!author) {
@@ -786,7 +787,7 @@ router.get('/blogs', async (req, res) => {
     const { status } = req.query;
     let conditions = [];
     if (status) conditions.push(eq(blogs.status, status as string));
-    
+
     const result = await db.select().from(blogs)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(blogs.createdAt));
@@ -801,15 +802,15 @@ router.get('/blogs/:idOrSlug', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(404).json({ error: 'Blog not found' });
     const { idOrSlug } = req.params;
-    
+
     // Try by ID first
     let [blog] = await db.select().from(blogs).where(eq(blogs.id, idOrSlug));
-    
+
     // If not found, try by slug
     if (!blog) {
       [blog] = await db.select().from(blogs).where(eq(blogs.slug, idOrSlug));
     }
-    
+
     if (!blog) return res.status(404).json({ error: 'Blog not found' });
     res.json(formatBlog(blog));
   } catch (error) {
@@ -838,11 +839,11 @@ router.get('/countries', async (req, res) => {
     const { isActive } = req.query;
     let conditions = [];
     if (isActive !== undefined) conditions.push(eq(countries.isActive, isActive === 'true'));
-    
+
     const result = await db.select().from(countries)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(countries.name);
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch countries' });
@@ -852,13 +853,13 @@ router.get('/countries', async (req, res) => {
 router.post('/countries', async (req, res) => {
   try {
     const { name, code, currencyCode, currencyName, symbol, isActive } = req.body;
-    await db.insert(countries).values({ 
-      name, 
-      code, 
-      currencyCode, 
-      currencyName, 
-      symbol, 
-      isActive: isActive !== undefined ? isActive : true 
+    await db.insert(countries).values({
+      name,
+      code,
+      currencyCode,
+      currencyName,
+      symbol,
+      isActive: isActive !== undefined ? isActive : true
     });
     const [newCountry] = await db.select().from(countries).where(eq(countries.code, code));
     res.status(201).json(newCountry);
@@ -899,11 +900,11 @@ router.get('/currency-rates', async (req, res) => {
     const { currencyCode } = req.query;
     let conditions = [];
     if (currencyCode) conditions.push(eq(currencyRates.currencyCode, currencyCode as string));
-    
+
     const result = await db.select().from(currencyRates)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(currencyRates.effectiveDate));
-      
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch currency rates' });
@@ -914,7 +915,7 @@ router.get('/currency-rates/latest', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.json({});
     const { currencyCode } = req.query;
-    
+
     if (currencyCode) {
       const [latest] = await db.select().from(currencyRates)
         .where(eq(currencyRates.currencyCode, currencyCode as string))
@@ -922,7 +923,7 @@ router.get('/currency-rates/latest', async (req, res) => {
         .limit(1);
       return res.json(latest || {});
     }
-    
+
     // Get latest for all currencies
     // This is a bit tricky with Drizzle without raw SQL for complex grouping
     const allRates = await db.select().from(currencyRates).orderBy(desc(currencyRates.effectiveDate));
@@ -932,7 +933,7 @@ router.get('/currency-rates/latest', async (req, res) => {
         latestRates[rate.currencyCode] = rate;
       }
     });
-    
+
     res.json(latestRates);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch latest currency rates' });
@@ -942,10 +943,10 @@ router.get('/currency-rates/latest', async (req, res) => {
 router.post('/currency-rates', async (req, res) => {
   try {
     const { currencyCode, rate, effectiveDate } = req.body;
-    await db.insert(currencyRates).values({ 
-      currencyCode, 
-      rate, 
-      effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date() 
+    await db.insert(currencyRates).values({
+      currencyCode,
+      rate,
+      effectiveDate: effectiveDate ? new Date(effectiveDate) : new Date()
     });
     res.status(201).json({ success: true });
   } catch (error) {
@@ -973,7 +974,7 @@ router.get('/seo/entities', async (req, res) => {
     let conditions = [];
     if (type) conditions.push(eq(seo.entityType, type as any));
     if (search) conditions.push(like(seo.entityName, `%${search}%`));
-    
+
     const result = await db.select().from(seo)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(seo.lastUpdated));
@@ -999,11 +1000,11 @@ router.put('/seo/entities/:type/:id', async (req, res) => {
   try {
     const { type, id } = req.params;
     const data = req.body;
-    
+
     // Check if exists
     const [existing] = await db.select().from(seo)
       .where(and(eq(seo.entityType, type as any), eq(seo.entityId, id)));
-      
+
     if (existing) {
       await db.update(seo).set({
         ...data,
@@ -1036,11 +1037,11 @@ router.post('/seo/sync', async (req, res) => {
     const categoriesList = await db.select().from(categories);
     const brandsList = await db.select().from(brands);
     const blogsList = await db.select().from(blogs);
-    
+
     const syncEntity = async (entity: any, type: SEOEntityType, nameField: string, slugField: string) => {
       const [existing] = await db.select().from(seo)
         .where(and(eq(seo.entityType, type as any), eq(seo.entityId, entity.id)));
-        
+
       if (!existing) {
         await db.insert(seo).values({
           id: uuidv4(),
@@ -1091,7 +1092,7 @@ router.post('/seo/global', async (req, res) => {
   try {
     const { value } = req.body;
     const [existing] = await db.select().from(settings).where(eq(settings.key, 'seo_global'));
-    
+
     if (existing) {
       await db.update(settings)
         .set({ value })
@@ -1134,7 +1135,7 @@ router.post('/seo/pages', async (req, res) => {
   try {
     const { value } = req.body;
     const [existing] = await db.select().from(settings).where(eq(settings.key, 'seo_pages'));
-    
+
     if (existing) {
       await db.update(settings)
         .set({ value })
@@ -1158,7 +1159,7 @@ router.put('/seo/pages/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updatedPage = req.body;
-    
+
     const [setting] = await db.select().from(settings).where(eq(settings.key, 'seo_pages'));
     let value = setting?.value || [];
     if (typeof value === 'string') {
@@ -1168,7 +1169,7 @@ router.put('/seo/pages/:id', async (req, res) => {
         value = [];
       }
     }
-    
+
     if (Array.isArray(value)) {
       const index = value.findIndex((p: any) => p.id === id);
       if (index !== -1) {
@@ -1176,12 +1177,12 @@ router.put('/seo/pages/:id', async (req, res) => {
       } else {
         value.push(updatedPage);
       }
-      
+
       await db.update(settings)
         .set({ value: JSON.stringify(value) })
         .where(eq(settings.key, 'seo_pages'));
     }
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating individual page SEO:', error);
@@ -1372,10 +1373,10 @@ router.get('/roles', async (req, res) => {
     ];
 
     if (!process.env.DATABASE_URL) return res.json(defaultRoles);
-    
+
     // Fetch from DB
     const dbRoles = await db.select().from(roles);
-    
+
     // If empty, seed default roles
     if (dbRoles.length === 0) {
       for (const role of defaultRoles) {
@@ -1383,7 +1384,7 @@ router.get('/roles', async (req, res) => {
       }
       return res.json(defaultRoles);
     }
-    
+
     res.json(dbRoles);
   } catch (error) {
     console.error('Error fetching roles:', error);
@@ -1395,7 +1396,7 @@ router.get('/roles', async (req, res) => {
 router.get('/seller/analytics', async (req, res) => {
   try {
     const { sellerId } = req.query;
-    
+
     // Mock analytics data
     const mockAnalytics = {
       totalRevenue: 125400,
@@ -1421,17 +1422,17 @@ router.get('/pricelists', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { sellerId, isActive } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (sellerId) conditions.push(eq(pricelists.sellerId, sellerId as string));
     if (isActive !== undefined) conditions.push(eq(pricelists.isActive, isActive === 'true'));
-    
+
     const result = await db.select().from(pricelists)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(pricelists.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     console.error('Error fetching pricelists:', error);
@@ -1475,17 +1476,17 @@ router.get('/discounts', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { sellerId, isActive } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (sellerId) conditions.push(eq(discounts.sellerId, sellerId as string));
     if (isActive !== undefined) conditions.push(eq(discounts.isActive, isActive === 'true'));
-    
+
     const result = await db.select().from(discounts)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(discounts.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     console.error('Error fetching discounts:', error);
@@ -1529,17 +1530,17 @@ router.get('/promotions', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.json([]);
     const { sellerId, isActive } = req.query;
     const { limit, offset } = getPagination(req.query);
-    
+
     let conditions = [];
     if (sellerId) conditions.push(eq(promotions.sellerId, sellerId as string));
     if (isActive !== undefined) conditions.push(eq(promotions.isActive, isActive === 'true'));
-    
+
     const result = await db.select().from(promotions)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(promotions.createdAt));
-      
+
     res.json(result);
   } catch (error) {
     console.error('Error fetching promotions:', error);
@@ -1595,7 +1596,7 @@ router.get('/dashboard', async (req, res) => {
     const [ordersCount] = await db.select({ count: sql<number>`count(*)` }).from(orders);
     const [productsCount] = await db.select({ count: sql<number>`count(*)` }).from(products);
     const [revenueSum] = await db.select({ sum: sql<string>`sum(total_amount)` }).from(orders);
-    
+
     const recentOrders = await db.select().from(orders).limit(5).orderBy(desc(orders.createdAt));
 
     res.json({
@@ -1674,17 +1675,17 @@ router.post('/admin/blogs', async (req, res) => {
     const id = uuidv4();
     const { title, slug, content, excerpt, author, coverImage, category, tags, status, seo, publishedAt } = req.body;
     const blogSlug = slug || (title || '').toLowerCase().replace(/ /g, '-') + '-' + id.substring(0, 8);
-    
-    await db.insert(blogs).values({ 
-      id, 
-      title, 
-      slug: blogSlug, 
-      content, 
+
+    await db.insert(blogs).values({
+      id,
+      title,
+      slug: blogSlug,
+      content,
       excerpt,
       author: typeof author === 'string' ? author : JSON.stringify(author),
-      coverImage, 
+      coverImage,
       category,
-      tags: tags || [], 
+      tags: tags || [],
       status: status || 'published',
       seo: seo || {},
       publishedAt: publishedAt ? new Date(publishedAt) : null
@@ -1747,17 +1748,17 @@ router.post('/admin/settings', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'Database not connected' });
     const { key, value, description } = req.body;
-    
+
     // Check if exists
     const [existing] = await db.select().from(settings).where(eq(settings.key, key));
-    
+
     if (existing) {
       await db.update(settings).set({ value, description }).where(eq(settings.key, key));
     } else {
       const id = uuidv4();
       await db.insert(settings).values({ id, key, value, description });
     }
-    
+
     const [updated] = await db.select().from(settings).where(eq(settings.key, key));
     res.json(updated);
   } catch (error) {
@@ -1835,7 +1836,7 @@ router.post('/categories', async (req, res) => {
     const data = { ...req.body, id };
     // Ensure numeric fields are numbers
     if (data.displayOrder) data.displayOrder = parseInt(data.displayOrder);
-    
+
     await db.insert(categories).values(data);
     const [newCategory] = await db.select().from(categories).where(eq(categories.id, id));
     res.status(201).json(newCategory);
@@ -2079,28 +2080,28 @@ router.get('/roles', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) {
       return res.json([
-        { 
-          id: 'admin', 
-          name: 'Administrator', 
-          description: 'Full system access', 
-          isSystem: true, 
+        {
+          id: 'admin',
+          name: 'Administrator',
+          description: 'Full system access',
+          isSystem: true,
           permissions: [
             { module: 'overview', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'orders', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'settings', actions: ['view', 'create', 'edit', 'delete'] },
-          ] 
+          ]
         },
-        { 
-          id: 'seller', 
-          name: 'Seller', 
-          description: 'Store management access', 
-          isSystem: true, 
+        {
+          id: 'seller',
+          name: 'Seller',
+          description: 'Store management access',
+          isSystem: true,
           permissions: [
             { module: 'overview', actions: ['view'] },
             { module: 'orders', actions: ['view', 'update'] },
             { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
-          ] 
+          ]
         }
       ]);
     }
@@ -2108,41 +2109,41 @@ router.get('/roles', async (req, res) => {
     if (result.length === 0) {
       // Seed default roles if empty
       const defaultRoles = [
-        { 
-          id: 'super_admin', 
-          name: 'Super Administrator', 
-          description: 'Highest level system access with role management capabilities', 
-          isSystem: true, 
+        {
+          id: 'super_admin',
+          name: 'Super Administrator',
+          description: 'Highest level system access with role management capabilities',
+          isSystem: true,
           permissions: [
             { module: 'overview', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'orders', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'rbac', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'settings', actions: ['view', 'create', 'edit', 'delete'] },
-          ] 
+          ]
         },
-        { 
-          id: 'admin', 
-          name: 'Administrator', 
-          description: 'Full system access', 
-          isSystem: true, 
+        {
+          id: 'admin',
+          name: 'Administrator',
+          description: 'Full system access',
+          isSystem: true,
           permissions: [
             { module: 'overview', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'orders', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
             { module: 'settings', actions: ['view', 'create', 'edit', 'delete'] },
-          ] 
+          ]
         },
-        { 
-          id: 'seller', 
-          name: 'Seller', 
-          description: 'Store management access', 
-          isSystem: true, 
+        {
+          id: 'seller',
+          name: 'Seller',
+          description: 'Store management access',
+          isSystem: true,
           permissions: [
             { module: 'overview', actions: ['view'] },
             { module: 'orders', actions: ['view', 'edit'] },
             { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
-          ] 
+          ]
         }
       ];
       return res.json(defaultRoles);
@@ -2278,11 +2279,11 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const { newPassword, adminId } = req.body;
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
+
     await db.update(users)
       .set({ password: hashedPassword, updatedAt: new Date() })
       .where(eq(users.id, req.params.id));
-      
+
     // Audit Log
     await db.insert(auditLogs).values({
       id: uuidv4(),
@@ -2303,21 +2304,21 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
 router.delete('/admin/users/:id', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
-    
+
     const userId = req.params.id;
 
     // 1. Delete dependent notifications
     await db.delete(notifications).where(eq(notifications.userId, userId));
-    
+
     // 2. Delete seller applications
     await db.delete(sellerApplications).where(eq(sellerApplications.userId, userId));
 
     // 3. Delete linked companies (if seller)
     await db.delete(companies).where(eq(companies.sellerId, userId));
-    
+
     // 4. Delete the user
     await db.delete(users).where(eq(users.id, userId));
-    
+
     // 5. Audit Log (use a system ID if the user record is gone, but we try to log before delete if possible)
     // Actually log after is fine if we use the ID string
     try {
@@ -2433,11 +2434,11 @@ router.post('/auth/login', async (req, res) => {
     if (!process.env.DATABASE_URL) {
       // Mock login for development
       if (email === 'admin@tayfa.com' || email === 'tayyab786fq@gmail.com') {
-        return res.json({ 
-          id: 'admin-id', 
-          fullName: email === 'tayyab786fq@gmail.com' ? 'Tayyab' : 'System Admin', 
-          email, 
-          role: 'admin' 
+        return res.json({
+          id: 'admin-id',
+          fullName: email === 'tayyab786fq@gmail.com' ? 'Tayyab' : 'System Admin',
+          email,
+          role: 'admin'
         });
       }
       return res.status(401).json({ error: 'Invalid credentials (MOCK)' });
@@ -2475,6 +2476,71 @@ router.post('/auth/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Failed to authenticate' });
+  }
+});
+
+router.post('/auth/google', async (req, res) => {
+  try {
+    const { token, role } = req.body;
+    if (!process.env.DATABASE_URL) {
+      return res.status(500).json({ error: 'DB not connected' });
+    }
+
+    const clientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+    const client = new OAuth2Client(clientId);
+
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    if (!payload) throw new Error('Invalid token');
+
+    const email = payload.email!;
+    const fullName = payload.name || 'Google User';
+
+    let [user] = await db.select().from(users).where(eq(users.email, email));
+
+    if (!user) {
+      // Register user
+      const id = uuidv4();
+      const status = role === 'seller' ? 'pending' : 'active';
+      // Generate a random password since they logged in with Google
+      const randomPassword = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+
+      await db.insert(users).values({
+        id,
+        email,
+        password: randomPassword,
+        fullName,
+        phone: '',
+        role: role || 'user',
+        status
+      });
+
+      const [newUser] = await db.select().from(users).where(eq(users.id, id));
+      user = newUser;
+    } else {
+      // Existing user checks
+      if (role && user.role !== role) {
+        return res.status(403).json({ error: `This account is already registered as a ${user.role}.` });
+      }
+      if (user.status === 'pending') {
+        return res.status(403).json({ error: 'Your account is pending approval.' });
+      }
+      if (user.status === 'rejected') {
+        return res.status(403).json({ error: 'Your account application has been rejected.' });
+      }
+      if (user.status === 'inactive') {
+        return res.status(403).json({ error: 'Your account is inactive.' });
+      }
+    }
+
+    const { password: _, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Google auth error:', error);
+    res.status(500).json({ error: 'Failed to authenticate with Google' });
   }
 });
 
@@ -2531,9 +2597,9 @@ router.post('/auth/reset-password', async (req, res) => {
     // Update password and clear token
     const hashedPassword = await bcrypt.hash(password, 10);
     await db.update(users)
-      .set({ 
+      .set({
         password: hashedPassword,
-        resetToken: null, 
+        resetToken: null,
         resetTokenExpiresAt: null,
         updatedAt: new Date()
       })
@@ -2559,7 +2625,7 @@ router.get('/communication/providers', async (req, res) => {
 router.post('/communication/providers', async (req, res) => {
   try {
     const { name, type, config, senderId, endpointUrl, priority, isActive, isDefault } = req.body;
-    
+
     // Encrypt sensitive config fields
     const encryptedConfig = { ...config };
     for (const key in encryptedConfig) {
