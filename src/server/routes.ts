@@ -96,17 +96,90 @@ const runMigrations = async () => {
     try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
 
     // Blogs
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN status VARCHAR(50) DEFAULT 'published'`); } catch (e) { }
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN seo JSON`); } catch (e) { }
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN excerpt TEXT`); } catch (e) { }
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN category VARCHAR(100)`); } catch (e) { }
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN published_at TIMESTAMP`); } catch (e) { }
-    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN cover_image TEXT`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN status VARCHAR(50) DEFAULT 'active'`); } catch (e) { }
     try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE pricelists ADD COLUMN items JSON`); } catch (e) { }
+
+    // Discounts
+    console.log('[Migration] Checking discounts table...');
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN name VARCHAR(255)`); 
+      console.log('[Migration] Added name to discounts');
+    } catch (e) { }
+    
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN type VARCHAR(50) DEFAULT 'percentage'`); 
+      console.log('[Migration] Added type to discounts');
+    } catch (e) { }
+
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN value DECIMAL(10, 2) DEFAULT 0.00`); 
+      console.log('[Migration] Added value to discounts');
+    } catch (e) { }
+
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN status VARCHAR(50) DEFAULT 'active'`); 
+      console.log('[Migration] Added status to discounts');
+    } catch (e) { }
+
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN apply_to VARCHAR(50) DEFAULT 'all'`); 
+      console.log('[Migration] Added apply_to to discounts');
+    } catch (e) { }
+
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN category_id ${sql.raw(idType)}`); 
+      console.log('[Migration] Added category_id to discounts');
+    } catch (e) { }
+
+    try { 
+      // Try JSON first, then LONGTEXT if it fails (for older MySQL)
+      try { 
+        await db.execute(sql`ALTER TABLE discounts ADD COLUMN product_ids JSON`); 
+        console.log('[Migration] Added product_ids (JSON) to discounts');
+      } catch (e) { 
+        await db.execute(sql`ALTER TABLE discounts ADD COLUMN product_ids LONGTEXT`); 
+        console.log('[Migration] Added product_ids (LONGTEXT fallback) to discounts');
+      }
+    } catch (e) { }
+
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN start_date TIMESTAMP NULL`); 
+      console.log('[Migration] Added start_date to discounts');
+    } catch (e) { }
+
+    try { 
+      await db.execute(sql`ALTER TABLE discounts ADD COLUMN end_date TIMESTAMP NULL`); 
+      console.log('[Migration] Added end_date to discounts');
+    } catch (e) { }
+
+    try { await db.execute(sql`ALTER TABLE discounts ADD COLUMN description TEXT`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE discounts ADD COLUMN min_purchase DECIMAL(10, 2) DEFAULT 0.00`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE discounts ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) { }
 
     // Promote specific user to super_admin
     try {
       await db.execute(sql`UPDATE users SET role = 'super_admin' WHERE email = 'tayyab786fq@gmail.com'`);
+    } catch (e) { }
+
+    // Pages Table
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS pages (
+          id ${sql.raw(idType)} PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) UNIQUE NOT NULL,
+          content TEXT,
+          meta_title VARCHAR(255),
+          meta_description TEXT,
+          keywords TEXT,
+          robots VARCHAR(100) DEFAULT 'index, follow',
+          structured_data TEXT,
+          status VARCHAR(50) DEFAULT 'active',
+          seo_score DECIMAL(5, 2),
+          last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
     } catch (e) { }
 
     // Dynamic Filters
@@ -174,6 +247,7 @@ const runMigrations = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`);
     } catch (e) { }
+    
 
     console.log('Database migration check completed.');
   } catch (error) {
@@ -181,10 +255,8 @@ const runMigrations = async () => {
   }
 };
 
-// Run migrations on startup
 runMigrations();
 
-// Helper for pagination
 const getPagination = (query: any) => {
   const page = parseInt(query.page as string) || 1;
   const limit = parseInt(query.limit as string) || 10;
@@ -230,7 +302,6 @@ router.get('/coupons', async (req, res) => {
   }
 });
 
-// --- Dynamic Filters API ---
 router.get('/filters', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.json([]);
@@ -288,7 +359,7 @@ router.patch('/filters/:id', async (req, res) => {
 router.delete('/filters/:id', async (req, res) => {
   try {
     await db.delete(filters).where(eq(filters.id, req.params.id));
-    // Also delete associated values
+
     await db.delete(filterValues).where(eq(filterValues.filterId, req.params.id));
     res.json({ success: true });
   } catch (error) {
@@ -296,7 +367,6 @@ router.delete('/filters/:id', async (req, res) => {
   }
 });
 
-// --- Filter Values API ---
 router.get('/filter-values', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.json([]);
@@ -1500,7 +1570,13 @@ router.get('/pricelists', async (req, res) => {
       .offset(offset)
       .orderBy(desc(pricelists.createdAt));
 
-    res.json(result);
+    // Parse items JSON field
+    const parsedResult = result.map(pl => ({
+      ...pl,
+      items: parseJsonField(pl.items) || []
+    }));
+
+    res.json(parsedResult);
   } catch (error) {
     console.error('Error fetching pricelists:', error);
     res.status(500).json({ error: 'Failed to fetch pricelists' });
@@ -1511,9 +1587,14 @@ router.post('/pricelists', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const id = uuidv4();
-    await db.insert(pricelists).values({ ...req.body, id });
+    const data = { ...req.body };
+    data.items = parseJsonField(data.items);
+    await db.insert(pricelists).values({ ...data, id });
     const [newPricelist] = await db.select().from(pricelists).where(eq(pricelists.id, id));
-    res.status(201).json(newPricelist);
+    res.status(201).json({
+      ...newPricelist,
+      items: parseJsonField(newPricelist.items) || []
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to create pricelist' });
   }
@@ -1521,8 +1602,14 @@ router.post('/pricelists', async (req, res) => {
 
 router.put('/pricelists/:id', async (req, res) => {
   try {
-    await db.update(pricelists).set(req.body).where(eq(pricelists.id, req.params.id));
-    res.json({ success: true });
+    const data = { ...req.body };
+    if (data.items) data.items = parseJsonField(data.items);
+    await db.update(pricelists).set(data).where(eq(pricelists.id, req.params.id));
+    const [updated] = await db.select().from(pricelists).where(eq(pricelists.id, req.params.id));
+    res.json({
+      ...updated,
+      items: parseJsonField(updated.items) || []
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update pricelist' });
   }
@@ -1548,13 +1635,39 @@ router.get('/discounts', async (req, res) => {
     if (sellerId) conditions.push(eq(discounts.sellerId, sellerId as string));
     if (isActive !== undefined) conditions.push(eq(discounts.isActive, isActive === 'true'));
 
-    const result = await db.select().from(discounts)
+    const u = alias(users, 'u');
+    const result = await db.select({
+      id: discounts.id,
+      sellerId: discounts.sellerId,
+      name: discounts.name,
+      description: discounts.description,
+      type: discounts.type,
+      value: discounts.value,
+      minPurchase: discounts.minPurchase,
+      status: discounts.status,
+      applyTo: discounts.applyTo,
+      categoryId: discounts.categoryId,
+      productIds: discounts.productIds,
+      startDate: discounts.startDate,
+      endDate: discounts.endDate,
+      isActive: discounts.isActive,
+      createdAt: discounts.createdAt,
+      sellerName: u.fullName,
+      sellerEmail: u.email
+    })
+      .from(discounts)
+      .leftJoin(u, eq(discounts.sellerId, u.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset)
       .orderBy(desc(discounts.createdAt));
 
-    res.json(result);
+    const parsedResult = result.map(d => ({
+      ...d,
+      productIds: parseJsonField(d.productIds)
+    }));
+
+    res.json(parsedResult);
   } catch (error) {
     console.error('Error fetching discounts:', error);
     res.status(500).json({ error: 'Failed to fetch discounts' });
@@ -1565,18 +1678,69 @@ router.post('/discounts', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const id = uuidv4();
-    await db.insert(discounts).values({ ...req.body, id });
+    const data = { ...req.body };
+    
+    // Sanitize and convert fields
+    if (data.productIds) data.productIds = parseJsonField(data.productIds);
+    if (data.startDate) {
+      const d = new Date(data.startDate);
+      data.startDate = isNaN(d.getTime()) ? null : d;
+    }
+    if (data.endDate) {
+      const d = new Date(data.endDate);
+      data.endDate = isNaN(d.getTime()) ? null : d;
+    }
+
+    // Force values to numbers for decimal columns
+    if (data.value !== undefined) data.value = parseFloat(data.value.toString()) || 0;
+    if (data.minPurchase !== undefined) data.minPurchase = parseFloat(data.minPurchase.toString()) || 0;
+
+    // Handle createdAt: If string, convert to Date. If missing, let DB handle it.
+    if (data.createdAt) {
+      const cd = new Date(data.createdAt);
+      data.createdAt = isNaN(cd.getTime()) ? new Date() : cd;
+    }
+
+    await db.insert(discounts).values({ ...data, id });
     const [newDiscount] = await db.select().from(discounts).where(eq(discounts.id, id));
-    res.status(201).json(newDiscount);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create discount' });
+    res.status(201).json({
+      ...newDiscount,
+      productIds: parseJsonField(newDiscount.productIds)
+    });
+  } catch (error: any) {
+    console.error('Error creating discount:', error);
+    res.status(500).json({ error: 'Failed to create discount', details: error.message });
   }
 });
 
 router.put('/discounts/:id', async (req, res) => {
   try {
-    await db.update(discounts).set(req.body).where(eq(discounts.id, req.params.id));
-    res.json({ success: true });
+    const data = { ...req.body };
+    
+    // Sanitize and convert fields
+    if (data.productIds) data.productIds = parseJsonField(data.productIds);
+    if (data.startDate) {
+      const d = new Date(data.startDate);
+      data.startDate = isNaN(d.getTime()) ? null : d;
+    }
+    if (data.endDate) {
+      const d = new Date(data.endDate);
+      data.endDate = isNaN(d.getTime()) ? null : d;
+    }
+
+    if (data.value !== undefined) data.value = parseFloat(data.value.toString()) || 0;
+    if (data.minPurchase !== undefined) data.minPurchase = parseFloat(data.minPurchase.toString()) || 0;
+
+    // Clean up internal/read-only fields if they crept in
+    delete (data as any).id;
+    delete (data as any).createdAt;
+
+    await db.update(discounts).set(data).where(eq(discounts.id, req.params.id));
+    const [updated] = await db.select().from(discounts).where(eq(discounts.id, req.params.id));
+    res.json({
+      ...updated,
+      productIds: parseJsonField(updated.productIds)
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update discount' });
   }
@@ -1598,15 +1762,33 @@ router.get('/promotions', async (req, res) => {
     const { sellerId, isActive } = req.query;
     const { limit, offset } = getPagination(req.query);
 
-    let conditions = [];
-    if (sellerId) conditions.push(eq(promotions.sellerId, sellerId as string));
-    if (isActive !== undefined) conditions.push(eq(promotions.isActive, isActive === 'true'));
+    const promoTable = alias(promotions, 'p');
+    const sellerTable = alias(users, 's');
 
-    const result = await db.select().from(promotions)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .limit(limit)
-      .offset(offset)
-      .orderBy(desc(promotions.createdAt));
+    let conditions = [];
+    if (sellerId) conditions.push(eq(promoTable.sellerId, sellerId as string));
+    if (isActive !== undefined) conditions.push(eq(promoTable.isActive, isActive === 'true'));
+
+    const result = await db.select({
+      id: promoTable.id,
+      sellerId: promoTable.sellerId,
+      name: promoTable.name,
+      description: promoTable.description,
+      type: promoTable.type,
+      value: promoTable.value,
+      minPurchase: promoTable.minPurchase,
+      startDate: promoTable.startDate,
+      endDate: promoTable.endDate,
+      isActive: promoTable.isActive,
+      createdAt: promoTable.createdAt,
+      sellerName: sellerTable.fullName
+    })
+    .from(promoTable)
+    .leftJoin(sellerTable, eq(promoTable.sellerId, sellerTable.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .limit(limit)
+    .offset(offset)
+    .orderBy(desc(promoTable.createdAt));
 
     res.json(result);
   } catch (error) {

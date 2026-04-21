@@ -15,9 +15,10 @@ import {
   DollarSign,
   Gift,
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Promotion } from '../../types';
 import { auditService } from '../../services/auditService';
 
@@ -26,47 +27,110 @@ const PromotionManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    type: 'percentage' as 'percentage' | 'fixed_amount' | 'buy_x_get_y',
+    value: '',
+    minPurchase: '0',
+    startDate: '',
+    endDate: '',
+    isActive: true
+  });
+
+  const fetchPromotions = async () => {
+    if (!user?.id) return;
+    try {
+      setLoading(true);
+      const response = await axios.get(`/api/promotions?sellerId=${user.id}`);
+      if (Array.isArray(response.data)) {
+        setPromotions(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching promotions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchPromotions = async () => {
-      if (!user?.id) return;
-      try {
-        const response = await axios.get(`/api/promotions?sellerId=${user.id}`);
-        if (Array.isArray(response.data)) {
-          setPromotions(response.data);
-        } else {
-          console.error('Promotions response is not an array:', response.data);
-          setPromotions([]);
-        }
-      } catch (error) {
-        console.error('Error fetching promotions:', error);
-        setPromotions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchPromotions();
   }, [user?.id]);
 
-  const toggleStatus = async (id: string) => {
-    if (!Array.isArray(promotions)) return;
-    const promo = promotions.find(p => p.id === id);
-    if (!promo) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.id) return;
 
     try {
-      const newStatus = !promo.isActive;
-      await axios.put(`/api/promotions/${id}`, { isActive: newStatus });
-      
-      setPromotions(prev => Array.isArray(prev) ? prev.map(p => p.id === id ? { ...p, isActive: newStatus } : p) : []);
+      const payload = {
+        ...formData,
+        sellerId: user.id,
+        value: parseFloat(formData.value) || 0,
+        minPurchase: parseFloat(formData.minPurchase) || 0,
+        startDate: new Date(formData.startDate).toISOString(),
+        endDate: new Date(formData.endDate).toISOString(),
+      };
 
-      auditService.logAction(
-        { id: user?.id || 'unknown', name: user?.fullName || 'Unknown', role: user?.role || 'seller' },
-        'UPDATE',
-        'promotion',
-        `Toggled promotion status to ${newStatus ? 'Active' : 'Inactive'}`,
-        'info',
-        id
-      );
+      if (editingId) {
+        await axios.put(`/api/promotions/${editingId}`, payload);
+        auditService.logAction(
+          { id: user.id, name: user.fullName || 'Unknown', role: user.role || 'seller' },
+          'UPDATE',
+          'promotion',
+          `Updated promotion: ${formData.name}`,
+          'info',
+          editingId
+        );
+      } else {
+        await axios.post('/api/promotions', payload);
+        auditService.logAction(
+          { id: user.id, name: user.fullName || 'Unknown', role: user.role || 'seller' },
+          'CREATE',
+          'promotion',
+          `Created new promotion: ${formData.name}`,
+          'success'
+        );
+      }
+
+      setIsModalOpen(false);
+      setEditingId(null);
+      setFormData({
+        name: '',
+        description: '',
+        type: 'percentage',
+        value: '',
+        minPurchase: '0',
+        startDate: '',
+        endDate: '',
+        isActive: true
+      });
+      fetchPromotions();
+    } catch (error) {
+      console.error('Error saving promotion:', error);
+    }
+  };
+
+  const handleEdit = (promo: Promotion) => {
+    setEditingId(promo.id);
+    setFormData({
+      name: promo.name,
+      description: promo.description,
+      type: promo.type,
+      value: promo.value.toString(),
+      minPurchase: promo.minPurchase.toString(),
+      startDate: new Date(promo.startDate).toISOString().split('T')[0],
+      endDate: new Date(promo.endDate).toISOString().split('T')[0],
+      isActive: promo.isActive
+    });
+    setIsModalOpen(true);
+  };
+
+  const toggleStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      await axios.put(`/api/promotions/${id}`, { isActive: !currentStatus });
+      fetchPromotions();
     } catch (error) {
       console.error('Error toggling status:', error);
     }
@@ -76,8 +140,7 @@ const PromotionManager = () => {
     if (window.confirm('Are you sure you want to delete this promotion?')) {
       try {
         await axios.delete(`/api/promotions/${id}`);
-        setPromotions(prev => Array.isArray(prev) ? prev.filter(p => p.id !== id) : []);
-
+        fetchPromotions();
         auditService.logAction(
           { id: user?.id || 'unknown', name: user?.fullName || 'Unknown', role: user?.role || 'seller' },
           'DELETE',
@@ -99,37 +162,58 @@ const PromotionManager = () => {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-4xl font-serif mb-2">Promotion Manager</h1>
-            <p className="text-brand-dark/60">Manage your store's marketing campaigns and sales events.</p>
-          </div>
-          <button className="flex items-center space-x-2 bg-brand-dark text-white px-6 py-3 rounded-full hover:bg-brand-gold transition-all shadow-lg shadow-brand-dark/10">
-            <Plus size={18} />
-            <span className="text-xs font-bold uppercase tracking-widest">Create Promotion</span>
-          </button>
+        <div>
+          <h1 className="text-4xl font-serif mb-2">Promotion Manager</h1>
+          <p className="text-brand-dark/60">Manage your store's marketing campaigns and sales events.</p>
         </div>
+        <button 
+          onClick={() => {
+            setEditingId(null);
+            setFormData({
+              name: '',
+              description: '',
+              type: 'percentage',
+              value: '',
+              minPurchase: '0',
+              startDate: '',
+              endDate: '',
+              isActive: true
+            });
+            setIsModalOpen(true);
+          }}
+          className="flex items-center space-x-2 bg-brand-dark text-white px-8 py-3.5 rounded-full hover:bg-brand-gold transition-all shadow-lg shadow-brand-dark/10 group"
+        >
+          <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+          <span className="text-xs font-bold uppercase tracking-widest">Create Promotion</span>
+        </button>
+      </div>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-dark/40" />
-            <input 
-              type="text" 
-              placeholder="Search promotions..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-brand-dark/5 rounded-2xl pl-12 pr-6 py-4 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
-            />
-          </div>
-          <button className="flex items-center space-x-2 bg-white border border-brand-dark/5 px-6 py-4 rounded-2xl text-brand-dark/60 hover:text-brand-dark transition-all">
-            <Filter size={18} />
-            <span className="text-xs font-bold uppercase tracking-widest">Filters</span>
-          </button>
+      {/* Search and Filters */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1 relative">
+          <Search size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-brand-dark/40" />
+          <input 
+            type="text" 
+            placeholder="Search promotions..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-white border border-brand-dark/5 rounded-[1.5rem] pl-14 pr-6 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all shadow-sm"
+          />
         </div>
+        <button className="flex items-center space-x-2 bg-white border border-brand-dark/5 px-8 py-4 rounded-[1.5rem] text-brand-dark/60 hover:text-brand-dark transition-all shadow-sm">
+          <Filter size={18} />
+          <span className="text-xs font-bold uppercase tracking-widest">Filters</span>
+        </button>
+      </div>
 
-        {/* Promotions Grid */}
+      {/* Promotions Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-pulse">
+          {[1,2,3,4].map(i => <div key={i} className="h-64 bg-white rounded-[3rem] border border-brand-dark/5" />)}
+        </div>
+      ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {Array.isArray(filteredPromotions) && filteredPromotions.map((promo) => (
+          {filteredPromotions.map((promo) => (
             <motion.div
               key={promo.id}
               initial={{ opacity: 0, y: 20 }}
@@ -142,81 +226,254 @@ const PromotionManager = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button 
-                    onClick={() => toggleStatus(promo.id)}
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    onClick={() => toggleStatus(promo.id, promo.isActive)}
+                    className={`inline-flex items-center px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
                       promo.isActive 
                         ? 'bg-green-50 text-green-600 hover:bg-green-100' 
-                        : 'bg-brand-cream text-brand-gold hover:bg-brand-cream/60'
+                        : 'bg-brand-cream text-brand-gold hover:bg-brand-gold hover:text-white'
                     }`}
                   >
+                    <div className={`w-1.5 h-1.5 rounded-full mr-2 ${promo.isActive ? 'bg-green-500' : 'bg-brand-gold group-hover:bg-white'}`} />
                     {promo.isActive ? 'Active' : 'Inactive'}
-                  </button>
-                  <button className="p-2 text-brand-dark/40 hover:text-brand-gold transition-colors">
-                    <MoreVertical size={16} />
                   </button>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-2xl font-serif text-brand-dark">{promo.name}</h3>
-                  <p className="text-xs text-brand-dark/60 mt-1">{promo.description}</p>
+                  <h3 className="text-2xl font-serif text-brand-dark group-hover:text-brand-gold transition-colors">{promo.name}</h3>
+                  <p className="text-xs text-brand-dark/60 mt-1 line-clamp-2">{promo.description}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 pt-6 border-t border-brand-dark/5">
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold mb-1">Type & Value</p>
-                    <div className="flex items-center space-x-2">
+                    <p className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold mb-1">Benefit</p>
+                    <div className="flex items-center space-x-2 text-brand-dark">
                       <Tag size={14} className="text-brand-gold" />
-                      <span className="text-sm font-bold text-brand-dark">
+                      <span className="text-sm font-bold uppercase">
                         {promo.type === 'percentage' ? `${promo.value}% Off` : promo.type === 'fixed_amount' ? `$${promo.value} Off` : 'BOGO'}
                       </span>
                     </div>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold mb-1">Duration</p>
-                    <div className="flex items-center space-x-2">
+                    <p className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold mb-1">Validity</p>
+                    <div className="flex items-center space-x-2 text-brand-dark/60">
                       <Calendar size={14} className="text-brand-gold" />
-                      <span className="text-[10px] font-bold text-brand-dark/60">
+                      <span className="text-[10px] font-bold">
                         {new Date(promo.startDate).toLocaleDateString()} - {new Date(promo.endDate).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-6">
-                  <p className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold mb-2">Applicable Products</p>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-bold text-brand-dark">{Array.isArray(promo.applicableProducts) ? promo.applicableProducts.length : 0} Products</span>
-                    <ArrowRight size={14} className="text-brand-gold" />
+                <div className="pt-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold mb-1">Min. Purchase</p>
+                    <p className="text-sm font-bold text-brand-dark">${promo.minPurchase || 0}</p>
+                  </div>
+                  <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                    <button 
+                      onClick={() => handleEdit(promo)}
+                      className="p-3 bg-brand-cream/50 text-brand-dark rounded-xl hover:bg-brand-gold hover:text-white transition-all shadow-sm"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => deletePromotion(promo.id)}
+                      className="p-3 bg-brand-cream/50 text-brand-dark rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <div className="absolute bottom-0 right-0 p-8 flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="p-3 bg-brand-cream/50 text-brand-dark rounded-full hover:bg-brand-gold hover:text-white transition-all">
-                  <Edit2 size={18} />
-                </button>
-                <button 
-                  onClick={() => deletePromotion(promo.id)}
-                  className="p-3 bg-brand-cream/50 text-brand-dark rounded-full hover:bg-rose-500 hover:text-white transition-all"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
             </motion.div>
           ))}
-          {(!Array.isArray(filteredPromotions) || filteredPromotions.length === 0) && (
-            <div className="lg:col-span-2 px-8 py-20 text-center bg-white rounded-[3rem] border border-brand-dark/5">
+          {filteredPromotions.length === 0 && (
+            <div className="lg:col-span-2 px-8 py-20 text-center bg-white rounded-[3rem] border border-brand-dark/5 shadow-sm">
               <div className="flex flex-col items-center space-y-4">
-                <div className="w-16 h-16 bg-brand-cream rounded-full flex items-center justify-center text-brand-gold">
-                  <Gift size={32} />
+                <div className="w-20 h-20 bg-brand-cream rounded-full flex items-center justify-center text-brand-gold mb-2">
+                  <Gift size={40} />
                 </div>
-                <p className="text-brand-dark/40 text-sm font-medium">No promotions found.</p>
+                <h3 className="text-xl font-serif text-brand-dark">No Promotions Found</h3>
+                <p className="text-brand-dark/40 text-sm max-w-xs mx-auto">Enhance your sales by creating marketing campaigns and special events.</p>
+                <button 
+                  onClick={() => setIsModalOpen(true)}
+                  className="mt-4 px-8 py-3 bg-brand-dark text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-brand-gold transition-all"
+                >
+                  Create Your First Promotion
+                </button>
               </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* Promotion Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-brand-dark/5 flex justify-between items-center bg-brand-cream/10">
+                <div>
+                  <h2 className="text-2xl font-serif text-brand-dark">
+                    {editingId ? 'Edit Promotion' : 'Create Promotion'}
+                  </h2>
+                  <p className="text-xs text-brand-dark/40 uppercase tracking-widest font-bold mt-1">Campaign Details</p>
+                </div>
+                <button 
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-3 hover:bg-white rounded-full text-brand-dark/20 hover:text-brand-dark transition-all shadow-sm"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Campaign Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-5 py-3.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all text-sm"
+                      placeholder="e.g. Summer Mega Sale"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Description</label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full px-5 py-3.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all text-sm h-24 resize-none"
+                      placeholder="Describe the promotion..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Promotion Type</label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                      className="w-full px-5 py-3.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all text-sm"
+                    >
+                      <option value="percentage">Percentage Discount</option>
+                      <option value="fixed_amount">Fixed Amount Off</option>
+                      <option value="buy_x_get_y">Buy X Get Y (BOGO)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Value</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        required
+                        value={formData.value}
+                        onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                        className="w-full px-5 py-3.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all text-sm pr-12"
+                        placeholder="0.00"
+                      />
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-dark/20 font-bold text-xs">
+                        {formData.type === 'percentage' ? '%' : '$'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Min. Purchase Amount</label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-dark/20" />
+                      <input
+                        type="number"
+                        value={formData.minPurchase}
+                        onChange={(e) => setFormData({ ...formData, minPurchase: e.target.value })}
+                        className="w-full pl-12 pr-5 py-3.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-end pb-2">
+                    <label className="flex items-center space-x-3 cursor-pointer group">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={formData.isActive}
+                          onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        />
+                        <div className={`w-12 h-6 rounded-full transition-colors ${formData.isActive ? 'bg-brand-gold' : 'bg-brand-dark/10'}`} />
+                        <div className={`absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform ${formData.isActive ? 'translate-x-6' : ''}`} />
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60 group-hover:text-brand-dark transition-colors">Active Status</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Start Date</label>
+                    <div className="relative">
+                      <Calendar size={14} className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-dark/20" />
+                      <input
+                        type="date"
+                        required
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        className="w-full pl-12 pr-5 py-3.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-dark/60 mb-2">End Date</label>
+                    <div className="relative">
+                      <Calendar size={14} className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-dark/20" />
+                      <input
+                        type="date"
+                        required
+                        value={formData.endDate}
+                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                        className="w-full pl-12 pr-5 py-3.5 bg-brand-cream/10 border border-brand-dark/5 rounded-2xl focus:ring-2 focus:ring-brand-gold/10 outline-none transition-all text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex space-x-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 px-8 py-4 bg-brand-cream/50 text-brand-dark rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-brand-cream transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-8 py-4 bg-brand-dark text-white rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-brand-gold transition-all shadow-lg shadow-brand-dark/10"
+                  >
+                    {editingId ? 'Save Changes' : 'Create Promotion'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

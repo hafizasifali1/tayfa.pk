@@ -14,8 +14,6 @@ export const fetchCountries = async (): Promise<Country[]> => {
     const response = await axios.get('/api/countries?isActive=true');
     return response.data.map((c: any) => ({
       ...c,
-      currency: c.currencyCode,
-      currencySymbol: c.symbol,
       flag: `https://flagcdn.com/w40/${c.code.toLowerCase()}.png`
     })).sort((a: Country, b: Country) => a.name.localeCompare(b.name));
   } catch (error) {

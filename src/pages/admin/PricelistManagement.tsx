@@ -25,11 +25,20 @@ import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
+import { fetchCountries } from '../../services/currencyService';
+import { Country } from '../../types';
 
 const AdminPricelistManagement = () => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [pricelists, setPricelists] = useState<(Pricelist & { sellerName: string })[]>([]);
+  const [availableCurrencies, setAvailableCurrencies] = useState<{code: string; symbol: string}[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({
+    isOpen: false,
+    id: null
+  });
 
   useEffect(() => {
     const rawData = localStorage.getItem('tayfa_pricelists');
@@ -50,6 +59,27 @@ const AdminPricelistManagement = () => {
       sellerName: pl.sellerId === 'admin' ? 'Global' : `Seller ${pl.sellerId.slice(0, 4)}`
     }));
     setPricelists(enriched);
+  }, []);
+
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      const countries = await fetchCountries();
+      const activeCountries = countries.filter(c => c.isActive);
+      
+      // Get unique currencies
+      const uniqueCurrencies = activeCountries.reduce((acc, current) => {
+        if (!acc.find(item => item.code === current.currencyCode)) {
+          acc.push({ code: current.currencyCode, symbol: current.symbol });
+        }
+        return acc;
+      }, [] as {code: string; symbol: string}[]);
+      
+      setAvailableCurrencies(uniqueCurrencies);
+      if (uniqueCurrencies.length > 0) {
+        setNewPricelist(prev => ({ ...prev, currency: uniqueCurrencies[0].code }));
+      }
+    };
+    loadCurrencies();
   }, []);
 
   const toggleStatus = (id: string) => {
@@ -86,32 +116,37 @@ const AdminPricelistManagement = () => {
     localStorage.setItem('tayfa_pricelists', JSON.stringify(finalAll));
   };
 
-  const deletePricelist = (id: string) => {
-    if (!Array.isArray(pricelists)) return;
-    // if (window.confirm('Are you sure you want to delete this pricelist?')) {
-      const updated = pricelists.filter(pl => pl.id !== id);
-      setPricelists(updated);
-      
-      const rawAll = localStorage.getItem('tayfa_pricelists');
-      let allPricelists = [];
-      try {
-        allPricelists = JSON.parse(rawAll || '[]');
-        if (!Array.isArray(allPricelists)) allPricelists = [];
-      } catch (e) {
-        allPricelists = [];
-      }
-      const finalAll = allPricelists.filter((pl: Pricelist) => pl.id !== id);
-      localStorage.setItem('tayfa_pricelists', JSON.stringify(finalAll));
+  const handleDeleteClick = (id: string) => {
+    setDeleteModal({ isOpen: true, id });
+  };
 
-      auditService.logAction(
-        { id: user?.id || 'admin', name: user?.fullName || 'Admin', role: 'admin' },
-        'DELETE',
-        'pricelist',
-        'Admin deleted pricelist',
-        'warning',
-        id
-      );
-    // }
+  const confirmDelete = () => {
+    if (!deleteModal.id) return;
+    
+    const id = deleteModal.id;
+    const updated = pricelists.filter(pl => pl.id !== id);
+    setPricelists(updated);
+    
+    const rawAll = localStorage.getItem('tayfa_pricelists');
+    let allPricelists = [];
+    try {
+      allPricelists = JSON.parse(rawAll || '[]');
+      if (!Array.isArray(allPricelists)) allPricelists = [];
+    } catch (e) {
+      allPricelists = [];
+    }
+    const finalAll = allPricelists.filter((pl: Pricelist) => pl.id !== id);
+    localStorage.setItem('tayfa_pricelists', JSON.stringify(finalAll));
+
+    auditService.logAction(
+      { id: user?.id || 'admin', name: user?.fullName || 'Admin', role: 'admin' },
+      'DELETE',
+      'pricelist',
+      'Admin deleted pricelist',
+      'warning',
+      id
+    );
+    setDeleteModal({ isOpen: false, id: null });
   };
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -122,17 +157,35 @@ const AdminPricelistManagement = () => {
     items: [] as { productId: string; price: number }[]
   });
 
-  const handleCreatePricelist = (e: React.FormEvent) => {
+  const handleEdit = (pl: any) => {
+    try {
+      setEditingId(pl.id);
+      setNewPricelist({
+        name: pl.name || '',
+        description: pl.description || '',
+        currency: pl.currency || availableCurrencies[0]?.code || 'USD',
+        items: Array.isArray(pl.items) ? [...pl.items] : []
+      });
+      setIsCreateModalOpen(true);
+    } catch (err) {
+      console.error('Error in handleEdit:', err);
+    }
+  };
+
+  const handleAddNew = () => {
+    setEditingId(null);
+    setNewPricelist({ 
+      name: '', 
+      description: '', 
+      currency: availableCurrencies[0]?.code || 'USD', 
+      items: [] 
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const handleSavePricelist = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
-    const pricelist: Pricelist = {
-      id: Math.random().toString(36).substr(2, 9),
-      sellerId: 'admin', // Global pricelist
-      ...newPricelist,
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
 
     const rawAll = localStorage.getItem('tayfa_pricelists');
     let allPricelists = [];
@@ -142,21 +195,54 @@ const AdminPricelistManagement = () => {
     } catch (e) {
       allPricelists = [];
     }
-    const updatedAll = [...allPricelists, pricelist];
-    localStorage.setItem('tayfa_pricelists', JSON.stringify(updatedAll));
-    
-    setPricelists(prev => Array.isArray(prev) ? [...prev, { ...pricelist, sellerName: 'Global' }] : [{ ...pricelist, sellerName: 'Global' }]);
-    setIsCreateModalOpen(false);
-    setNewPricelist({ name: '', description: '', currency: 'USD', items: [] });
 
-    auditService.logAction(
-      { id: user.id, name: user.fullName, role: 'admin' },
-      'CREATE',
-      'pricelist',
-      `Admin created global pricelist: ${pricelist.name}`,
-      'success',
-      pricelist.id
-    );
+    if (editingId) {
+      // Update existing
+      const updatedAll = allPricelists.map((pl: Pricelist) => 
+        pl.id === editingId ? { ...pl, ...newPricelist } : pl
+      );
+      localStorage.setItem('tayfa_pricelists', JSON.stringify(updatedAll));
+      
+      setPricelists(prev => prev.map(pl => 
+        pl.id === editingId ? { ...pl, ...newPricelist } : pl
+      ));
+
+      auditService.logAction(
+        { id: user.id, name: user.fullName, role: 'admin' },
+        'UPDATE',
+        'pricelist',
+        `Admin updated pricelist: ${newPricelist.name}`,
+        'success',
+        editingId
+      );
+    } else {
+      // Create new
+      const pricelist: Pricelist = {
+        id: Math.random().toString(36).substr(2, 9),
+        sellerId: 'admin',
+        ...newPricelist,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+
+      const updatedAll = [...allPricelists, pricelist];
+      localStorage.setItem('tayfa_pricelists', JSON.stringify(updatedAll));
+      
+      setPricelists(prev => [...prev, { ...pricelist, sellerName: 'Global' }]);
+
+      auditService.logAction(
+        { id: user.id, name: user.fullName, role: 'admin' },
+        'CREATE',
+        'pricelist',
+        `Admin created global pricelist: ${pricelist.name}`,
+        'success',
+        pricelist.id
+      );
+    }
+
+    setIsCreateModalOpen(false);
+    setEditingId(null);
+    setNewPricelist({ name: '', description: '', currency: availableCurrencies[0]?.code || 'USD', items: [] });
   };
 
   const filteredPricelists = Array.isArray(pricelists) ? pricelists.filter(pl => 
@@ -181,7 +267,7 @@ const AdminPricelistManagement = () => {
           <p className="text-brand-dark/60">Oversee and manage pricelists across all sellers.</p>
         </div>
         <Button 
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={handleAddNew}
           icon={<Plus size={18} />}
         >
           Create Global Pricelist
@@ -191,11 +277,14 @@ const AdminPricelistManagement = () => {
       {/* Create Modal */}
       <Modal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        title="Create Global Pricelist"
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setEditingId(null);
+        }}
+        title={editingId ? 'Edit Pricelist' : 'Create Global Pricelist'}
         size="lg"
       >
-        <form onSubmit={handleCreatePricelist} className="space-y-6">
+        <form onSubmit={handleSavePricelist} className="space-y-6">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-4">Pricelist Name</label>
@@ -211,14 +300,13 @@ const AdminPricelistManagement = () => {
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-4">Currency</label>
               <select 
-                value={newPricelist.currency || 'USD'}
+                value={newPricelist.currency || ''}
                 onChange={e => setNewPricelist(prev => ({ ...prev, currency: e.target.value }))}
                 className="w-full bg-brand-cream/30 border-none rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-brand-gold/20 font-bold"
               >
-                <option value="USD">USD ($)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-                <option value="INR">INR (₹)</option>
+                {availableCurrencies.map(c => (
+                  <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+                ))}
               </select>
             </div>
           </div>
@@ -287,7 +375,7 @@ const AdminPricelistManagement = () => {
             type="submit"
             fullWidth
           >
-            Create Global Pricelist
+            {editingId ? 'Update Pricelist' : 'Create Global Pricelist'}
           </Button>
         </form>
       </Modal>
@@ -331,7 +419,7 @@ const AdminPricelistManagement = () => {
                 </div>
               </td>
               <td className="px-8 py-6">
-                <span className="text-xs font-medium text-brand-dark/60">{pl.items.length} Products</span>
+                <span className="text-xs font-medium text-brand-dark/60">{Array.isArray(pl.items) ? pl.items.length : 0} Products</span>
               </td>
               <td className="px-8 py-6">
                 <span className="text-xs font-bold text-brand-gold">{pl.currency}</span>
@@ -349,16 +437,37 @@ const AdminPricelistManagement = () => {
                 <span className="text-xs text-brand-dark/40">{new Date(pl.createdAt).toLocaleDateString()}</span>
               </td>
               <td className="px-8 py-6 text-right">
-                <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" icon={<Edit2 size={16} />} />
-                  <Button variant="ghost" size="sm" icon={<Trash2 size={16} />} className="text-red-500 hover:text-red-600" onClick={() => deletePricelist(pl.id)} />
-                  <Button variant="ghost" size="sm" icon={<MoreVertical size={16} />} />
+                <div className="flex items-center justify-end space-x-2 transition-opacity">
+                  <button 
+                    onClick={() => handleEdit(pl)}
+                    className="p-2 text-brand-dark/40 hover:text-brand-gold transition-colors"
+                    title="Edit Pricelist"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteClick(pl.id)}
+                    className="p-2 text-brand-dark/40 hover:text-red-500 transition-colors"
+                    title="Delete Pricelist"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </td>
             </tr>
           ))}
         </Table>
       </Card>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, id: null })}
+        onConfirm={confirmDelete}
+        title="Delete Global Pricelist"
+        message="Are you sure you want to delete this global pricelist? This will remove all custom pricing rules associated with it across the platform."
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 };

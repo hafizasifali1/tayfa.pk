@@ -238,10 +238,12 @@ export interface Promotion {
   description: string;
   type: 'percentage' | 'fixed_amount' | 'buy_x_get_y';
   value: number;
+  minPurchase: number;
   startDate: string;
   endDate: string;
-  applicableProducts: string[]; // Product IDs
+  applicableProducts?: string[]; // Optional since not in screenshot but previously used
   isActive: boolean;
+  createdAt?: string;
 }
 
 export interface Coupon {
@@ -263,11 +265,22 @@ export interface Coupon {
 export interface Discount {
   id: string;
   sellerId: string;
-  productId: string;
-  percentage: number;
+  name: string;
+  description?: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  minPurchase?: number;
+  status: 'active' | 'inactive' | 'scheduled';
+  applyTo: 'all' | 'specific' | 'category';
+  categoryId?: string;
+  productIds?: string[];
+  productId?: string; // Keep for backward compatibility if needed, but we'll use productIds
   startDate: string;
   endDate: string;
   isActive: boolean;
+  sellerName?: string;
+  sellerEmail?: string;
+  createdAt?: string;
 }
 
 export interface AuditLog {
@@ -399,9 +412,9 @@ export interface Country {
   id: number;
   name: string;
   code: string;
-  currency: string;
+  currencyCode: string;
   currencyName: string;
-  currencySymbol: string;
+  symbol: string;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

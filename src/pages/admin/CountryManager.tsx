@@ -18,6 +18,7 @@ const CountryManager = () => {
   const [rateHistory, setRateHistory] = useState<CurrencyRate[]>([]);
   const [isAddingRate, setIsAddingRate] = useState(false);
   const [newRate, setNewRate] = useState({ rate: '', effectiveDate: new Date().toISOString().split('T')[0] });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCountries();
@@ -35,26 +36,29 @@ const CountryManager = () => {
   };
 
   const handleEdit = (country: Country) => {
+    setError(null);
     setCurrentCountry({ ...country });
     setIsEditing(true);
   };
 
   const handleAddNew = () => {
+    setError(null);
     setCurrentCountry({
       name: '',
       code: '',
-      currency: '',
+      currencyCode: '',
       currencyName: '',
-      currencySymbol: '',
+      symbol: '',
       isActive: true
     });
     setIsEditing(true);
   };
 
   const handleSave = async () => {
-    if (!currentCountry?.name || !currentCountry?.code || !currentCountry?.currency) return;
+    if (!currentCountry?.name || !currentCountry?.code || !currentCountry?.currencyCode || !currentCountry?.currencyName || !currentCountry?.symbol) return;
 
     try {
+      setError(null);
       if (currentCountry.id) {
         await axios.patch(`/api/countries/${currentCountry.id}`, currentCountry);
       } else {
@@ -62,8 +66,9 @@ const CountryManager = () => {
       }
       setIsEditing(false);
       fetchCountries();
-    } catch (error) {
-      console.error('Error saving country:', error);
+    } catch (err: any) {
+      console.error('Error saving country:', err);
+      setError(err.response?.data?.error || 'Failed to save country. Please check if the code is unique.');
     }
   };
 
@@ -106,7 +111,7 @@ const CountryManager = () => {
   const filteredCountries = countries.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     c.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.currency.toLowerCase().includes(searchQuery.toLowerCase())
+    c.currencyCode.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -169,11 +174,11 @@ const CountryManager = () => {
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-brand-dark">{country.currency}</span>
+                        <span className="text-sm font-medium text-brand-dark">{country.currencyCode}</span>
                         <span className="text-[10px] text-brand-dark/40">{country.currencyName}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-4 font-mono text-brand-gold">{country.currencySymbol}</td>
+                    <td className="py-4 px-4 font-mono text-brand-gold">{country.symbol}</td>
                     <td className="py-4 px-4">
                       <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full ${country.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                         {country.isActive ? 'Active' : 'Inactive'}
@@ -182,7 +187,7 @@ const CountryManager = () => {
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => fetchRateHistory(country.currency)}
+                          onClick={() => fetchRateHistory(country.currencyCode)}
                           className="p-2 text-brand-dark/60 hover:text-brand-gold transition-colors"
                           title="Currency Rates"
                         >
@@ -240,6 +245,13 @@ const CountryManager = () => {
                 </button>
               </div>
 
+              {error && (
+                <div className="mx-8 mt-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center space-x-3 text-rose-600">
+                  <AlertCircle size={20} />
+                  <p className="text-sm font-medium">{error}</p>
+                </div>
+              )}
+
               <div className="p-8 space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
@@ -267,8 +279,8 @@ const CountryManager = () => {
                     <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Currency Code *</label>
                     <input
                       type="text"
-                      value={currentCountry.currency || ''}
-                      onChange={(e) => setCurrentCountry({...currentCountry, currency: e.target.value.toUpperCase()})}
+                      value={currentCountry.currencyCode || ''}
+                      onChange={(e) => setCurrentCountry({...currentCountry, currencyCode: e.target.value.toUpperCase()})}
                       maxLength={10}
                       className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                       placeholder="e.g. PKR"
@@ -288,8 +300,8 @@ const CountryManager = () => {
                     <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Currency Symbol *</label>
                     <input
                       type="text"
-                      value={currentCountry.currencySymbol || ''}
-                      onChange={(e) => setCurrentCountry({...currentCountry, currencySymbol: e.target.value})}
+                      value={currentCountry.symbol || ''}
+                      onChange={(e) => setCurrentCountry({...currentCountry, symbol: e.target.value})}
                       className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                       placeholder="e.g. Rs."
                     />

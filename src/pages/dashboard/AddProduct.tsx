@@ -529,9 +529,9 @@ const AddProduct = () => {
             <div className="bg-white p-8 rounded-[2.5rem] border border-brand-dark/5 shadow-sm space-y-6">
               <h3 className="text-xl font-serif text-brand-dark border-b border-brand-dark/5 pb-4">Pricing & Inventory</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Base Price (USD) *</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2 whitespace-nowrap">Base Price *</label>
                   <input
                     type="number"
                     name="price"
@@ -541,10 +541,9 @@ const AddProduct = () => {
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                     placeholder="0.00"
                   />
-                  <p className="mt-1 text-[8px] text-brand-dark/40 uppercase tracking-widest">Enter price in USD. It will be converted automatically.</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Discount Price (USD)</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Discount Price</label>
                   <input
                     type="number"
                     name="discount"
@@ -555,7 +554,17 @@ const AddProduct = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Stock Quantity *</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Currency</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={pricelists.find(p => p.id === formData.pricelistId)?.currency || 'Not Selected'}
+                    className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl bg-brand-cream/10 text-brand-dark/40 text-sm cursor-not-allowed font-medium"
+                    placeholder="Auto-fetched"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2 whitespace-nowrap">Stock Quantity *</label>
                   <input
                     type="number"
                     name="stock"

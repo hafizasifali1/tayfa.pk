@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Price from '../../components/common/Price';
 import axios from 'axios';
+import { fetchCountries } from '../../services/currencyService';
 import { 
   Plus, 
   Search, 
@@ -21,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Pricelist, Product } from '../../types';
 import { auditService } from '../../services/auditService';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
 
 const PricelistManagement = () => {
   const { user } = useAuth();
@@ -35,6 +37,12 @@ const PricelistManagement = () => {
     items: [] as { productId: string; price: number }[]
   });
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [availableCurrencies, setAvailableCurrencies] = useState<{code: string; symbol: string}[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({
+    isOpen: false,
+    id: null
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,34 +73,103 @@ const PricelistManagement = () => {
     fetchData();
   }, [user?.id]);
 
-  const handleCreatePricelist = async (e: React.FormEvent) => {
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      const countries = await fetchCountries();
+      const activeCountries = countries.filter(c => c.isActive);
+      
+      const uniqueCurrencies = activeCountries.reduce((acc, current) => {
+        if (!acc.find(item => item.code === current.currencyCode)) {
+          acc.push({ code: current.currencyCode, symbol: current.symbol });
+        }
+        return acc;
+      }, [] as {code: string; symbol: string}[]);
+      
+      setAvailableCurrencies(uniqueCurrencies);
+      if (uniqueCurrencies.length > 0) {
+        setNewPricelist(prev => ({ ...prev, currency: uniqueCurrencies[0].code }));
+      }
+    };
+    loadCurrencies();
+  }, []);
+
+  const handleEdit = (pl: Pricelist) => {
+    setEditingId(pl.id);
+    setNewPricelist({
+      name: pl.name,
+      description: pl.description || '',
+      currency: pl.currency,
+      items: [...pl.items]
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingId(null);
+    setNewPricelist({ 
+      name: '', 
+      description: '', 
+      currency: availableCurrencies[0]?.code || 'USD', 
+      items: [] 
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const handleSavePricelist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
     try {
-      const pricelistData = {
-        sellerId: user.id,
-        ...newPricelist,
-        isActive: true
-      };
+      if (editingId) {
+        // Update existing
+        const response = await axios.put(`/api/pricelists/${editingId}`, {
+          ...newPricelist
+        });
+        const updatedPricelist = response.data;
+        
+        setPricelists(prev => prev.map(pl => pl.id === editingId ? updatedPricelist : pl));
+        
+        auditService.logAction(
+          { id: user.id, name: user.fullName, role: user.role as any },
+          'UPDATE',
+          'pricelist',
+          `Updated pricelist: ${updatedPricelist.name}`,
+          'success',
+          editingId
+        );
+      } else {
+        // Create new
+        const pricelistData = {
+          sellerId: user.id,
+          ...newPricelist,
+          isActive: true
+        };
 
-      const response = await axios.post('/api/pricelists', pricelistData);
-      const createdPricelist = response.data;
+        const response = await axios.post('/api/pricelists', pricelistData);
+        const createdPricelist = response.data;
+        
+        setPricelists(prev => [...prev, createdPricelist]);
+
+        auditService.logAction(
+          { id: user.id, name: user.fullName, role: user.role as any },
+          'CREATE',
+          'pricelist',
+          `Created new pricelist: ${createdPricelist.name}`,
+          'success',
+          createdPricelist.id
+        );
+      }
       
-      setPricelists(prev => [...prev, createdPricelist]);
       setIsCreateModalOpen(false);
-      setNewPricelist({ name: '', description: '', currency: 'USD', items: [] });
-
-      auditService.logAction(
-        { id: user.id, name: user.fullName, role: user.role as any },
-        'CREATE',
-        'pricelist',
-        `Created new pricelist: ${createdPricelist.name}`,
-        'success',
-        createdPricelist.id
-      );
+      setEditingId(null);
+      setNewPricelist({ 
+        name: '', 
+        description: '', 
+        currency: availableCurrencies[0]?.code || 'USD', 
+        items: [] 
+      });
     } catch (error) {
-      console.error('Error creating pricelist:', error);
+      console.error('Error saving pricelist:', error);
     }
   };
 
@@ -120,23 +197,28 @@ const PricelistManagement = () => {
     }
   };
 
-  const deletePricelist = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this pricelist?')) {
-      try {
-        await axios.delete(`/api/pricelists/${id}`);
-        setPricelists(prev => Array.isArray(prev) ? prev.filter(pl => pl.id !== id) : []);
+  const handleDeleteClick = (id: string) => {
+    setDeleteModal({ isOpen: true, id });
+  };
 
-        auditService.logAction(
-          { id: user?.id || 'unknown', name: user?.fullName || 'Unknown', role: user?.role || 'seller' },
-          'DELETE',
-          'pricelist',
-          'Deleted pricelist',
-          'warning',
-          id
-        );
-      } catch (error) {
-        console.error('Error deleting pricelist:', error);
-      }
+  const confirmDelete = async () => {
+    if (!deleteModal.id) return;
+    
+    try {
+      await axios.delete(`/api/pricelists/${deleteModal.id}`);
+      setPricelists(prev => Array.isArray(prev) ? prev.filter(pl => pl.id !== deleteModal.id) : []);
+
+      auditService.logAction(
+        { id: user?.id || 'unknown', name: user?.fullName || 'Unknown', role: user?.role || 'seller' },
+        'DELETE',
+        'pricelist',
+        'Deleted pricelist',
+        'warning',
+        deleteModal.id
+      );
+      setDeleteModal({ isOpen: false, id: null });
+    } catch (error) {
+      console.error('Error deleting pricelist:', error);
     }
   };
 
@@ -152,7 +234,7 @@ const PricelistManagement = () => {
             <p className="text-brand-dark/60">Manage custom price sets for your products.</p>
           </div>
           <button 
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={handleAddNew}
             className="flex items-center space-x-2 bg-brand-dark text-white px-6 py-3 rounded-full hover:bg-brand-gold transition-all shadow-lg shadow-brand-dark/10"
           >
             <Plus size={18} />
@@ -171,12 +253,15 @@ const PricelistManagement = () => {
                 className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl"
               >
                 <div className="p-8 border-b border-brand-dark/5 flex justify-between items-center bg-brand-cream/20">
-                  <h2 className="text-2xl font-serif">Create New Pricelist</h2>
-                  <button onClick={() => setIsCreateModalOpen(false)} className="p-2 hover:bg-white rounded-full transition-colors">
+                  <h2 className="text-2xl font-serif">{editingId ? 'Edit Pricelist' : 'Create New Pricelist'}</h2>
+                  <button onClick={() => {
+                    setIsCreateModalOpen(false);
+                    setEditingId(null);
+                  }} className="p-2 hover:bg-white rounded-full transition-colors">
                     <X size={20} />
                   </button>
                 </div>
-                <form onSubmit={handleCreatePricelist} className="p-8 space-y-6">
+                <form onSubmit={handleSavePricelist} className="p-8 space-y-6">
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-4">Pricelist Name</label>
@@ -196,10 +281,9 @@ const PricelistManagement = () => {
                         onChange={e => setNewPricelist(prev => ({ ...prev, currency: e.target.value }))}
                         className="w-full bg-brand-cream/30 border-none rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-brand-gold/20 font-bold"
                       >
-                        <option value="USD">USD ($)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="GBP">GBP (£)</option>
-                        <option value="INR">INR (₹)</option>
+                        {availableCurrencies.map(c => (
+                          <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -271,7 +355,7 @@ const PricelistManagement = () => {
                     type="submit"
                     className="w-full bg-brand-dark text-white py-4 rounded-full font-bold uppercase tracking-widest hover:bg-brand-gold transition-all shadow-xl shadow-brand-dark/10"
                   >
-                    Create Pricelist
+                    {editingId ? 'Update Pricelist' : 'Create Pricelist'}
                   </button>
                 </form>
               </motion.div>
@@ -343,18 +427,20 @@ const PricelistManagement = () => {
                       <span className="text-xs text-brand-dark/40">{new Date(pl.createdAt).toLocaleDateString()}</span>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 text-brand-dark/40 hover:text-brand-gold transition-colors">
+                      <div className="flex items-center justify-end space-x-2 transition-opacity">
+                        <button 
+                          onClick={() => handleEdit(pl)}
+                          className="p-2 text-brand-dark/40 hover:text-brand-gold transition-colors"
+                          title="Edit Pricelist"
+                        >
                           <Edit2 size={16} />
                         </button>
                         <button 
-                          onClick={() => deletePricelist(pl.id)}
+                          onClick={() => handleDeleteClick(pl.id)}
                           className="p-2 text-brand-dark/40 hover:text-red-500 transition-colors"
+                          title="Delete Pricelist"
                         >
                           <Trash2 size={16} />
-                        </button>
-                        <button className="p-2 text-brand-dark/40 hover:text-brand-dark transition-colors">
-                          <MoreVertical size={16} />
                         </button>
                       </div>
                     </td>
@@ -376,6 +462,16 @@ const PricelistManagement = () => {
             </table>
           </div>
         </div>
+
+        <ConfirmModal
+          isOpen={deleteModal.isOpen}
+          onClose={() => setDeleteModal({ isOpen: false, id: null })}
+          onConfirm={confirmDelete}
+          title="Delete Pricelist"
+          message="Are you sure you want to delete this pricelist? This action cannot be undone and will remove all product price overrides associated with it."
+          confirmText="Delete"
+          variant="danger"
+        />
     </div>
   );
 };

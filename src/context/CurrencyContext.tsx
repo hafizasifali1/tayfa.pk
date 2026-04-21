@@ -76,26 +76,27 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const convertPrice = useCallback((usdAmount: number) => {
-    if (!selectedCountry || !exchangeRates[selectedCountry.currency]) {
+    if (!selectedCountry || !exchangeRates[selectedCountry.currencyCode]) {
       return usdAmount;
     }
-    return usdAmount * exchangeRates[selectedCountry.currency];
+    return usdAmount * exchangeRates[selectedCountry.currencyCode];
   }, [selectedCountry, exchangeRates]);
 
   const formatPrice = useCallback((usdAmount: number) => {
     if (!selectedCountry) return `$${usdAmount.toFixed(2)}`;
     
     const converted = convertPrice(usdAmount);
-    const currency = selectedCountry.currency;
+    const currencyCode = selectedCountry.currencyCode;
     const locale = navigator.language || 'en-US';
+    const symbol = selectedCountry.symbol;
 
     try {
       return new Intl.NumberFormat(locale, {
         style: 'currency',
-        currency: currency,
+        currency: currencyCode,
       }).format(converted);
     } catch (e) {
-      return `${selectedCountry.currencySymbol}${converted.toFixed(2)}`;
+      return `${symbol}${converted.toFixed(2)}`;
     }
   }, [selectedCountry, convertPrice]);
 

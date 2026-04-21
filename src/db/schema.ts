@@ -230,6 +230,7 @@ export const pricelists = table('pricelists', {
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
   currency: varchar('currency', { length: 10 }).default('PKR'),
+  items: json('items'),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
 });
@@ -242,6 +243,12 @@ export const discounts = table('discounts', {
   type: varchar('type', { length: 50 }).notNull(), // percentage, fixed
   value: decimal('value', { precision: 10, scale: 2 }).notNull(),
   minPurchase: decimal('min_purchase', { precision: 10, scale: 2 }).default('0.00'),
+  status: varchar('status', { length: 50 }).default('active'), // active, inactive, scheduled
+  applyTo: varchar('apply_to', { length: 50 }).default('all'), // all, specific, category
+  categoryId: isMysql ? char('category_id', { length: 36 }) : char('category_id'),
+  productIds: json('product_ids'),
+  startDate: timestamp('start_date'),
+  endDate: timestamp('end_date'),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
 });
