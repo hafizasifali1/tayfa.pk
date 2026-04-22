@@ -24,7 +24,7 @@ const BulkUpload = () => {
     switch (type) {
       case 'product': return ['name', 'brand', 'price', 'parentCategoryId', 'categoryId', 'description', 'stock'];
       case 'pricelist': return ['name', 'description', 'currency', 'productid', 'price'];
-      case 'promotion': return ['name', 'description', 'type', 'value', 'startdate', 'enddate'];
+      case 'promotion': return ['name', 'description', 'type', 'value', 'minPurchase', 'startDate', 'endDate'];
       case 'coupon': return ['code', 'description', 'discounttype', 'discountvalue', 'minpurchase', 'expirydate', 'usagelimit'];
       default: return [];
     }
@@ -177,7 +177,7 @@ const BulkUpload = () => {
     let example = '';
     if (uploadType === 'product') example = 'Silk Saree,brand-id,120,parent-cat-id,child-cat-id,Beautiful silk saree,50';
     if (uploadType === 'pricelist') example = 'Summer Sale,Summer discounts,USD,prod-123,99.99';
-    if (uploadType === 'promotion') example = 'Black Friday,Huge discounts,percentage,20,2024-11-20,2024-11-30';
+    if (uploadType === 'promotion') example = 'Black Friday,Huge discounts across the store,percentage,20,500,2026-11-20,2026-11-30';
     if (uploadType === 'coupon') example = 'SAVE20,20% off on all items,percentage,20,100,2024-12-31,500';
 
     const blob = new Blob([`${headers}\n${example}`], { type: 'text/csv' });

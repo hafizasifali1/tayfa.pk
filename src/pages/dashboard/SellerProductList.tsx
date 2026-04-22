@@ -39,7 +39,7 @@ const SellerProductList = () => {
     try {
       const parsed = typeof images === 'string' ? JSON.parse(images) : images;
       if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-      if (typeof parsed === 'string' && parsed.length > 10) return parsed; // Handle raw strings
+      if (typeof parsed === 'string' && parsed.length > 10) return parsed;
       return null;
     } catch (e) {
       if (typeof images === 'string' && images.length > 10) return images;

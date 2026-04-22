@@ -298,6 +298,7 @@ router.get('/coupons', async (req, res) => {
 
     res.json(result);
   } catch (error) {
+    console.error('Error fetching coupons:', error);
     res.status(500).json({ error: 'Failed to fetch coupons' });
   }
 });
@@ -432,20 +433,132 @@ router.post('/coupons', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const id = uuidv4();
-    await db.insert(coupons).values({ ...req.body, id });
+    const data = { ...req.body };
+
+    // Convert date strings to Date objects
+    if (data.expiryDate) {
+      const d = new Date(data.expiryDate);
+      data.expiryDate = isNaN(d.getTime()) ? null : d;
+    }
+
+    // Ensure numeric fields are correctly formatted
+    if (data.discountValue !== undefined) data.discountValue = data.discountValue.toString();
+    if (data.minSpend !== undefined) data.minSpend = data.minSpend.toString();
+    if (data.maxDiscount !== undefined && data.maxDiscount !== null) data.maxDiscount = data.maxDiscount.toString();
+
+    await db.insert(coupons).values({ ...data, id });
     const [newCoupon] = await db.select().from(coupons).where(eq(coupons.id, id));
     res.status(201).json(newCoupon);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create coupon' });
+  } catch (error: any) {
+    console.error('Error creating coupon:', error);
+    res.status(500).json({ error: 'Failed to create coupon', details: error.message });
   }
 });
 
 router.put('/coupons/:id', async (req, res) => {
   try {
-    await db.update(coupons).set(req.body).where(eq(coupons.id, req.params.id));
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update coupon' });
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
+    const data = { ...req.body };
+
+    // Convert date strings to Date objects
+    if (data.expiryDate) {
+      const d = new Date(data.expiryDate);
+      data.expiryDate = isNaN(d.getTime()) ? null : d;
+    }
+
+    // Ensure numeric fields are correctly formatted as strings for decimal columns
+    if (data.discountValue !== undefined) data.discountValue = data.discountValue.toString();
+    if (data.minSpend !== undefined) data.minSpend = data.minSpend.toString();
+    if (data.maxDiscount !== undefined && data.maxDiscount !== null) data.maxDiscount = data.maxDiscount.toString();
+
+    await db.update(coupons).set(data).where(eq(coupons.id, req.params.id));
+    const [updatedCoupon] = await db.select().from(coupons).where(eq(coupons.id, req.params.id));
+    res.json(updatedCoupon);
+  } catch (error: any) {
+    console.error('Error updating coupon:', error);
+    res.status(500).json({ error: 'Failed to update coupon', details: error.message });
+  }
+});
+
+router.post('/coupons/validate', async (req, res) => {
+  try {
+    const { code, subtotal, items } = req.body;
+    if (!code) return res.status(400).json({ valid: false, message: 'Coupon code is required' });
+
+    console.log(`Validating coupon: ${code} for subtotal: ${subtotal}`);
+
+    // Try case-insensitive search
+    const results = await db.select()
+      .from(coupons)
+      .where(sql`LOWER(${coupons.code}) = ${code.toLowerCase()}`);
+
+    const coupon = results[0];
+
+    if (!coupon) {
+      return res.json({ valid: false, message: 'Invalid or inactive coupon code.' });
+    }
+
+    if (coupon.sellerId && coupon.sellerId !== 'admin') {
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.json({ valid: false, message: 'Cart items are required for validation.' });
+      }
+
+      const allItemsMatch = items.every((item: any) => item.sellerId === coupon.sellerId);
+      if (!allItemsMatch) {
+        return res.json({ 
+          valid: false, 
+          message: 'This coupon code cannot be applied to products from another seller.' 
+        });
+      }
+    }
+
+    if (!coupon.isActive) {
+      return res.json({ valid: false, message: 'This coupon is no longer active.' });
+    }
+
+    // Check expiry
+    if (coupon.expiryDate) {
+      const expiry = new Date(coupon.expiryDate);
+      const now = new Date();
+      if (expiry < now) {
+        return res.json({ valid: false, message: 'This coupon has expired.' });
+      }
+    }
+
+    // Check usage limit
+    if (coupon.usageLimit !== null && coupon.usageLimit !== undefined && parseInt(coupon.usageLimit.toString()) > 0) {
+      const used = coupon.usedCount || 0;
+      if (used >= parseInt(coupon.usageLimit.toString())) {
+        return res.json({ valid: false, message: 'Coupon usage limit has been reached.' });
+      }
+    }
+
+    // Check min spend
+    if (coupon.minSpend && subtotal) {
+      const minVal = parseFloat(coupon.minSpend.toString());
+      const currentVal = parseFloat(subtotal.toString());
+      if (currentVal < minVal) {
+        return res.json({ 
+          valid: false, 
+          message: `Minimum spend of PKR ${minVal.toLocaleString()} required for this coupon.` 
+        });
+      }
+    }
+
+    res.json({
+      valid: true,
+      discountType: coupon.discountType,
+      discountValue: parseFloat(coupon.discountValue.toString()),
+      code: coupon.code,
+      message: 'Coupon complexity applied successfully!'
+    });
+  } catch (error: any) {
+    console.error('Error validating coupon:', error);
+    res.status(500).json({ 
+      valid: false, 
+      message: 'Server error validating coupon',
+      details: error.message 
+    });
   }
 });
 
@@ -465,18 +578,37 @@ router.get('/invoices', async (req, res) => {
     const { sellerId, status } = req.query;
     const { limit, offset } = getPagination(req.query);
 
+    const customerTable = alias(users, 'customers');
+
     let conditions = [];
     if (sellerId) conditions.push(eq(invoices.sellerId, sellerId as string));
     if (status) conditions.push(eq(invoices.status, status as string));
 
-    const result = await db.select().from(invoices)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .limit(limit)
-      .offset(offset)
-      .orderBy(desc(invoices.createdAt));
+    const result = await db.select({
+      id: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      orderId: invoices.orderId,
+      sellerId: invoices.sellerId,
+      customerId: invoices.customerId,
+      amount: invoices.amount,
+      taxAmount: invoices.taxAmount,
+      status: invoices.status,
+      dueDate: invoices.dueDate,
+      paidAt: invoices.paidAt,
+      createdAt: invoices.createdAt,
+      customerName: customerTable.fullName,
+      customerEmail: customerTable.email
+    })
+    .from(invoices)
+    .leftJoin(customerTable, eq(invoices.customerId, customerTable.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .limit(limit)
+    .offset(offset)
+    .orderBy(desc(invoices.createdAt));
 
     res.json(result);
   } catch (error) {
+    console.error('Error fetching invoices:', error);
     res.status(500).json({ error: 'Failed to fetch invoices' });
   }
 });
@@ -700,6 +832,7 @@ router.post('/products', async (req, res) => {
     data.tags = parseJsonField(data.tags);
     data.dynamicFilters = parseJsonField(data.dynamicFilters);
     
+    console.log('Creating product with data:', { ...data, id, slug });
     await db.insert(products).values({ ...data, id, slug });
     const [newProduct] = await db.select().from(products).where(eq(products.id, id));
     res.status(201).json(newProduct);
@@ -1391,6 +1524,7 @@ router.post('/bulk-upload', async (req, res) => {
     let count = 0;
     if (type === 'product') {
       for (const item of data) {
+        console.log(`Inserting product in bulk. sellerId: ${sellerId}, name: ${item.name}`);
         await db.insert(products).values({
           id: uuidv4(),
           sellerId,
@@ -2321,6 +2455,77 @@ router.patch('/payments/admin/gateways/:id', async (req, res) => {
   } catch (error: any) {
     console.error('Error updating gateway:', error);
     res.status(error.message.includes('not found') ? 404 : 400).json({ error: error.message });
+  }
+});
+
+// --- Transactions & Payments Admin API ---
+router.get('/admin/payments', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.json([]);
+    const { status, sellerId } = req.query;
+    const { limit, offset } = getPagination(req.query);
+
+    const customerTable = alias(users, 'customers');
+    const sellerTable = alias(users, 'sellers');
+
+    let conditions = [];
+    if (status) conditions.push(eq(transactions.status, status as string));
+    
+    // If we want to filter by seller, we need to join with order_items or similar
+    // For now, let's just fetch all transactions with user names
+
+    const result = await db.select({
+      id: transactions.id,
+      orderId: transactions.orderId,
+      amount: transactions.amount,
+      currency: transactions.currency,
+      status: transactions.status,
+      createdAt: transactions.createdAt,
+      paymentMethod: payments.paymentMethod,
+    })
+    .from(transactions)
+    .leftJoin(payments, eq(transactions.id, payments.transactionId))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .limit(limit)
+    .offset(offset)
+    .orderBy(desc(transactions.createdAt));
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching admin payments:', error);
+    res.status(500).json({ error: 'Failed to fetch global transactions' });
+  }
+});
+
+router.get('/transactions', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.json([]);
+    const { sellerId, status } = req.query;
+    
+    // In a production app, we would join with order_items to filter by sellerId
+    // For now, we return all or mock filter by sellerId if it was in the tx table
+    
+    let conditions = [];
+    if (status) conditions.push(eq(transactions.status, status as string));
+
+    const result = await db.select({
+      id: transactions.id,
+      orderId: transactions.orderId,
+      amount: transactions.amount,
+      currency: transactions.currency,
+      status: transactions.status,
+      createdAt: transactions.createdAt,
+      gateway: payments.paymentMethod, // mapping paymentMethod to gateway for consistent UI
+    })
+    .from(transactions)
+    .leftJoin(payments, eq(transactions.id, payments.transactionId))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(transactions.createdAt));
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ error: 'Failed to fetch transactions' });
   }
 });
 

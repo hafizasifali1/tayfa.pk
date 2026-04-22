@@ -80,11 +80,19 @@ export interface Order {
 
 export interface Invoice {
   id: string;
+  invoiceNumber: string;
   orderId: string;
   sellerId: string;
+  customerId: string;
   amount: number;
-  date: string;
-  status: 'draft' | 'sent' | 'paid';
+  taxAmount: number;
+  status: 'unpaid' | 'paid' | 'cancelled' | 'overdue';
+  dueDate?: string;
+  paidAt?: string;
+  date: string; // fallback for UI consistency or createdAt
+  createdAt?: string;
+  customerName?: string;
+  customerEmail?: string;
 }
 
 export interface LedgerEntry {
@@ -241,9 +249,9 @@ export interface Promotion {
   minPurchase: number;
   startDate: string;
   endDate: string;
-  applicableProducts?: string[]; // Optional since not in screenshot but previously used
   isActive: boolean;
   createdAt?: string;
+  sellerName?: string;
 }
 
 export interface Coupon {

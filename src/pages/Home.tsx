@@ -112,8 +112,8 @@ const Home = () => {
       {/* Brand Story Section */}
       <section className="max-w-7xl mx-auto px-4 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-          <div className="relative">
-            <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl">
+          <div className="relative h-full flex flex-col justify-center">
+            <div className="aspect-[1/1] rounded-[3rem] overflow-hidden shadow-2xl">
               <img 
                 // src="https://picsum.photos/seed/crt/800/1000" 
                 src="/OurHeritage/OurHeritage-image.png"
@@ -122,9 +122,9 @@ const Home = () => {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="absolute -bottom-10 -right-10 bg-brand-gold p-12 rounded-[2.5rem] hidden md:block shadow-2xl">
-              <p className="text-white text-4xl font-serif italic mb-2">100%</p>
-              <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest">Authentic Designer Wear</p>
+            <div className="absolute -bottom-6 -right-6 bg-brand-gold p-5 rounded-[2rem] hidden md:block shadow-2xl text-center">
+              <p className="text-white text-3xl font-serif italic mb-1 leading-none">100%</p>
+              <p className="text-white/80 text-[8px] font-bold uppercase tracking-widest leading-none">Authentic Designer Wear</p>
             </div>
           </div>
           <div className="space-y-8">

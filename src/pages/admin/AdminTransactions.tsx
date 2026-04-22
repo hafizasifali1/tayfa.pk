@@ -75,6 +75,36 @@ const AdminTransactions: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) return;
+    const data = filteredTransactions.map(tx => ({
+      'Transaction ID': tx.id,
+      'Order ID': tx.orderId,
+      'Amount': tx.amount,
+      'Currency': tx.currency,
+      'Status': tx.status,
+      'Method': tx.paymentMethod,
+      'Date': new Date(tx.createdAt).toLocaleString()
+    }));
+
+    const csv = [
+      Object.keys(data[0]).join(','),
+      ...data.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Global_Transactions_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -83,13 +113,12 @@ const AdminTransactions: React.FC = () => {
           <p className="text-brand-dark/40 text-xs font-mono uppercase tracking-[0.2em]">Transaction_Monitoring_v2.0</p>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-3 px-6 py-3.5 bg-white border border-brand-dark/5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-cream transition-all shadow-sm">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-3 px-6 py-3.5 bg-white border border-brand-dark/5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-cream transition-all shadow-sm"
+          >
             <Download className="w-4 h-4" />
-            Export_Data
-          </button>
-          <button className="flex items-center gap-3 px-6 py-3.5 bg-brand-dark text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-gold transition-all shadow-xl shadow-brand-dark/10">
-            <Calendar className="w-4 h-4" />
-            SYSTEM_LOGS
+            Export_Data (CSV)
           </button>
         </div>
       </div>

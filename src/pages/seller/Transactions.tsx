@@ -19,6 +19,9 @@ import {
   DollarSign
 } from 'lucide-react';
 
+import axios from 'axios';
+import { useAuth } from '../../context/AuthContext';
+
 interface Transaction {
   id: string;
   orderId: string;
@@ -31,6 +34,7 @@ interface Transaction {
 }
 
 const Transactions: React.FC = () => {
+  const { user } = useAuth();
   const { formatPrice, selectedCountry } = useCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,20 +42,14 @@ const Transactions: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchTransactions();
-  }, []);
+    if (user?.id) fetchTransactions();
+  }, [user?.id]);
 
   const fetchTransactions = async () => {
     try {
-      // Mock data for now
-      const mockData: Transaction[] = [
-        { id: 'TX-001', orderId: 'ORD-101', amount: 12500, currency: 'PKR', status: 'completed', gateway: 'Stripe', createdAt: '2026-03-25T10:30:00Z', customer: 'John Doe' },
-        { id: 'TX-002', orderId: 'ORD-102', amount: 8400, currency: 'PKR', status: 'pending', gateway: 'COD', createdAt: '2026-03-25T14:45:00Z', customer: 'Jane Smith' },
-        { id: 'TX-003', orderId: 'ORD-103', amount: 21000, currency: 'PKR', status: 'failed', gateway: 'PayPal', createdAt: '2026-03-24T09:15:00Z', customer: 'Mike Johnson' },
-        { id: 'TX-004', orderId: 'ORD-104', amount: 15000, currency: 'PKR', status: 'completed', gateway: 'Stripe', createdAt: '2026-03-24T16:20:00Z', customer: 'Sarah Wilson' },
-        { id: 'TX-005', orderId: 'ORD-105', amount: 5500, currency: 'PKR', status: 'refunded', gateway: 'Stripe', createdAt: '2026-03-23T11:00:00Z', customer: 'Alex Brown' },
-      ];
-      setTransactions(mockData);
+      setIsLoading(true);
+      const res = await axios.get(`/api/transactions?sellerId=${user?.id}`);
+      setTransactions(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error('Error fetching transactions:', error);
     } finally {
@@ -87,6 +85,37 @@ const Transactions: React.FC = () => {
     return matchesFilter && matchesSearch;
   });
 
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) return;
+    const data = filteredTransactions.map(tx => ({
+      'Transaction ID': tx.id,
+      'Order ID': tx.orderId,
+      'Customer': tx.customer,
+      'Amount': tx.amount,
+      'Currency': tx.currency,
+      'Status': tx.status,
+      'Gateway': tx.gateway,
+      'Date': new Date(tx.createdAt).toLocaleString()
+    }));
+
+    const csv = [
+      Object.keys(data[0]).join(','),
+      ...data.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Transactions_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -95,13 +124,12 @@ const Transactions: React.FC = () => {
           <p className="text-gray-500 mt-1">Monitor and manage your sales and settlements.</p>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm"
+          >
             <Download className="w-4 h-4" />
             Export CSV
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800 transition-all shadow-lg">
-            <Calendar className="w-4 h-4" />
-            Last 30 Days
           </button>
         </div>
       </div>

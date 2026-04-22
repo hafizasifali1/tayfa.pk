@@ -19,7 +19,7 @@ export const Table = ({
             {headers.map((header, idx) => (
               <th 
                 key={idx} 
-                className={`px-4 py-5 sm:px-10 sm:py-7 text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/30 ${idx === headers.length - 1 ? 'text-right' : ''}`}
+                className={`px-4 py-5 sm:px-10 sm:py-7 text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/60 ${idx === headers.length - 1 ? 'text-right' : ''}`}
               >
                 {header}
               </th>

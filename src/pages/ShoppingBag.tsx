@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Trash2, Plus, Minus, ArrowRight, ShoppingBag, Tag, Truck, 
   ShieldCheck, RotateCcw, CheckCircle2, AlertCircle, Heart, 
-  ChevronDown, Lock, CreditCard, Apple, Check
+  ChevronDown, Lock, CreditCard, Apple, Check, Loader2
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -20,6 +20,8 @@ const ShoppingBagPage = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState('');
   const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(true);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [isCouponSuccess, setIsCouponSuccess] = useState(false);
 
   const getProductImage = (images: any) => {
     if (!images) return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
@@ -53,66 +55,48 @@ const ShoppingBagPage = () => {
 
   const recommendedItems = products.slice(0, 4);
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
     setCouponError('');
-    // In a real app, this would be an API call. 
-    // For now, we'll check local storage or a mock list.
-    const coupons: Coupon[] = JSON.parse(localStorage.getItem('tayfa_coupons') || '[]');
-    
-    // Mock some coupons if none exist
-    const mockCoupons: Coupon[] = [
-      {
-        id: '1',
-        sellerId: 'admin',
-        code: 'FASHION10',
-        description: '10% off your order',
-        discountType: 'percentage',
-        discountValue: 10,
-        minPurchaseAmount: 50,
-        startDate: '2024-01-01',
-        endDate: '2026-12-31',
-        usageCount: 0,
-        isActive: true
-      },
-      {
-        id: '2',
-        sellerId: 'admin',
-        code: 'SAVE20',
-        description: '$20 off your order',
-        discountType: 'fixed_amount',
-        discountValue: 20,
-        minPurchaseAmount: 100,
-        startDate: '2024-01-01',
-        endDate: '2026-12-31',
-        usageCount: 0,
-        isActive: true
+    setIsApplyingCoupon(true);
+    setIsCouponSuccess(false);
+
+    try {
+      const response = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          code: couponCode,
+          subtotal: cartTotal,
+          items: cart.map(item => ({ id: item.id, sellerId: item.sellerId }))
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.valid) {
+        setAppliedCoupon({
+          id: data.code, // Mocked ID since API returns what we need
+          code: data.code,
+          discountType: data.discountType,
+          discountValue: data.discountValue,
+          isActive: true,
+          sellerId: 'admin' // Placeholder
+        } as any);
+        setIsCouponSuccess(true);
+        setCouponCode('');
+        // Auto hide success message after 3s
+        setTimeout(() => setIsCouponSuccess(false), 3000);
+      } else {
+        setCouponError(data.message + (data.details ? `: ${data.details}` : ''));
+        setAppliedCoupon(null);
       }
-    ];
-
-    const allCoupons = [...coupons, ...mockCoupons];
-    const coupon = allCoupons.find(c => c.code.toUpperCase() === couponCode.toUpperCase() && c.isActive);
-
-    if (!coupon) {
-      setCouponError('Invalid or inactive coupon code.');
-      setAppliedCoupon(null);
-      return;
+    } catch (error) {
+      console.error('Coupon validation error:', error);
+      setCouponError('Failed to validate coupon. Please try again.');
+    } finally {
+      setIsApplyingCoupon(false);
     }
-
-    const now = new Date();
-    if (new Date(coupon.endDate) < now) {
-      setCouponError('This coupon has expired.');
-      setAppliedCoupon(null);
-      return;
-    }
-
-    if (coupon.minPurchaseAmount && cartTotal < coupon.minPurchaseAmount) {
-      setCouponError(`Minimum purchase of $${coupon.minPurchaseAmount} required.`);
-      setAppliedCoupon(null);
-      return;
-    }
-
-    setAppliedCoupon(coupon);
-    setCouponCode('');
   };
 
   const discountAmount = useMemo(() => {
@@ -183,15 +167,7 @@ const ShoppingBagPage = () => {
           </Link>
         </div>
 
-        {/* Urgency Trigger */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="bg-brand-gold/5 border border-brand-gold/10 rounded-2xl p-4 mb-8 flex items-center space-x-3"
-        >
-          <AlertCircle size={20} className="text-brand-gold" />
-          <p className="text-sm font-medium text-brand-gold">Items in your bag are selling fast. Limited stock available!</p>
-        </motion.div>
+
 
         <div className="flex flex-col lg:flex-row gap-12">
           {/* LEFT SECTION — CART ITEMS (70%) */}
@@ -330,32 +306,7 @@ const ShoppingBagPage = () => {
           {/* RIGHT SECTION — ORDER SUMMARY (30%) */}
           <div className="lg:w-[30%]">
             <div className="sticky top-32 space-y-6">
-              {/* Free Shipping Threshold */}
-              {amountToFreeShipping > 0 ? (
-                <div className="bg-white p-6 rounded-2xl border border-brand-gold/20 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold uppercase tracking-widest text-brand-gold">Free Shipping</span>
-                    <span className="text-xs font-bold text-brand-gold"><Price amount={amountToFreeShipping} /> more</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-brand-cream rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(cartTotal / FREE_SHIPPING_THRESHOLD) * 100}%` }}
-                      className="h-full bg-brand-gold"
-                    />
-                  </div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 mt-3">
-                    Add <Price amount={amountToFreeShipping} /> more to get <span className="text-brand-gold">FREE shipping</span>
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white">
-                    <Check size={18} />
-                  </div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">You've unlocked FREE shipping!</p>
-                </div>
-              )}
+
 
               {/* Order Summary Card */}
               <div className="bg-white rounded-3xl p-8 shadow-sm border border-brand-dark/5 space-y-8">
@@ -386,17 +337,17 @@ const ShoppingBagPage = () => {
                     )}
                   </div>
 
-                  <div className="flex justify-between text-sm">
-                    <span className="text-brand-dark/60 font-medium">Estimated Tax</span>
+                  <div className="flex justify-between text-xs sm:text-sm">
+                    <span className="text-brand-dark/60 font-medium font-serif">Estimated Tax</span>
                     <Price amount={taxes} className="font-bold" />
                   </div>
 
                   <div className="pt-6 border-t border-brand-dark/5 flex justify-between items-end">
                     <div>
-                      <span className="text-lg font-serif block">Total</span>
-                      <span className="text-[10px] text-brand-dark/40 font-bold uppercase tracking-widest">Including VAT</span>
+                      <span className="text-base font-serif block">Total</span>
+                      <span className="text-[9px] text-brand-dark/40 font-bold uppercase tracking-widest">Including VAT</span>
                     </div>
-                    <Price amount={finalTotal} className="text-3xl font-bold text-brand-gold" />
+                    <Price amount={finalTotal} className="text-lg font-bold text-brand-gold" />
                   </div>
                 </div>
 
@@ -410,13 +361,15 @@ const ShoppingBagPage = () => {
                           value={couponCode}
                           onChange={(e) => setCouponCode(e.target.value)}
                           placeholder="Promo Code" 
-                          className="flex-grow bg-brand-cream/30 border border-brand-dark/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-gold transition-colors"
+                          disabled={isApplyingCoupon}
+                          className="flex-grow bg-brand-cream/30 border border-brand-dark/5 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-gold transition-colors disabled:opacity-50"
                         />
                         <button 
                           onClick={handleApplyCoupon}
-                          className="bg-brand-dark text-white px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-gold transition-colors"
+                          disabled={isApplyingCoupon || !couponCode}
+                          className="bg-brand-dark text-white px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-gold transition-colors disabled:bg-brand-dark/40 flex items-center justify-center min-w-[100px]"
                         >
-                          Apply
+                          {isApplyingCoupon ? <Loader2 className="animate-spin" size={16} /> : 'Apply'}
                         </button>
                       </div>
                       {couponError && (
@@ -429,23 +382,45 @@ const ShoppingBagPage = () => {
                           <span>{couponError}</span>
                         </motion.div>
                       )}
+                      {isCouponSuccess && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center space-x-2 text-emerald-500 text-[10px] font-bold uppercase tracking-widest"
+                        >
+                          <CheckCircle2 size={14} />
+                          <span>Coupon Applied Successfully!</span>
+                        </motion.div>
+                      )}
                     </div>
                   ) : (
                     <motion.div 
+                      key="applied-coupon"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="flex items-center justify-between bg-emerald-50 p-4 rounded-xl border border-emerald-100"
+                      className="flex items-center justify-between bg-brand-gold/5 p-4 rounded-xl border border-brand-gold/10"
                     >
                       <div className="flex items-center space-x-3">
-                        <CheckCircle2 size={18} className="text-emerald-500" />
+                        <div className="w-8 h-8 bg-brand-gold/10 rounded-full flex items-center justify-center text-brand-gold">
+                          <Tag size={16} />
+                        </div>
                         <div>
-                          <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">{appliedCoupon.code}</span>
-                          <p className="text-[10px] text-emerald-600">Code applied – You saved <Price amount={discountAmount} /></p>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/80">{appliedCoupon.code}</span>
+                            <span className="text-[9px] bg-brand-gold text-white px-1.5 py-0.5 rounded-full font-bold uppercase">Applied</span>
+                          </div>
+                          <p className="text-[10px] text-brand-dark/40 font-bold uppercase tracking-widest">
+                            {appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}%` : <Price amount={appliedCoupon.discountValue} />} Discount
+                          </p>
                         </div>
                       </div>
                       <button 
-                        onClick={() => setAppliedCoupon(null)}
-                        className="text-emerald-700 hover:text-rose-500 transition-colors"
+                        onClick={() => {
+                          setAppliedCoupon(null);
+                          setIsCouponSuccess(false);
+                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-50 text-brand-dark/20 hover:text-rose-500 transition-all"
+                        title="Remove Coupon"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -458,37 +433,20 @@ const ShoppingBagPage = () => {
                   <p className="text-[10px] text-center font-bold uppercase tracking-widest text-brand-dark/40">You're almost there</p>
                   <button 
                     onClick={() => navigate('/checkout')}
-                    className="w-full flex items-center justify-center space-x-3 bg-gradient-to-r from-brand-gold to-brand-gold text-white py-5 rounded-full font-bold uppercase tracking-widest hover:shadow-xl hover:shadow-brand-gold/30 transition-all transform hover:-translate-y-0.5"
+                    className="w-full flex items-center justify-center space-x-3 bg-gradient-to-r from-brand-gold to-brand-gold text-white py-3.5 rounded-xl font-bold uppercase tracking-widest hover:shadow-xl hover:shadow-brand-gold/30 transition-all transform hover:-translate-y-0.5"
                   >
                     <span>Proceed to Checkout</span>
-                    <ArrowRight size={20} />
+                    <ArrowRight size={16} />
                   </button>
                   <Link 
                     to="/shop"
-                    className="w-full flex items-center justify-center py-3 text-xs font-bold uppercase tracking-widest text-brand-dark/60 hover:text-brand-gold transition-colors"
+                    className="w-full flex items-center justify-center py-2 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 hover:text-brand-gold transition-colors"
                   >
                     Continue Shopping
                   </Link>
                 </div>
 
-                {/* Trust Signals */}
-                <div className="pt-8 border-t border-brand-dark/5 space-y-6">
-                  <div className="flex items-center justify-center space-x-2 text-brand-dark/60">
-                    <Lock size={14} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Secure Checkout</span>
-                  </div>
-                  
-                  <div className="flex justify-center items-center gap-4 opacity-40 grayscale">
-                    <CreditCard size={20} />
-                    <Apple size={20} />
-                    <div className="text-[10px] font-black italic">VISA</div>
-                    <div className="text-[10px] font-black italic">mada</div>
-                  </div>
 
-                  <p className="text-[10px] text-center text-brand-dark/40 font-bold uppercase tracking-widest">
-                    Trusted by 10,000+ customers
-                  </p>
-                </div>
               </div>
             </div>
           </div>

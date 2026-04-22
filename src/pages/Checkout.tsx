@@ -20,7 +20,9 @@ import {
   User,
   Banknote,
   Wallet,
-  Info
+  Info,
+  Tag,
+  Trash2
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -47,6 +49,67 @@ const Checkout = () => {
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Review
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [paymentResult, setPaymentResult] = useState<any>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponError, setCouponError] = useState('');
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [isCouponSuccess, setIsCouponSuccess] = useState(false);
+
+  // Constants
+  const FREE_SHIPPING_THRESHOLD = 200;
+  const SHIPPING_COST = 15;
+  const TAX_RATE = 0.08;
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode) return;
+    setCouponError('');
+    setIsApplyingCoupon(true);
+    setIsCouponSuccess(false);
+
+    try {
+      const response = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          code: couponCode,
+          subtotal: cartTotal
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.valid) {
+        setAppliedCoupon({
+          code: data.code,
+          discountType: data.discountType,
+          discountValue: data.discountValue
+        });
+        setIsCouponSuccess(true);
+        setCouponCode('');
+        setTimeout(() => setIsCouponSuccess(false), 3000);
+      } else {
+        setCouponError(data.message + (data.details ? `: ${data.details}` : ''));
+        setAppliedCoupon(null);
+      }
+    } catch (error) {
+      console.error('Coupon validation error:', error);
+      setCouponError('Failed to validate coupon.');
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  };
+
+  const discountAmount = React.useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discountType === 'percentage') {
+      return (cartTotal * appliedCoupon.discountValue) / 100;
+    }
+    return appliedCoupon.discountValue;
+  }, [appliedCoupon, cartTotal]);
+
+  const shipping = cartTotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
+  const taxes = (cartTotal - discountAmount) * TAX_RATE;
+  const finalTotal = Math.max(0, cartTotal - discountAmount + shipping + taxes);
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -135,7 +198,9 @@ const Checkout = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: cart,
-          totalAmount: cartTotal,
+          totalAmount: finalTotal, // Use finalTotal instead of cartTotal
+          discountAmount,
+          couponCode: appliedCoupon?.code,
           customerId: user?.id,
           shippingAddress: formData,
           customerEmail: formData.email,
@@ -512,7 +577,7 @@ const Checkout = () => {
                     ) : (
                       <div className="flex items-center space-x-3">
                         <Lock size={18} />
-                        <span>Place Order • <Price amount={cartTotal} /></span>
+                        <span>Place Order • <Price amount={finalTotal} /></span>
                       </div>
                     )}
                   </Button>
@@ -533,21 +598,93 @@ const Checkout = () => {
             
             <div className="space-y-3 sm:space-y-4">
               <div className="flex justify-between text-xs sm:text-sm">
-                <span className="text-brand-dark/60">Subtotal</span>
-                <Price amount={cartTotal} />
+                <span className="text-brand-dark/60 font-medium font-serif">Subtotal</span>
+                <Price amount={cartTotal} className="font-bold" />
+              </div>
+              
+              {appliedCoupon && (
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-emerald-600 font-medium flex items-center gap-1.5 font-serif">
+                    <Tag size={12} />
+                    Discount ({appliedCoupon.code})
+                  </span>
+                  <span className="text-emerald-600 font-bold">- <Price amount={discountAmount} /></span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-xs sm:text-sm">
+                <span className="text-brand-dark/60 font-medium font-serif">Shipping</span>
+                {shipping === 0 ? (
+                  <span className="text-emerald-600 font-bold uppercase tracking-widest text-[10px]">Free</span>
+                ) : (
+                  <Price amount={shipping} className="font-bold" />
+                )}
               </div>
               <div className="flex justify-between text-xs sm:text-sm">
-                <span className="text-brand-dark/60">Shipping</span>
-                <span className="text-emerald-500 font-medium">FREE</span>
-              </div>
-              <div className="flex justify-between text-xs sm:text-sm">
-                <span className="text-brand-dark/60">Estimated Tax</span>
-                <Price amount={0} />
+                <span className="text-brand-dark/60 font-medium font-serif">Estimated Tax</span>
+                <Price amount={taxes} className="font-bold" />
               </div>
               <div className="pt-3 sm:pt-4 border-t border-brand-dark/5 flex justify-between items-end">
                 <span className="text-base sm:text-lg font-serif">Total</span>
-                <Price amount={cartTotal} className="text-xl sm:text-2xl font-bold text-brand-gold" />
+                <Price amount={finalTotal} className="text-xl sm:text-2xl font-bold text-brand-gold" />
               </div>
+            </div>
+
+            {/* Promo Code Input */}
+            <div className="pt-2">
+              {!appliedCoupon ? (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value)}
+                      placeholder="Promo Code" 
+                      disabled={isApplyingCoupon}
+                      className="flex-grow bg-brand-cream/30 border border-brand-dark/5 rounded-xl px-4 py-3 text-[10px] focus:outline-none focus:border-brand-gold transition-colors disabled:opacity-50 font-bold uppercase tracking-widest"
+                    />
+                    <button 
+                      onClick={handleApplyCoupon}
+                      disabled={isApplyingCoupon || !couponCode}
+                      className="bg-brand-dark text-white px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-brand-gold transition-colors disabled:bg-brand-dark/20 flex items-center justify-center min-w-[70px]"
+                    >
+                      {isApplyingCoupon ? <Loader2 className="animate-spin" size={12} /> : 'Apply'}
+                    </button>
+                  </div>
+                  {couponError && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center space-x-1.5 text-rose-500 text-[9px] font-black uppercase tracking-tighter">
+                      <AlertCircle size={12} />
+                      <span>{couponError}</span>
+                    </motion.div>
+                  )}
+                  {isCouponSuccess && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center space-x-1.5 text-emerald-500 text-[9px] font-black uppercase tracking-tighter">
+                      <CheckCircle2 size={12} />
+                      <span>Coupon Applied!</span>
+                    </motion.div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between bg-brand-gold/5 p-3 rounded-xl border border-brand-gold/10">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-7 h-7 bg-brand-gold/10 rounded-full flex items-center justify-center text-brand-gold">
+                      <Tag size={14} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-brand-dark/80">{appliedCoupon.code}</span>
+                      <p className="text-[9px] text-brand-dark/40 font-bold uppercase tracking-widest">
+                        {appliedCoupon.discountType === 'percentage' ? `${appliedCoupon.discountValue}%` : <Price amount={appliedCoupon.discountValue} />} OFF
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => { setAppliedCoupon(null); setIsCouponSuccess(false); }}
+                    className="text-brand-dark/20 hover:text-rose-500 transition-colors p-1"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="bg-brand-cream/30 p-3 sm:p-4 rounded-xl sm:rounded-2xl flex items-start space-x-2 sm:space-x-3">
@@ -566,7 +703,7 @@ const Checkout = () => {
         <div className="max-w-md mx-auto flex items-center justify-between gap-4">
           <div className="flex-shrink-0 pr-4 border-r border-brand-dark/5">
             <p className="text-[9px] text-brand-dark/40 font-bold uppercase tracking-widest mb-0.5">Total</p>
-            <Price amount={cartTotal} className="text-lg font-bold text-brand-gold" />
+            <Price amount={finalTotal} className="text-lg font-bold text-brand-gold" />
           </div>
           <button 
             onClick={() => {
