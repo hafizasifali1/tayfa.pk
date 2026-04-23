@@ -35,7 +35,10 @@ import {
   seo,
   communicationProviders,
   communicationTemplates,
-  communicationLogs
+  communicationLogs,
+  carts,
+  cartItems,
+  customers
 } from '../db/schema';
 import { CommunicationService } from './services/communication/CommunicationService';
 import { encrypt } from './utils/encryption';
@@ -46,10 +49,47 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import { SEOEntityType } from '../types';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 const isMysql = process.env.DATABASE_URL?.startsWith('mysql');
 const idType = isMysql ? 'CHAR(36)' : 'UUID';
+
+// --- File Upload Configuration ---
+const uploadDir = path.join(process.cwd(), 'public/uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+router.post('/upload', upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const imageUrl = `/uploads/${req.file.filename}`;
+    res.json({ imageUrl });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
 
 // --- Database Migration Helper ---
 const runMigrations = async () => {
@@ -248,6 +288,56 @@ const runMigrations = async () => {
       )`);
     } catch (e) { }
     
+
+    // Carts
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS carts (
+        id CHAR(36) PRIMARY KEY,
+        user_id CHAR(36),
+        session_id VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+    } catch (e) { }
+
+    // Cart Items
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS cart_items (
+        id CHAR(36) PRIMARY KEY,
+        cart_id CHAR(36) NOT NULL,
+        product_id CHAR(36) NOT NULL,
+        seller_id CHAR(36),
+        variant_id VARCHAR(100) DEFAULT 'default',
+        name VARCHAR(255) NOT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        image TEXT,
+        qty INT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+    } catch (e) { }
+
+    // Customers
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS customers (
+        id CHAR(36) PRIMARY KEY,
+        user_id CHAR(36),
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100),
+        email VARCHAR(255) NOT NULL UNIQUE,
+        phone VARCHAR(50),
+        gender VARCHAR(20),
+        date_of_birth TIMESTAMP,
+        country VARCHAR(100),
+        city VARCHAR(100),
+        address TEXT,
+        profile_image TEXT,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+    } catch (e) { }
 
     console.log('Database migration check completed.');
   } catch (error) {
@@ -725,18 +815,15 @@ router.get('/audit-logs', async (req, res) => {
 // --- Products API ---
 router.get('/products', async (req, res) => {
   try {
-    const { category, gender, type, minPrice, maxPrice, sortBy } = req.query;
+    const { category, gender, type, minPrice, maxPrice, sortBy, sellerId, status } = req.query;
 
-    // Check if DATABASE_URL is set
     if (!process.env.DATABASE_URL) {
-      console.warn('DATABASE_URL is not set. Returning empty product list.');
       return res.json([]);
     }
 
-    // Basic filtering logic (can be expanded)
     const parentCategories = alias(categories, 'parent_categories');
 
-    let query = db.select({
+    let dbQuery = db.select({
       id: products.id,
       name: products.name,
       slug: products.slug,
@@ -763,27 +850,48 @@ router.get('/products', async (req, res) => {
       type: products.type,
       subcategory: products.subcategory,
       sellerId: products.sellerId,
+      sellerName: users.fullName,
+      sellerEmail: users.email,
       sku: products.sku,
       pricelistId: products.pricelistId,
+      currency: pricelists.currency,
       taxRuleId: products.taxRuleId,
       dynamicFilters: products.dynamicFilters,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
     })
-      .from(products)
-      .leftJoin(brands, eq(products.brandId, brands.id))
-      .leftJoin(categories, eq(products.categoryId, categories.id))
-      .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id));
+    .from(products)
+    .leftJoin(brands, eq(products.brandId, brands.id))
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id))
+    .leftJoin(users, eq(products.sellerId, users.id))
+    .leftJoin(pricelists, eq(products.pricelistId, pricelists.id));
 
-    // In a real app, you'd use a more dynamic query builder
-    const result = await query.execute();
+    // Apply filters
+    const conditions = [];
+    if (sellerId) conditions.push(eq(products.sellerId, sellerId as string));
+    if (status) conditions.push(eq(products.status, status as string));
+    if (category) conditions.push(eq(categories.slug, category as string));
+    if (gender) conditions.push(eq(products.gender, gender as string));
+    if (type) conditions.push(eq(products.type, type as string));
 
-    // Fetch dynamic filters for these products
+    if (conditions.length > 0) {
+      // @ts-ignore
+      dbQuery = dbQuery.where(and(...conditions));
+    }
+
+    let result: any[] = [];
+    try {
+      result = await dbQuery.execute();
+    } catch (e) {
+      console.error('Error executing product query:', e);
+      return res.status(500).json({ error: 'Failed to fetch products from database' });
+    }
+
+    // Group and parse results
     const productIds = result.map(p => p.id);
     if (productIds.length > 0) {
       const filterValues = await db.select().from(productFilterValues).where(inArray(productFilterValues.productId, productIds));
-
-      // Group by productId
       const filterMap: Record<string, Record<string, string[]>> = {};
       filterValues.forEach(fv => {
         if (!filterMap[fv.productId]) filterMap[fv.productId] = {};
@@ -791,7 +899,6 @@ router.get('/products', async (req, res) => {
         filterMap[fv.productId][fv.filterId].push(fv.valueId);
       });
 
-      // Attach to products and ensure JSON fields are parsed
       result.forEach((p: any) => {
         p.dynamicFilters = p.dynamicFilters || filterMap[p.id] || {};
         p.images = parseJsonField(p.images);
@@ -801,20 +908,21 @@ router.get('/products', async (req, res) => {
         p.dynamicFilters = parseJsonField(p.dynamicFilters);
       });
     } else {
-      // Still parse JSON fields even if no filters
-      result.forEach((p: any) => {
-        p.images = parseJsonField(p.images);
-        p.sizes = parseJsonField(p.sizes);
-        p.colors = parseJsonField(p.colors);
-        p.tags = parseJsonField(p.tags);
-        p.dynamicFilters = parseJsonField(p.dynamicFilters);
-      });
+      if (Array.isArray(result)) {
+        result.forEach((p: any) => {
+          p.images = parseJsonField(p.images);
+          p.sizes = parseJsonField(p.sizes);
+          p.colors = parseJsonField(p.colors);
+          p.tags = parseJsonField(p.tags);
+          p.dynamicFilters = parseJsonField(p.dynamicFilters);
+        });
+      }
     }
 
     res.json(result);
   } catch (error) {
     console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Failed to fetch products. Please ensure the database is initialized.' });
+    res.status(500).json({ error: 'Failed to fetch products.' });
   }
 });
 
@@ -868,6 +976,20 @@ router.delete('/products/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting product:', error);
     res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+router.post('/products/bulk-delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'IDs must be a non-empty array' });
+    }
+    await db.delete(products).where(inArray(products.id, ids));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error bulk deleting products:', error);
+    res.status(500).json({ error: 'Failed to bulk delete products' });
   }
 });
 
@@ -1996,6 +2118,65 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
+router.get('/dashboard/seller/stats', async (req, res) => {
+  try {
+    const { sellerId } = req.query;
+    if (!sellerId) return res.status(400).json({ error: 'Seller ID is required' });
+    if (!process.env.DATABASE_URL) return res.json({});
+
+    // Get seller products count
+    let productsCountValue = 0;
+    try {
+      const pCountRes: any[] = await db
+        .select({ count: sql`count(*)` })
+        .from(products)
+        .where(eq(products.sellerId, sellerId as string));
+      productsCountValue = Number(pCountRes[0]?.count) || 0;
+    } catch (e) {
+      console.error('Error counting products:', e);
+    }
+
+    // Get seller orders and revenue via orderItems
+    let sellerOrders: any[] = [];
+    try {
+      sellerOrders = await db
+        .select({
+          id: orders.id,
+          total: orderItems.price, // Using the item price as the seller's portion
+          status: orders.status,
+          customer: orders.customerEmail,
+          createdAt: orders.createdAt
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .where(eq(orderItems.sellerId, sellerId as string));
+    } catch (e) {
+      console.error('Error fetching seller orders:', e);
+    }
+
+    const totalOrders = new Set(sellerOrders.map(o => o.id)).size;
+    const totalRevenue = sellerOrders.reduce((sum, o) => sum + parseFloat(o.total || '0'), 0);
+
+    // Get orders distribution
+    const statusCounts: Record<string, number> = {};
+    sellerOrders.forEach(o => {
+      statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
+    });
+
+    res.json({
+      revenue: totalRevenue,
+      orders: totalOrders,
+      products: productsCountValue,
+      recentOrders: Array.isArray(sellerOrders) ? sellerOrders.slice(0, 5) : [],
+      ordersByStatus: Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
+      salesOverTime: [] // Placeholder
+    });
+  } catch (error) {
+    console.error('Error fetching seller stats:', error);
+    res.status(500).json({ error: 'Failed to fetch seller statistics' });
+  }
+});
+
 // --- Admin Portal APIs (POST, PUT, DELETE) ---
 // Note: In a real app, these would be protected by auth middleware
 router.post('/admin/products', async (req, res) => {
@@ -2428,6 +2609,19 @@ router.get('/payments/admin/gateways/:id/config', async (req, res) => {
   }
 });
 
+router.post('/payments/admin/gateways', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'Database not connected' });
+    const id = uuidv4();
+    await db.insert(paymentGateways).values({ ...req.body, id });
+    const [newGateway] = await db.select().from(paymentGateways).where(eq(paymentGateways.id, id));
+    res.status(201).json(newGateway);
+  } catch (error) {
+    console.error('Error creating gateway:', error);
+    res.status(500).json({ error: 'Failed to create gateway' });
+  }
+});
+
 router.post('/payments/admin/gateways/:id/config', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'Database not connected' });
@@ -2449,12 +2643,25 @@ router.patch('/payments/admin/gateways/:id', async (req, res) => {
       data: req.body,
       userId: req.body.adminId || 'system',
       module: 'PaymentGateway',
-      allowedFields: ['name', 'provider', 'isActive', 'isTestMode']
+      allowedFields: ['name', 'code', 'type', 'status', 'isDefault']
     });
     res.json(updated);
   } catch (error: any) {
     console.error('Error updating gateway:', error);
     res.status(error.message.includes('not found') ? 404 : 400).json({ error: error.message });
+  }
+});
+
+router.delete('/payments/admin/gateways/:id', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'Database not connected' });
+    // Also delete associated configs
+    await db.delete(gatewayConfigs).where(eq(gatewayConfigs.gatewayId, req.params.id));
+    await db.delete(paymentGateways).where(eq(paymentGateways.id, req.params.id));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting gateway:', error);
+    res.status(500).json({ error: 'Failed to delete gateway' });
   }
 });
 
@@ -3132,7 +3339,9 @@ router.post('/communication/providers', async (req, res) => {
       }
     }
 
-    const [newProvider] = await db.insert(communicationProviders).values({
+    const id = uuidv4();
+    await db.insert(communicationProviders).values({
+      id,
       name,
       type,
       config: encryptedConfig,
@@ -3141,7 +3350,8 @@ router.post('/communication/providers', async (req, res) => {
       priority,
       isActive,
       isDefault
-    }).returning();
+    });
+    const [newProvider] = await db.select().from(communicationProviders).where(eq(communicationProviders.id, id));
     res.json(newProvider);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -3163,13 +3373,26 @@ router.patch('/communication/providers/:id', async (req, res) => {
       updateData.config = encryptedConfig;
     }
 
-    const [updated] = await db.update(communicationProviders)
-      .set(updateData)
-      .where(eq(communicationProviders.id, req.params.id))
-      .returning();
+    const updated = await handlePatchUpdate({
+      table: communicationProviders,
+      id: req.params.id,
+      data: req.body,
+      userId: 'system',
+      module: 'CommunicationProvider',
+      allowedFields: ['name', 'type', 'config', 'senderId', 'endpointUrl', 'priority', 'isActive', 'isDefault']
+    });
     res.json(updated);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete('/communication/providers/:id', async (req, res) => {
+  try {
+    await db.delete(communicationProviders).where(eq(communicationProviders.id, req.params.id));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -3184,10 +3407,37 @@ router.get('/communication/templates', async (req, res) => {
 
 router.post('/communication/templates', async (req, res) => {
   try {
-    const [newTemplate] = await db.insert(communicationTemplates).values(req.body).returning();
+    const id = uuidv4();
+    await db.insert(communicationTemplates).values({ ...req.body, id });
+    const [newTemplate] = await db.select().from(communicationTemplates).where(eq(communicationTemplates.id, id));
     res.json(newTemplate);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.patch('/communication/templates/:id', async (req, res) => {
+  try {
+    const updated = await handlePatchUpdate({
+      table: communicationTemplates,
+      id: req.params.id,
+      data: req.body,
+      userId: 'system',
+      module: 'CommunicationTemplate',
+      allowedFields: ['name', 'type', 'content', 'language', 'isActive']
+    });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete('/communication/templates/:id', async (req, res) => {
+  try {
+    await db.delete(communicationTemplates).where(eq(communicationTemplates.id, req.params.id));
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -3210,4 +3460,284 @@ router.post('/communication/send-test', async (req, res) => {
   }
 });
 
+// ============================================================
+// --- Cart API --- 
+// ============================================================
+
+/** Helper: get or create the active cart for a user */
+const getOrCreateUserCart = async (userId: string) => {
+  const existing = await db.select().from(carts)
+    .where(and(eq(carts.userId, userId), eq(carts.status, 'active')))
+    .limit(1);
+
+  if (existing.length > 0) return existing[0];
+
+  const id = uuidv4();
+  await db.insert(carts).values({ id, userId, status: 'active' });
+  return { id, userId, status: 'active' };
+};
+
+/** Helper: load all items for a cart with formatted shape */
+const loadCartItems = async (cartId: string) => {
+  const rows = await db.select().from(cartItems).where(eq(cartItems.cartId, cartId));
+  return rows.map((r: any) => ({
+    cartItemId: r.id,
+    cartId: r.cartId,
+    id: r.productId,
+    sellerId: r.sellerId,
+    name: r.name,
+    price: parseFloat(r.price),
+    imageUrl: r.image,
+    qty: r.qty,
+    variantId: r.variantId || 'default',
+    size: r.variantId?.split('-')[0] || '',
+    color: r.variantId?.split('-')[1] || '',
+  }));
+};
+
+// GET /api/cart?userId=xxx  — fetch cart for logged-in user
+router.get('/cart', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    if (!process.env.DATABASE_URL) return res.json({ items: [] });
+
+    const cart = await getOrCreateUserCart(userId as string);
+    const items = await loadCartItems(cart.id);
+    res.json({ cartId: cart.id, items });
+  } catch (error: any) {
+    console.error('Cart GET error:', error);
+    res.status(500).json({ error: 'Failed to fetch cart' });
+  }
+});
+
+// POST /api/cart/items  — add item to cart (idempotent: merges qty if same variant)
+router.post('/cart/items', async (req, res) => {
+  try {
+    const { userId, id: productId, sellerId, name, price, image, imageUrl, qty = 1, variantId = 'default' } = req.body;
+    if (!userId || !productId || !name || price === undefined) {
+      return res.status(400).json({ error: 'userId, id, name, price are required' });
+    }
+
+    const finalImage = imageUrl || image;
+    // Extra safety: reject if it's still base64
+    if (finalImage && finalImage.startsWith('data:image')) {
+       return res.status(400).json({ error: 'Image must be a URL, base64 data is too large.' });
+    }
+    if (!process.env.DATABASE_URL) return res.json({ items: [] });
+
+    const cart = await getOrCreateUserCart(userId);
+
+    // Check if same product+variant already in cart
+    const existing = await db.select().from(cartItems)
+      .where(and(
+        eq(cartItems.cartId, cart.id),
+        eq(cartItems.productId, productId),
+        eq(cartItems.variantId, variantId)
+      )).limit(1);
+
+    if (existing.length > 0) {
+      // Merge: add quantities
+      const newQty = existing[0].qty + qty;
+      await db.update(cartItems)
+        .set({ qty: newQty })
+        .where(eq(cartItems.id, existing[0].id));
+    } else {
+      // Insert new item
+      await db.insert(cartItems).values({
+        id: uuidv4(),
+        cartId: cart.id,
+        productId,
+        sellerId: sellerId || null,
+        variantId,
+        name,
+        price: price.toString(),
+        image: finalImage || null,
+        qty,
+      });
+    }
+
+    const items = await loadCartItems(cart.id);
+    res.json({ cartId: cart.id, items });
+  } catch (error: any) {
+    console.error('Cart add error:', error);
+    res.status(500).json({ error: 'Failed to add to cart' });
+  }
+});
+
+// PUT /api/cart/items/:id  — update quantity
+router.put('/cart/items/:id', async (req, res) => {
+  try {
+    const { userId, qty } = req.body;
+    const cartItemId = req.params.id;
+    if (!userId || qty === undefined) return res.status(400).json({ error: 'userId and qty required' });
+    if (!process.env.DATABASE_URL) return res.json({ items: [] });
+
+    if (qty < 1) {
+      await db.delete(cartItems).where(eq(cartItems.id, cartItemId));
+    } else {
+      await db.update(cartItems).set({ qty }).where(eq(cartItems.id, cartItemId));
+    }
+
+    const cart = await getOrCreateUserCart(userId);
+    const items = await loadCartItems(cart.id);
+    res.json({ cartId: cart.id, items });
+  } catch (error: any) {
+    console.error('Cart update error:', error);
+    res.status(500).json({ error: 'Failed to update cart item' });
+  }
+});
+
+// DELETE /api/cart/items/:id  — remove a cart item
+router.delete('/cart/items/:id', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const cartItemId = req.params.id;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    if (!process.env.DATABASE_URL) return res.json({ items: [] });
+
+    await db.delete(cartItems).where(eq(cartItems.id, cartItemId));
+
+    const cart = await getOrCreateUserCart(userId as string);
+    const items = await loadCartItems(cart.id);
+    res.json({ cartId: cart.id, items });
+  } catch (error: any) {
+    console.error('Cart delete error:', error);
+    res.status(500).json({ error: 'Failed to remove cart item' });
+  }
+});
+
+// POST /api/cart/merge  — merge guest items into logged-in user cart (idempotent)
+router.post('/cart/merge', async (req, res) => {
+  try {
+    const { userId, guestItems } = req.body;
+    if (!userId || !Array.isArray(guestItems)) {
+      return res.status(400).json({ error: 'userId and guestItems array required' });
+    }
+    if (!process.env.DATABASE_URL) return res.json({ items: guestItems });
+
+    const cart = await getOrCreateUserCart(userId);
+
+    for (const item of guestItems) {
+      const { id: productId, sellerId, name, price, image, qty = 1, variantId = 'default' } = item;
+      if (!productId || !name || price === undefined) continue;
+
+      // Check if already exists in DB cart
+      const existing = await db.select().from(cartItems)
+        .where(and(
+          eq(cartItems.cartId, cart.id),
+          eq(cartItems.productId, productId),
+          eq(cartItems.variantId, variantId)
+        )).limit(1);
+
+      if (existing.length > 0) {
+        // Merge quantities (don't duplicate)
+        const merged = existing[0].qty + qty;
+        await db.update(cartItems).set({ qty: merged }).where(eq(cartItems.id, existing[0].id));
+      } else {
+        await db.insert(cartItems).values({
+          id: uuidv4(),
+          cartId: cart.id,
+          productId,
+          sellerId: sellerId || null,
+          variantId,
+          name,
+          price: price.toString(),
+          image: image || null,
+          qty,
+        });
+      }
+    }
+
+    const items = await loadCartItems(cart.id);
+    res.json({ cartId: cart.id, items, merged: guestItems.length });
+  } catch (error: any) {
+    console.error('Cart merge error:', error);
+    res.status(500).json({ error: 'Failed to merge cart' });
+  }
+});
+
+// DELETE /api/cart  — clear entire cart for user
+router.delete('/cart', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    if (!process.env.DATABASE_URL) return res.json({ success: true });
+
+    const userCarts = await db.select().from(carts)
+      .where(and(eq(carts.userId, userId as string), eq(carts.status, 'active')));
+
+    for (const c of userCarts) {
+      await db.delete(cartItems).where(eq(cartItems.cartId, c.id));
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Cart clear error:', error);
+    res.status(500).json({ error: 'Failed to clear cart' });
+  }
+});
+
+// ============================================================
+// --- Customers API ---
+// ============================================================
+
+// GET /api/customers  — list all customers (admin)
+router.get('/customers', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.json([]);
+    const all = await db.select().from(customers).orderBy(desc(customers.createdAt));
+    res.json(all);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to fetch customers' });
+  }
+});
+
+// GET /api/customers/by-user/:userId  — get customer profile linked to a user
+router.get('/customers/by-user/:userId', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.json(null);
+    const [customer] = await db.select().from(customers)
+      .where(eq(customers.userId, req.params.userId)).limit(1);
+    res.json(customer || null);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to fetch customer' });
+  }
+});
+
+// POST /api/customers  — create customer
+router.post('/customers', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(503).json({ error: 'DB unavailable' });
+    const id = uuidv4();
+    const { userId, firstName, lastName, email, phone, gender, dateOfBirth, country, city, address, profileImage } = req.body;
+    await db.insert(customers).values({
+      id, userId, firstName, lastName, email, phone, gender,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+      country, city, address, profileImage, status: 'active'
+    });
+    const [created] = await db.select().from(customers).where(eq(customers.id, id));
+    res.status(201).json(created);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to create customer' });
+  }
+});
+
+// PUT /api/customers/:id  — update customer
+router.put('/customers/:id', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(503).json({ error: 'DB unavailable' });
+    const { firstName, lastName, email, phone, gender, dateOfBirth, country, city, address, profileImage, status } = req.body;
+    await db.update(customers).set({
+      firstName, lastName, email, phone, gender,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+      country, city, address, profileImage, status
+    }).where(eq(customers.id, req.params.id));
+    const [updated] = await db.select().from(customers).where(eq(customers.id, req.params.id));
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to update customer' });
+  }
+});
+
 export default router;
+

@@ -38,7 +38,7 @@ const AdminLayout = () => {
         { icon: Ticket, label: 'Coupons', path: '/admin/coupons', module: 'coupons' },
         { icon: Tag, label: 'Discounts', path: '/admin/discounts', module: 'discounts' },
         { icon: BookOpen, label: 'Journal', path: '/admin/blogs', module: 'blogs' },
-        { icon: Package, label: 'Product Moderation', path: '/admin/products', module: 'products' },
+        { icon: Package, label: 'Products', path: '/admin/products', module: 'products' },
       ]
     },
     {
@@ -114,7 +114,7 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-brand-cream flex">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-80 bg-brand-dark text-white border-r border-white/5 sticky top-0 h-screen overflow-y-auto custom-scrollbar">
+      <aside className="hidden lg:flex flex-col w-80 flex-shrink-0 bg-brand-dark text-white border-r border-white/5 sticky top-0 h-screen overflow-y-auto custom-scrollbar">
         <div className="px-10 py-6 border-b border-white/5">
           <Link to="/" className="inline-block transition-transform hover:scale-105">
             <img src="/Tayfa.png" alt="TAYFA" className="h-14 w-auto brightness-0 invert" />
@@ -156,7 +156,7 @@ const AdminLayout = () => {
                       className="overflow-hidden space-y-1"
                     >
                       {module.items.map((item) => {
-                        const isActive = location.pathname === item.path;
+                        const isActive = location.pathname === item.path || (item.path !== '/admin/dashboard' && location.pathname.startsWith(item.path));
                         return (
                           <Link
                             key={item.path}

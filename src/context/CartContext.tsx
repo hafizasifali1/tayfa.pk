@@ -1,95 +1,226 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { CartItem, Product } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { CartService, CartItem, buildVariantId, getOrCreateSessionId } from '../services/cartService';
+import { useAuth } from './AuthContext';
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: Product, size: string) => void;
-  removeFromCart: (productId: string, size: string) => void;
-  updateQuantity: (productId: string, size: string, quantity: number) => void;
-  updateSize: (productId: string, oldSize: string, newSize: string) => void;
-  clearCart: () => void;
-  cartTotal: number;
   cartCount: number;
+  cartTotal: number;
+  isLoading: boolean;
+  addToCart: (product: any, size?: string, color?: string) => Promise<void>;
+  removeFromCart: (productId: string, variantId: string, cartItemId?: string) => Promise<void>;
+  updateQuantity: (productId: string, variantId: string, qty: number, cartItemId?: string) => Promise<void>;
+  clearCart: () => void;
+  refreshCart: () => Promise<void>;
+  groupBySeller: () => Record<string, CartItem[]>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    try {
-      const savedCart = localStorage.getItem('cart');
-      const parsed = savedCart ? JSON.parse(savedCart) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.error('Failed to parse cart:', e);
-      return [];
-    }
-  });
+  const { user } = useAuth();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ── Serialization lock: prevents concurrent cart mutations ──────
+  const operationLock = useRef<Promise<void>>(Promise.resolve());
+
+  const withLock = useCallback(<T,>(op: () => Promise<T>): Promise<T> => {
+    const next = operationLock.current.then(op);
+    // silence rejections on the lock chain so future ops can still run
+    operationLock.current = next.then(() => {}, () => {});
+    return next;
+  }, []);
+
+  // ── Single initialization effect — no competing effects ─────────
+  const prevUserIdRef = useRef<string | undefined>(undefined);
+  const initDoneRef = useRef(false);
 
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
+    let cancelled = false;
+    getOrCreateSessionId();
 
-  const addToCart = (product: Product, size: string) => {
-    setCart((prev) => {
-      const existingItem = prev.find((item) => item.id === product.id && item.selectedSize === size);
-      if (existingItem) {
-        return prev.map((item) =>
-          item.id === product.id && item.selectedSize === size
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
+    const init = async () => {
+      const currentUserId = user?.id;
+      const wasLoggedIn = prevUserIdRef.current;
+
+      setIsLoading(true);
+      try {
+        let items: CartItem[];
+
+        if (currentUserId) {
+          if (!wasLoggedIn) {
+            items = await CartService.onLogin(currentUserId);
+          } else {
+            items = await CartService.DbCart.getAll(currentUserId);
+          }
+        } else {
+          items = CartService.GuestCart.getAll();
+        }
+
+        if (!cancelled) {
+          setCart(items);
+          prevUserIdRef.current = currentUserId;
+          initDoneRef.current = true;
+        }
+      } catch (err) {
+        console.error('[CartContext] Init error:', err);
+        if (!cancelled) {
+          setCart(CartService.GuestCart.getAll());
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-      return [...prev, { ...product, quantity: 1, selectedSize: size }];
+    };
+
+    init();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // ── Public refreshCart ───────────────────────────────────────────
+  const refreshCart = useCallback(async () => {
+    await withLock(async () => {
+      setIsLoading(true);
+      try {
+        const items = await CartService.getCart(user?.id);
+        setCart(items);
+      } finally {
+        setIsLoading(false);
+      }
     });
-  };
+  }, [user?.id, withLock]);
 
-  const removeFromCart = (productId: string, size: string) => {
-    setCart((prev) => prev.filter((item) => !(item.id === productId && item.selectedSize === size)));
-  };
+  // ── Add to Cart ──────────────────────────────────────────────────
+  const addToCart = useCallback(async (product: any, size?: string, color?: string) => {
+    getOrCreateSessionId();
+    let variantId = buildVariantId(size, color);
+    
+    // Safety check for empty sizes if selected size wasn't passed properly
+    if (variantId === 'default') {
+      const defaultSize = Array.isArray(product.sizes) && product.sizes.length > 0 
+        ? product.sizes[0] 
+        : undefined;
+      if (defaultSize) variantId = buildVariantId(defaultSize, color);
+    }
 
-  const updateQuantity = (productId: string, size: string, quantity: number) => {
-    if (quantity < 1) return;
-    setCart((prev) =>
-      prev.map((item) =>
-        item.id === productId && item.selectedSize === size ? { ...item, quantity } : item
-      )
-    );
-  };
-
-  const updateSize = (productId: string, oldSize: string, newSize: string) => {
-    setCart((prev) => {
-      const itemToUpdate = prev.find((item) => item.id === productId && item.selectedSize === oldSize);
-      if (!itemToUpdate) return prev;
-
-      const existingItemWithNewSize = prev.find((item) => item.id === productId && item.selectedSize === newSize);
+    let image = '';
+    try {
+      const imgs = typeof product.images === 'string'
+        ? JSON.parse(product.images)
+        : product.images;
       
-      if (existingItemWithNewSize) {
-        // Merge quantities
-        return prev
-          .filter((item) => !(item.id === productId && item.selectedSize === oldSize))
-          .map((item) => 
-            item.id === productId && item.selectedSize === newSize 
-              ? { ...item, quantity: item.quantity + itemToUpdate.quantity }
-              : item
-          );
+      if (Array.isArray(imgs)) {
+        // Find first image that is NOT base64 (URLs only)
+        const urlImage = imgs.find(img => typeof img === 'string' && !img.startsWith('data:image'));
+        if (urlImage) image = urlImage;
+      } else if (typeof imgs === 'string' && imgs.length > 10 && !imgs.startsWith('data:image')) {
+        image = imgs;
       }
+    } catch { }
 
-      return prev.map((item) =>
-        item.id === productId && item.selectedSize === oldSize 
-          ? { ...item, selectedSize: newSize } 
-          : item
+    // Fallback check on singular image property
+    if (!image && product.image && typeof product.image === 'string' && !product.image.startsWith('data:image')) {
+      image = product.image;
+    }
+
+    // FINAL FALLBACK: If image is still empty or is base64, use a placeholder URL
+    if (!image || (typeof image === 'string' && image.startsWith('data:image'))) {
+      image = 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
+    }
+
+    const item: Omit<CartItem, 'cartItemId' | 'cartId'> = {
+      id: product.id,
+      sellerId: product.sellerId || '',
+      name: product.name,
+      price: parseFloat(String(product.price)) || 0,
+      imageUrl: image,
+      qty: 1,
+      variantId,
+      size,
+      color,
+    };
+
+    await withLock(async () => {
+      try {
+        const updated = await CartService.addItem(item, user?.id);
+        setCart(updated);
+      } catch (err) {
+        console.error("Failed to add to cart:", err);
+      }
+    });
+  }, [user?.id, withLock]);
+
+  // ── Remove from Cart ─────────────────────────────────────────────
+  const removeFromCart = useCallback(async (
+    productId: string,
+    variantId: string,
+    cartItemId?: string
+  ) => {
+    await withLock(async () => {
+      try {
+        const updated = await CartService.removeItem(productId, variantId, user?.id, cartItemId);
+        setCart(updated);
+      } catch (err) {
+        console.error("Failed to remove from cart:", err);
+      }
+    });
+  }, [user?.id, withLock]);
+
+  // ── Update Quantity ──────────────────────────────────────────────
+  const updateQuantity = useCallback(async (
+    productId: string,
+    variantId: string,
+    qty: number,
+    cartItemId?: string
+  ) => {
+    // Optimistic update for instant UI response
+    setCart(prev => {
+      if (qty < 1) return prev.filter(i => !(i.id === productId && i.variantId === variantId));
+      return prev.map(i =>
+        i.id === productId && i.variantId === variantId ? { ...i, qty } : i
       );
     });
-  };
 
-  const clearCart = () => setCart([]);
+    await withLock(async () => {
+      try {
+        const updated = await CartService.updateQty(productId, variantId, qty, user?.id, cartItemId);
+        setCart(updated);
+      } catch (err) {
+        console.error("Failed to update cart qty:", err);
+        // Rollback on failure
+        const fresh = await CartService.getCart(user?.id);
+        setCart(fresh);
+      }
+    });
+  }, [user?.id, withLock]);
 
-  const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-  const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
+  // ── Clear Cart ───────────────────────────────────────────────────
+  const clearCart = useCallback(() => {
+    CartService.GuestCart.clear();
+    setCart([]);
+  }, []);
+
+  // ── Group by Seller ──────────────────────────────────────────────
+  const groupBySeller = useCallback(() => {
+    return CartService.groupBySeller(cart);
+  }, [cart]);
+
+  const cartCount = CartService.totalCount(cart);
+  const cartTotal = CartService.totalPrice(cart);
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, updateSize, clearCart, cartTotal, cartCount }}>
+    <CartContext.Provider value={{
+      cart,
+      cartCount,
+      cartTotal,
+      isLoading,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      refreshCart,
+      groupBySeller,
+    }}>
       {children}
     </CartContext.Provider>
   );

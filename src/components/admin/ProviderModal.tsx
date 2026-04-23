@@ -67,10 +67,12 @@ const ProviderModal = ({ isOpen, onClose, onSuccess, provider }: ProviderModalPr
     setLoading(true);
     setError('');
     try {
+      const { id, createdAt, updatedAt, ...payload } = formData as any;
+      
       if (provider) {
-        await axios.patch(`/api/communication/providers/${provider.id}`, formData);
+        await axios.patch(`/api/communication/providers/${provider.id}`, payload);
       } else {
-        await axios.post('/api/communication/providers', formData);
+        await axios.post('/api/communication/providers', payload);
       }
       onSuccess();
       onClose();

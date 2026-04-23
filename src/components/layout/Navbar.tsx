@@ -108,7 +108,7 @@ const Navbar = () => {
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
           className="inline-block"
         >
-          Free Worldwide Shipping on Orders Over $500 • Authentic Designer Wear • 24/7 Premium Support • 
+          Free Worldwide Shipping on Orders Over 500 • Authentic Designer Wear • 24/7 Premium Support • 
         </motion.div>
       </div>
 

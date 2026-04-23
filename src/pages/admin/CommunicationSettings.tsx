@@ -103,6 +103,26 @@ const CommunicationSettings = () => {
     }
   };
 
+  const handleDeleteProvider = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}?`)) return;
+    try {
+      await axios.delete(`/api/communication/providers/${id}`);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting provider:', error);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete the template "${name}"?`)) return;
+    try {
+      await axios.delete(`/api/communication/templates/${id}`);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+    }
+  };
+
   return (
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -206,7 +226,10 @@ const CommunicationSettings = () => {
                         >
                           <Edit2 size={16} />
                         </button>
-                        <button className="p-2 hover:bg-rose-50 text-rose-500 rounded-lg transition-colors">
+                        <button 
+                          onClick={() => handleDeleteProvider(provider.id, provider.name)}
+                          className="p-2 hover:bg-rose-50 text-rose-500 rounded-lg transition-colors"
+                        >
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -349,7 +372,10 @@ const CommunicationSettings = () => {
                       >
                         <Edit2 size={14} />
                       </button>
-                      <button className="p-2 hover:bg-rose-50 text-rose-500 rounded-lg transition-colors">
+                      <button 
+                        onClick={() => handleDeleteTemplate(template.id, template.name)}
+                        className="p-2 hover:bg-rose-50 text-rose-500 rounded-lg transition-colors"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>

@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Filter, CheckCircle2, XCircle, Eye, MoreVertical, 
-  Package, Shield, AlertCircle, LayoutGrid, List, Kanban 
+  Package, Shield, AlertCircle, LayoutGrid, List, Kanban, Trash2
 } from 'lucide-react';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
 import { 
   DndContext, 
   closestCenter,
@@ -101,6 +102,16 @@ const ProductModeration = () => {
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    productId: string | null;
+    isBulk: boolean;
+  }>({
+    isOpen: false,
+    productId: null,
+    isBulk: false
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -160,6 +171,35 @@ const ProductModeration = () => {
     }
   };
 
+  const handleDelete = (productId: string) => {
+    setDeleteModal({ isOpen: true, productId, isBulk: false });
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedProductIds.length === 0) return;
+    setDeleteModal({ isOpen: true, productId: null, isBulk: true });
+  };
+
+  const confirmDeleteAction = async () => {
+    try {
+      setIsDeleting(true);
+      if (deleteModal.isBulk) {
+        await productService.bulkDelete(selectedProductIds);
+        setProducts(prev => prev.filter(p => !selectedProductIds.includes(p.id)));
+        setSelectedProductIds([]);
+      } else if (deleteModal.productId) {
+        await productService.delete(deleteModal.productId);
+        setProducts(prev => prev.filter(p => p.id !== deleteModal.productId));
+      }
+      setDeleteModal({ isOpen: false, productId: null, isBulk: false });
+    } catch (error) {
+      console.error('Deletion failed:', error);
+      alert('Failed to delete. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const toggleSelectAll = () => {
     if (!Array.isArray(filteredProducts)) return;
     if (selectedProductIds.length === filteredProducts.length) {
@@ -200,8 +240,8 @@ const ProductModeration = () => {
     <div className="space-y-6 sm:space-y-8 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-serif mb-1 sm:mb-2">Product Moderation</h1>
-          <p className="text-xs sm:text-sm text-brand-dark/60 font-sans">Review, approve, or reject product listings from sellers.</p>
+          <h1 className="text-3xl sm:text-4xl font-serif mb-1 sm:mb-2 text-brand-dark">Products</h1>
+          <p className="text-xs sm:text-sm text-brand-dark/60 font-sans italic">Review and manage platform-wide product listings from all sellers.</p>
         </div>
         <div className="flex items-center space-x-3 sm:space-x-4">
           <div className="flex items-center border border-brand-dark/10 rounded-full p-1 bg-white">
@@ -253,12 +293,21 @@ const ProductModeration = () => {
                 </Button>
                 <Button 
                   onClick={() => handleBulkStatusChange('archived')}
-                  variant="danger"
+                  variant="outline"
                   size="sm"
                   icon={XCircle}
-                  className="text-[10px] sm:text-xs py-1.5 sm:py-2"
+                  className="text-[10px] sm:text-xs py-1.5 sm:py-2 text-white border-white/20 hover:bg-white/10"
                 >
                   Archive
+                </Button>
+                <Button 
+                  onClick={handleBulkDelete}
+                  variant="danger"
+                  size="sm"
+                  icon={Trash2}
+                  className="text-[10px] sm:text-xs py-1.5 sm:py-2"
+                >
+                  Delete
                 </Button>
               </div>
             </div>
@@ -295,7 +344,7 @@ const ProductModeration = () => {
             >
               <option value="all">All Status</option>
               <option value="draft">Pending Approval</option>
-              <option value="published">Live Products</option>
+              <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
             <Button variant="outline" icon={Filter} className="p-2.5 sm:p-3" />
@@ -314,7 +363,7 @@ const ProductModeration = () => {
           <div className="flex space-x-8 overflow-x-auto pb-12 custom-scrollbar min-h-[700px] -mx-4 px-4">
             {(['draft', 'published', 'archived'] as const).map((status) => {
               const statusProducts = filteredProducts.filter(p => p.status === status);
-              const statusLabel = status === 'draft' ? 'Pending Review' : status === 'published' ? 'Live on Platform' : 'Archived';
+              const statusLabel = status === 'draft' ? 'Pending Review' : status === 'published' ? 'Published' : 'Archived';
               const statusColor = status === 'published' ? 'bg-emerald-500' : status === 'draft' ? 'bg-brand-gold' : 'bg-brand-dark/40';
               const statusBg = status === 'published' ? 'bg-emerald-500/5' : status === 'draft' ? 'bg-brand-gold/5' : 'bg-brand-dark/5';
 
@@ -382,11 +431,11 @@ const ProductModeration = () => {
                       className="w-5 h-5 rounded-lg border-brand-dark/10 text-brand-gold focus:ring-brand-gold/20 cursor-pointer transition-all"
                     />
                   </th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Product Identity</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Vendor Details</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Valuation</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Moderation Status</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic text-right">Operations</th>
+                  <th className="px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark font-serif border-b-2 border-brand-dark/10">Product Identity</th>
+                  <th className="px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark font-serif border-b-2 border-brand-dark/10">Seller Details</th>
+                  <th className="px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark font-serif border-b-2 border-brand-dark/10">Valuation</th>
+                  <th className="px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark font-serif border-b-2 border-brand-dark/10">Moderation Status</th>
+                  <th className="px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark font-serif border-b-2 border-brand-dark/10 text-right">Operations</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-dark/5">
@@ -421,19 +470,42 @@ const ProductModeration = () => {
                         </div>
                       </td>
                       <td className="px-8 py-6">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 rounded-2xl bg-brand-dark/5 flex items-center justify-center text-[10px] font-bold text-brand-dark/40">
-                            {(product.sellerId || '?').charAt(0).toUpperCase()}
+                        <div className="flex items-center space-x-3 group/seller relative">
+                          <div className="w-10 h-10 rounded-2xl bg-brand-gold/10 flex items-center justify-center text-[10px] font-bold text-brand-gold shadow-sm">
+                            {(product.sellerName || product.sellerId || '?').charAt(0).toUpperCase()}
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-brand-dark/80">Vendor ID</p>
+                          <div className="cursor-help">
+                            <p className="text-xs font-bold text-brand-dark">Seller ID</p>
                             <p className="text-[10px] text-brand-dark/40 font-mono">{(product.sellerId || '').slice(0, 12)}...</p>
+                          </div>
+                          
+                          {/* Seller Details Hover Card */}
+                          <div className="absolute left-0 top-full mt-2 w-64 bg-brand-dark text-white p-4 rounded-2xl shadow-2xl opacity-0 invisible group-hover/seller:opacity-100 group-hover/seller:visible transition-all z-50 border border-white/10 backdrop-blur-xl">
+                            <div className="flex items-center space-x-3 mb-3 border-b border-white/5 pb-3">
+                              <div className="w-10 h-10 rounded-xl bg-brand-gold flex items-center justify-center text-white font-bold">
+                                {(product.sellerName || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-white">{product.sellerName || 'Anonymous Seller'}</p>
+                                <p className="text-[10px] text-brand-gold font-bold uppercase tracking-widest">Verified Seller</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between">
+                                <span className="text-[9px] text-white/40 uppercase tracking-widest">Email</span>
+                                <span className="text-[10px] font-medium">{product.sellerEmail || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[9px] text-white/40 uppercase tracking-widest">Seller ID</span>
+                                <span className="text-[10px] font-mono">#{product.sellerId?.slice(0, 8)}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex flex-col">
-                          <Price amount={product.price} className="text-lg font-serif text-brand-dark" />
+                          <Price amount={product.price} currency={(product as any).currency} className="text-lg font-serif text-brand-dark" />
                           <span className="text-[9px] text-brand-dark/30 uppercase tracking-widest font-bold mt-1">Base Price</span>
                         </div>
                       </td>
@@ -449,7 +521,7 @@ const ProductModeration = () => {
                           {product.status === 'published' ? <CheckCircle2 size={12} className="mr-2" /> : 
                            product.status === 'draft' ? <AlertCircle size={12} className="mr-2" /> : 
                            <XCircle size={12} className="mr-2" />}
-                          {product.status === 'published' ? 'Live' : 
+                          {product.status === 'published' ? 'Published' : 
                            product.status === 'draft' ? 'Pending' : 'Archived'}
                         </Badge>
                       </td>
@@ -473,6 +545,13 @@ const ProductModeration = () => {
                               <XCircle size={18} />
                             </button>
                           )}
+                          <button 
+                            onClick={() => handleDelete(product.id)}
+                            className="p-3 rounded-xl bg-rose-500/5 text-rose-600 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                            title="Delete Permanently"
+                          >
+                            <Trash2 size={18} />
+                          </button>
                           <Link to={`/product/${product.slug}`} target="_blank">
                             <button className="p-3 rounded-xl bg-brand-cream/50 text-brand-dark/40 hover:bg-brand-gold hover:text-white transition-all shadow-sm">
                               <Eye size={18} />
@@ -497,8 +576,23 @@ const ProductModeration = () => {
               </Button>
             </div>
           )}
-        </div>
+      </div>
       )}
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, productId: null, isBulk: false })}
+        onConfirm={confirmDeleteAction}
+        title={deleteModal.isBulk ? "Delete Selected Products?" : "Delete Product?"}
+        message={
+          deleteModal.isBulk 
+            ? `Are you sure you want to delete ${selectedProductIds.length} products? This action cannot be undone.`
+            : "Are you sure you want to delete this product? All its data will be permanently removed."
+        }
+        confirmText="Permanently Delete"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 };

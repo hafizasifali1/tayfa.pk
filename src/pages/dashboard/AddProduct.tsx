@@ -119,6 +119,7 @@ const AddProduct = () => {
   const [formData, setFormData] = useState({
     name: '',
     brand: '',
+    brandId: '',
     price: '',
     discount: '',
     category: '',
@@ -154,6 +155,7 @@ const AddProduct = () => {
   const [filterValuesMap, setFilterValuesMap] = useState<Record<string, FilterValue[]>>({});
   const [imageInput, setImageInput] = useState('');
   const [tagInput, setTagInput] = useState('');
+  const [brandsList, setBrandsList] = useState<any[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -216,6 +218,20 @@ const AddProduct = () => {
   }, []);
 
   useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const response = await axios.get('/api/brands');
+        if (Array.isArray(response.data)) {
+          setBrandsList(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching brands:', err);
+      }
+    };
+    fetchBrands();
+  }, []);
+
+  useEffect(() => {
     const fetchTaxRules = async () => {
       if (!formData.pricelistId) {
         setTaxRules([]);
@@ -260,7 +276,7 @@ const AddProduct = () => {
     }
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const remainingSlots = 8 - images.length;
     const filesToProcess = acceptedFiles.slice(0, remainingSlots);
 
@@ -268,17 +284,26 @@ const AddProduct = () => {
       setError(`Only ${remainingSlots} more images can be added.`);
     }
 
-    filesToProcess.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setImages(prev => {
-          if (prev.length >= 8) return prev;
-          return [...prev, { id: Math.random().toString(36).substr(2, 9), url: base64 }];
+    for (const file of filesToProcess) {
+      try {
+        const formDataUpload = new FormData();
+        formDataUpload.append('image', file);
+        
+        const response = await axios.post('/api/upload', formDataUpload, {
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
-      };
-      reader.readAsDataURL(file);
-    });
+
+        if (response.data.imageUrl) {
+          setImages(prev => {
+            if (prev.length >= 8) return prev;
+            return [...prev, { id: Math.random().toString(36).substr(2, 9), url: response.data.imageUrl }];
+          });
+        }
+      } catch (err) {
+        console.error('Image upload failed:', err);
+        setError('Failed to upload image. Please try again.');
+      }
+    }
   }, [images]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -393,7 +418,7 @@ const AddProduct = () => {
 
     setIsLoading(true);
     try {
-      const newProduct = {
+      const { brand, category, ...payload } = {
         ...formData,
         sellerId: user?.id,
         price: parseFloat(formData.price) || 0,
@@ -404,9 +429,9 @@ const AddProduct = () => {
         tags: formData.tags,
         colors: formData.colors,
         dynamicFilters: formData.dynamicFilters
-      };
+      } as any;
 
-      await axios.post('/api/products', newProduct);
+      await axios.post('/api/products', payload);
       
       setSuccess(true);
       if (status === 'draft') {
@@ -487,15 +512,19 @@ const AddProduct = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Brand Name</label>
-                    <input
-                      type="text"
-                      name="brand"
-                      value={formData.brand}
+                    <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Brand *</label>
+                    <select
+                      name="brandId"
+                      required
+                      value={formData.brandId}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
-                      placeholder="e.g. Maria B"
-                    />
+                    >
+                      <option value="">Select a Brand</option>
+                      {brandsList.map(brand => (
+                        <option key={brand.id} value={brand.id}>{brand.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">SKU (Optional)</label>

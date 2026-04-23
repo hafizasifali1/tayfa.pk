@@ -24,7 +24,8 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Table } from '../../components/ui/Table';
-import { Modal } from '../../components/ui/Modal';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
+import { useCurrency } from '../../context/CurrencyContext';
 import { 
   AreaChart, 
   Area, 
@@ -46,6 +47,7 @@ const SellerDashboard = () => {
   const [stats, setStats] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -177,6 +179,7 @@ const SellerDashboard = () => {
 
   const deleteProduct = async (id: string) => {
     try {
+      setIsDeleting(true);
       await axios.delete(`/api/products/${id}`);
       setProducts(prev => Array.isArray(prev) ? prev.filter(p => p.id !== id) : []);
       setNotification({ type: 'success', message: 'Product deleted successfully' });
@@ -184,6 +187,8 @@ const SellerDashboard = () => {
     } catch (error) {
       console.error('Error deleting product:', error);
       setNotification({ type: 'error', message: 'Failed to delete product' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -245,24 +250,15 @@ const SellerDashboard = () => {
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      <Modal
+      <ConfirmModal
         isOpen={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
-        title="Delete Product?"
-        subtitle="This action cannot be undone."
-        icon={AlertCircle}
+        onConfirm={() => deleteProduct(confirmDelete!)}
+        title="Delete Product"
+        message="Are you sure you want to delete this product? This action cannot be undone and will remove the product from all marketplaces."
         variant="danger"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-            <Button variant="danger" onClick={() => deleteProduct(confirmDelete!)}>Delete</Button>
-          </>
-        }
-      >
-        <p className="text-brand-dark/60">
-          This product will be permanently removed from your inventory and all associated data will be lost.
-        </p>
-      </Modal>
+        isLoading={isDeleting}
+      />
 
       <div className="space-y-10">
         {/* Editorial Header */}

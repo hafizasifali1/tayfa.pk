@@ -13,7 +13,9 @@ import {
   Truck,
   ChevronRight,
   Save,
-  AlertCircle
+  AlertCircle,
+  X,
+  Loader2
 } from 'lucide-react';
 
 interface Gateway {
@@ -39,6 +41,13 @@ const PaymentSettings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [newGatewayData, setNewGatewayData] = useState({
+    name: '',
+    code: '',
+    type: 'card',
+    status: true,
+    isDefault: false
+  });
 
   useEffect(() => {
     fetchGateways();
@@ -83,6 +92,43 @@ const PaymentSettings: React.FC = () => {
       }
     } catch (error) {
       console.error('Error toggling status:', error);
+    }
+  };
+
+  const handleDeleteGateway = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this gateway and all its configurations?')) return;
+    try {
+      const response = await fetch(`/api/payments/admin/gateways/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setGateways(gateways.filter(g => g.id !== id));
+        if (selectedGateway?.id === id) {
+          setSelectedGateway(null);
+          setConfigs([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting gateway:', error);
+    }
+  };
+
+  const handleCreateGateway = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/payments/admin/gateways', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newGatewayData)
+      });
+      if (response.ok) {
+        await fetchGateways();
+        setShowAddModal(false);
+        setNewGatewayData({ name: '', code: '', type: 'card', status: true, isDefault: false });
+      }
+    } catch (error) {
+      console.error('Error creating gateway:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -217,7 +263,10 @@ const PaymentSettings: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                    <button 
+                      onClick={() => handleDeleteGateway(selectedGateway.id)}
+                      className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                    >
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
@@ -267,7 +316,7 @@ const PaymentSettings: React.FC = () => {
                           </select>
                         </div>
                         <button disabled={isSaving} type="submit" className="p-2 bg-black text-white rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50">
-                          <Save className="w-6 h-6" />
+                          {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
                         </button>
                       </div>
                     </form>
@@ -313,6 +362,102 @@ const PaymentSettings: React.FC = () => {
           </AnimatePresence>
         </div>
       </div>
+      {/* Add Gateway Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAddModal(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Add Payment Gateway</h2>
+                  <p className="text-sm text-gray-500">Enable a new payment provider.</p>
+                </div>
+                <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <form onSubmit={handleCreateGateway} className="p-8 space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Gateway Name</label>
+                    <input 
+                      required
+                      value={newGatewayData.name}
+                      onChange={(e) => setNewGatewayData({ ...newGatewayData, name: e.target.value })}
+                      placeholder="e.g. Stripe" 
+                      className="w-full px-5 py-3 rounded-2xl border border-gray-200 focus:border-black outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Gateway Code</label>
+                    <input 
+                      required
+                      value={newGatewayData.code}
+                      onChange={(e) => setNewGatewayData({ ...newGatewayData, code: e.target.value.toLowerCase() })}
+                      placeholder="e.g. stripe" 
+                      className="w-full px-5 py-3 rounded-2xl border border-gray-200 focus:border-black outline-none transition-all font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Type</label>
+                    <select 
+                      value={newGatewayData.type}
+                      onChange={(e) => setNewGatewayData({ ...newGatewayData, type: e.target.value })}
+                      className="w-full px-5 py-3 rounded-2xl border border-gray-200 focus:border-black outline-none transition-all"
+                    >
+                      <option value="card">Credit/Debit Card</option>
+                      <option value="wallet">Digital Wallet</option>
+                      <option value="cod">Cash on Delivery</option>
+                      <option value="bank">Bank Transfer</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-6 pt-4">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={newGatewayData.status}
+                        onChange={(e) => setNewGatewayData({ ...newGatewayData, status: e.target.checked })}
+                        className="w-5 h-5 rounded-lg border-gray-300 text-black focus:ring-black"
+                      />
+                      <span className="text-sm font-semibold">Active</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={newGatewayData.isDefault}
+                        onChange={(e) => setNewGatewayData({ ...newGatewayData, isDefault: e.target.checked })}
+                        className="w-5 h-5 rounded-lg border-gray-300 text-black focus:ring-black"
+                      />
+                      <span className="text-sm font-semibold">Default</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 px-6 py-4 bg-gray-100 text-gray-900 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-gray-200 transition-all">
+                    Cancel
+                  </button>
+                  <button disabled={isSaving} type="submit" className="flex-1 px-6 py-4 bg-black text-white rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-gray-800 transition-all shadow-lg flex items-center justify-center gap-2">
+                    {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Save Gateway
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

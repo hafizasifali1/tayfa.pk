@@ -10,7 +10,7 @@ interface CurrencyContextType {
   setCountry: (country: Country) => void;
   setState: (state: string) => void;
   convertPrice: (usdAmount: number) => number;
-  formatPrice: (usdAmount: number) => string;
+  formatPrice: (usdAmount: number, currency?: string) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -82,13 +82,20 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return usdAmount * exchangeRates[selectedCountry.currencyCode];
   }, [selectedCountry, exchangeRates]);
 
-  const formatPrice = useCallback((usdAmount: number) => {
-    if (!selectedCountry) return `$${usdAmount.toFixed(2)}`;
+  const formatPrice = useCallback((usdAmount: number, currencyOverride?: string) => {
+    if (!selectedCountry && !currencyOverride) return `$${usdAmount.toFixed(2)}`;
     
-    const converted = convertPrice(usdAmount);
-    const currencyCode = selectedCountry.currencyCode;
+    let converted = convertPrice(usdAmount);
+    let currencyCode = currencyOverride || selectedCountry?.currencyCode || 'USD';
+    
+    // If currency override is PKR but selected is USD, we need to convert to PKR
+    if (currencyOverride && currencyOverride !== selectedCountry?.currencyCode) {
+      const rate = exchangeRates[currencyOverride] || 1;
+      converted = usdAmount * rate;
+    }
+
     const locale = navigator.language || 'en-US';
-    const symbol = selectedCountry.symbol;
+    const symbol = currencyOverride ? '' : (selectedCountry?.symbol || '$');
 
     try {
       return new Intl.NumberFormat(locale, {
@@ -96,9 +103,9 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         currency: currencyCode,
       }).format(converted);
     } catch (e) {
-      return `${symbol}${converted.toFixed(2)}`;
+      return `${currencyCode} ${converted.toFixed(2)}`;
     }
-  }, [selectedCountry, convertPrice]);
+  }, [selectedCountry, convertPrice, exchangeRates]);
 
   return (
     <CurrencyContext.Provider value={{ 

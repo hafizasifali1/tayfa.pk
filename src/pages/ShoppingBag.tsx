@@ -6,14 +6,17 @@ import {
   ChevronDown, Lock, CreditCard, Apple, Check, Loader2
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { useAuthModal } from '../context/AuthModalContext';
 import { useWishlist } from '../context/WishlistContext';
 import Price from '../components/common/Price';
 import { motion, AnimatePresence } from 'motion/react';
-import { products } from '../data/products';
 import { Coupon } from '../types';
 
 const ShoppingBagPage = () => {
-  const { cart, removeFromCart, updateQuantity, updateSize, cartTotal, cartCount } = useCart();
+  const { cart, removeFromCart, updateQuantity, cartTotal, cartCount, isLoading } = useCart();
+  const { user } = useAuth();
+  const { openModal } = useAuthModal();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const navigate = useNavigate();
   const [couponCode, setCouponCode] = useState('');
@@ -23,37 +26,32 @@ const ShoppingBagPage = () => {
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isCouponSuccess, setIsCouponSuccess] = useState(false);
 
-  const getProductImage = (images: any) => {
-    if (!images) return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
-    try {
-      const parsed = typeof images === 'string' ? JSON.parse(images) : images;
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-      if (typeof parsed === 'string' && parsed.length > 10) return parsed;
-      return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
-    } catch (e) {
-      if (typeof images === 'string' && images.length > 10) return images;
-      return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
-    }
-  };
-
-  const parseJsonSafe = (field: any) => {
-    if (Array.isArray(field)) return field;
-    if (typeof field === 'string') {
-      try {
-        const parsed = JSON.parse(field);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) {
-        return [];
+  const getProductImage = (image: any, images?: any) => {
+    // 1. Primary check: image or imageUrl passed directly
+    if (image && typeof image === 'string' && image.length > 5) {
+      if (image.startsWith('http') || image.startsWith('/') || image.startsWith('data:')) {
+        return image;
       }
     }
-    return [];
+    
+    // 2. Secondary check: backup images array
+    if (images) {
+      try {
+        const parsed = typeof images === 'string' ? JSON.parse(images) : images;
+        if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+          return parsed[0];
+        }
+        if (typeof parsed === 'string' && parsed.length > 5) return parsed;
+      } catch (e) { }
+    }
+    
+    // 3. Final Fallback: Premium generic placeholder
+    return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
   };
 
   const FREE_SHIPPING_THRESHOLD = 200;
   const SHIPPING_COST = 15;
   const TAX_RATE = 0.08;
-
-  const recommendedItems = products.slice(0, 4);
 
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
@@ -76,23 +74,21 @@ const ShoppingBagPage = () => {
 
       if (data.valid) {
         setAppliedCoupon({
-          id: data.code, // Mocked ID since API returns what we need
+          id: data.code,
           code: data.code,
           discountType: data.discountType,
           discountValue: data.discountValue,
           isActive: true,
-          sellerId: 'admin' // Placeholder
+          sellerId: 'admin'
         } as any);
         setIsCouponSuccess(true);
         setCouponCode('');
-        // Auto hide success message after 3s
         setTimeout(() => setIsCouponSuccess(false), 3000);
       } else {
         setCouponError(data.message + (data.details ? `: ${data.details}` : ''));
         setAppliedCoupon(null);
       }
     } catch (error) {
-      console.error('Coupon validation error:', error);
       setCouponError('Failed to validate coupon. Please try again.');
     } finally {
       setIsApplyingCoupon(false);
@@ -110,8 +106,15 @@ const ShoppingBagPage = () => {
   const shipping = cartTotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
   const taxes = (cartTotal - discountAmount) * TAX_RATE;
   const finalTotal = Math.max(0, cartTotal - discountAmount + shipping + taxes);
-
   const amountToFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - cartTotal);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-brand-gold animate-spin" />
+      </div>
+    );
+  }
 
   if (cart.length === 0) {
     return (
@@ -133,25 +136,6 @@ const ShoppingBagPage = () => {
             Start Shopping
           </Link>
         </motion.div>
-
-        {/* Recommended in Empty Cart */}
-        <div className="mt-32">
-          <h3 className="text-3xl font-serif mb-12">You may also like</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {recommendedItems.map((p) => (
-              <Link key={p.id} to={`/product/${p.slug}`} className="group text-left space-y-4">
-                <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-white shadow-sm group-hover:shadow-xl transition-all duration-500">
-                  <img src={getProductImage(p.images)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-brand-gold/60">{p.brand}</span>
-                  <h4 className="font-serif text-lg group-hover:text-brand-gold transition-colors">{p.name}</h4>
-                  <Price amount={p.price} className="text-sm font-medium" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
       </div>
     );
   }
@@ -167,7 +151,38 @@ const ShoppingBagPage = () => {
           </Link>
         </div>
 
-
+        {/* Guest Login Prompt Banner */}
+        {!user && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 bg-brand-dark text-white rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-brand-gold/20 flex items-center justify-center flex-shrink-0">
+                <Lock size={18} className="text-brand-gold" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">Sign in to sync your bag</p>
+                <p className="text-[10px] text-white/50 font-medium mt-0.5">Your cart is saved locally. Sign in to access it across all your devices.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 flex-shrink-0">
+              <button
+                onClick={() => openModal('signin')}
+                className="px-5 py-2.5 bg-brand-gold text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-gold/80 transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => openModal('signup')}
+                className="px-5 py-2.5 bg-white/10 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white/20 transition-colors"
+              >
+                Register
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         <div className="flex flex-col lg:flex-row gap-12">
           {/* LEFT SECTION — CART ITEMS (70%) */}
@@ -175,7 +190,7 @@ const ShoppingBagPage = () => {
             <AnimatePresence>
               {cart.map((item) => (
                 <motion.div
-                  key={`${item.id}-${item.selectedSize}`}
+                  key={`${item.id}-${item.variantId}`}
                   layout
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -183,8 +198,13 @@ const ShoppingBagPage = () => {
                   className="bg-white p-6 rounded-2xl shadow-sm border border-brand-dark/5 flex flex-col sm:flex-row gap-6 group relative"
                 >
                   {/* Product Image */}
-                  <Link to={`/product/${item.slug}`} className="block w-24 sm:w-40 aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 bg-brand-cream mx-auto sm:mx-0">
-                    <img src={getProductImage(item.images)} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                  <Link to={`/product/${item.id}`} className="block w-24 sm:w-40 aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 bg-brand-cream mx-auto sm:mx-0">
+                    <img 
+                      src={getProductImage(item.imageUrl || (item as any).image)} 
+                      alt={item.name} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      referrerPolicy="no-referrer" 
+                    />
                   </Link>
                   
                   {/* Product Details */}
@@ -192,41 +212,30 @@ const ShoppingBagPage = () => {
                     <div className="space-y-3 sm:space-y-4">
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-4">
                         <div className="w-full sm:w-auto">
-                          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 mb-0.5 sm:mb-1 block">{item.brand}</span>
                           <h3 className="text-base sm:text-xl font-serif hover:text-brand-gold transition-colors truncate sm:whitespace-normal">
-                            <Link to={`/product/${item.slug}`}>{item.name}</Link>
+                            {item.name}
                           </h3>
                           
-                          {/* Size and Quantity */}
+                          {/* Variant & Quantity */}
                           <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
-                            <div className="relative inline-block">
-                                <select 
-                                  value={item.selectedSize}
-                                  onChange={(e) => updateSize(item.id, item.selectedSize, e.target.value)}
-                                  className="appearance-none bg-brand-cream/50 border border-brand-dark/5 rounded-lg pl-2 sm:pl-3 pr-7 sm:pr-8 py-1.5 sm:py-2 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:border-brand-gold cursor-pointer"
-                                >
-                                  {parseJsonSafe(item.sizes).length > 0 ? (
-                                    parseJsonSafe(item.sizes).map(size => (
-                                      <option key={size} value={size}>{size}</option>
-                                    ))
-                                  ) : (
-                                    <option value={item.selectedSize}>{item.selectedSize}</option>
-                                  )}
-                                </select>
-                              <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/40" />
-                            </div>
+                            {/* Variant badge */}
+                            {item.variantId && item.variantId !== 'default' && (
+                              <span className="bg-brand-cream/80 border border-brand-dark/5 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-brand-dark/60">
+                                {item.variantId}
+                              </span>
+                            )}
 
                             {/* Quantity Selector */}
                             <div className="flex items-center bg-brand-cream/50 border border-brand-dark/5 rounded-lg p-0.5 sm:p-1">
                               <button 
-                                onClick={() => updateQuantity(item.id, item.selectedSize, item.quantity - 1)}
+                                onClick={() => updateQuantity(item.id, item.variantId, item.qty - 1, item.cartItemId)}
                                 className="p-1 hover:text-brand-gold transition-colors"
                               >
                                 <Minus size={10} />
                               </button>
-                              <span className="w-5 sm:w-6 text-center text-[9px] sm:text-[10px] font-bold">{item.quantity}</span>
+                              <span className="w-5 sm:w-6 text-center text-[9px] sm:text-[10px] font-bold">{item.qty}</span>
                               <button 
-                                onClick={() => updateQuantity(item.id, item.selectedSize, item.quantity + 1)}
+                                onClick={() => updateQuantity(item.id, item.variantId, item.qty + 1, item.cartItemId)}
                                 className="p-1 hover:text-brand-gold transition-colors"
                               >
                                 <Plus size={10} />
@@ -236,14 +245,12 @@ const ShoppingBagPage = () => {
                         </div>
                         <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-brand-dark/5">
                           <Price 
-                            amount={(item.price + (item.discount || 0)) * item.quantity} 
-                            discount={(item.discount || 0) * item.quantity} 
-                            productId={item.id}
+                            amount={item.price * item.qty}
                             className="text-base sm:text-xl font-bold text-brand-dark" 
                           />
-                          {item.quantity > 1 && (
+                          {item.qty > 1 && (
                             <p className="text-[9px] sm:text-[10px] text-brand-dark/40 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">
-                              <Price amount={item.price + (item.discount || 0)} discount={item.discount} productId={item.id} /> each
+                              <Price amount={item.price} /> each
                             </p>
                           )}
                         </div>
@@ -251,10 +258,6 @@ const ShoppingBagPage = () => {
 
                       {/* UX Enhancements */}
                       <div className="flex flex-wrap gap-3 sm:gap-4 pt-1 sm:pt-2">
-                        <div className="flex items-center space-x-1 sm:space-x-1.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-orange-600">
-                          <AlertCircle size={10} />
-                          <span>Only {Math.floor(Math.random() * 5) + 1} left</span>
-                        </div>
                         <div className="flex items-center space-x-1 sm:space-x-1.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-dark/40">
                           <Truck size={10} />
                           <span>Delivers in 3–5 days</span>
@@ -265,14 +268,7 @@ const ShoppingBagPage = () => {
                     {/* Actions */}
                     <div className="flex items-center space-x-4 sm:space-x-6 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-brand-dark/5">
                       <button 
-                        onClick={() => toggleWishlist(item)}
-                        className={`flex items-center space-x-1.5 sm:space-x-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-colors ${isInWishlist(item.id) ? 'text-brand-gold' : 'text-brand-dark/40 hover:text-brand-gold'}`}
-                      >
-                        <Heart size={12} fill={isInWishlist(item.id) ? 'currentColor' : 'none'} />
-                        <span>{isInWishlist(item.id) ? 'Saved' : 'Save'}</span>
-                      </button>
-                      <button 
-                        onClick={() => removeFromCart(item.id, item.selectedSize)}
+                        onClick={() => removeFromCart(item.id, item.variantId, item.cartItemId)}
                         className="flex items-center space-x-1.5 sm:space-x-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 hover:text-red-500 transition-colors"
                       >
                         <Trash2 size={12} />
@@ -283,31 +279,11 @@ const ShoppingBagPage = () => {
                 </motion.div>
               ))}
             </AnimatePresence>
-
-            {/* Smart Upsell Section */}
-            <div className="pt-12">
-              <h3 className="text-2xl font-serif mb-8">Complete the look</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                {recommendedItems.map((p) => (
-                  <Link key={p.id} to={`/product/${p.slug}`} className="group space-y-3">
-                    <div className="aspect-[3/4] rounded-xl overflow-hidden bg-white shadow-sm group-hover:shadow-md transition-all">
-                      <img src={getProductImage(p.images)} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-serif truncate">{p.name}</h4>
-                      <Price amount={p.price} className="text-xs font-bold text-brand-dark/60" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* RIGHT SECTION — ORDER SUMMARY (30%) */}
           <div className="lg:w-[30%]">
             <div className="sticky top-32 space-y-6">
-
-
               {/* Order Summary Card */}
               <div className="bg-white rounded-3xl p-8 shadow-sm border border-brand-dark/5 space-y-8">
                 <h2 className="text-2xl font-serif">Order Summary</h2>
@@ -373,24 +349,16 @@ const ShoppingBagPage = () => {
                         </button>
                       </div>
                       {couponError && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center space-x-2 text-rose-500 text-[10px] font-bold uppercase tracking-widest"
-                        >
+                        <div className="flex items-center space-x-2 text-rose-500 text-[10px] font-bold uppercase tracking-widest">
                           <AlertCircle size={14} />
                           <span>{couponError}</span>
-                        </motion.div>
+                        </div>
                       )}
                       {isCouponSuccess && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center space-x-2 text-emerald-500 text-[10px] font-bold uppercase tracking-widest"
-                        >
+                        <div className="flex items-center space-x-2 text-emerald-500 text-[10px] font-bold uppercase tracking-widest">
                           <CheckCircle2 size={14} />
                           <span>Coupon Applied Successfully!</span>
-                        </motion.div>
+                        </div>
                       )}
                     </div>
                   ) : (
@@ -415,10 +383,7 @@ const ShoppingBagPage = () => {
                         </div>
                       </div>
                       <button 
-                        onClick={() => {
-                          setAppliedCoupon(null);
-                          setIsCouponSuccess(false);
-                        }}
+                        onClick={() => { setAppliedCoupon(null); setIsCouponSuccess(false); }}
                         className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-50 text-brand-dark/20 hover:text-rose-500 transition-all"
                         title="Remove Coupon"
                       >
@@ -445,8 +410,6 @@ const ShoppingBagPage = () => {
                     Continue Shopping
                   </Link>
                 </div>
-
-
               </div>
             </div>
           </div>

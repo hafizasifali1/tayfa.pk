@@ -8,9 +8,10 @@ interface PriceProps {
   productId?: string;
   className?: string;
   showLocalMessage?: boolean;
+  currency?: string;
 }
 
-const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, className = "", showLocalMessage = false }) => {
+const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, className = "", showLocalMessage = false, currency }) => {
   const { formatPrice, selectedCountry, exchangeRates, isLoading } = useCurrency();
 
   const finalAmount = useMemo(() => {
@@ -81,14 +82,14 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
     }
 
     return currentPriceUSD;
-  }, [amount, discount, productId, selectedCountry, exchangeRates]);
+  }, [amount, discount, productId, selectedCountry, exchangeRates, currency]);
 
   const discountPercentage = useMemo(() => {
     if (finalAmount >= amount) return 0;
     return Math.round(((amount - finalAmount) / amount) * 100);
   }, [amount, finalAmount]);
 
-  if (isLoading && !selectedCountry) {
+  if (isLoading && !selectedCountry && !currency) {
     return <span className={`animate-pulse bg-brand-dark/5 rounded h-5 w-16 inline-block ${className}`}></span>;
   }
 
@@ -96,12 +97,12 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
     <span className="inline-flex flex-col">
       <span className="flex items-center flex-wrap gap-x-2">
         <span className={`${className} text-brand-dark font-bold`}>
-          {formatPrice(finalAmount)}
+          {formatPrice(finalAmount, currency)}
         </span>
         {finalAmount < amount && (
           <>
             <span className="text-xs text-brand-dark-muted line-through font-medium">
-              {formatPrice(amount)}
+              {formatPrice(amount, currency)}
             </span>
             <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
               -{discountPercentage}%
@@ -109,7 +110,7 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
           </>
         )}
       </span>
-      {showLocalMessage && selectedCountry && (
+      {showLocalMessage && selectedCountry && !currency && (
         <span className="text-[10px] text-brand-dark-muted italic mt-0.5 font-medium">
           Prices are shown in your local currency ({selectedCountry.currency})
         </span>

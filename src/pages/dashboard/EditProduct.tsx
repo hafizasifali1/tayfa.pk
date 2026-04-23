@@ -102,6 +102,7 @@ const EditProduct = () => {
   const [formData, setFormData] = useState({
     name: '',
     brand: '',
+    brandId: '',
     price: '',
     discount: '',
     category: '',
@@ -137,6 +138,7 @@ const EditProduct = () => {
   const [filterValuesMap, setFilterValuesMap] = useState<Record<string, FilterValue[]>>({});
   const [imageInput, setImageInput] = useState('');
   const [tagInput, setTagInput] = useState('');
+  const [brandsList, setBrandsList] = useState<any[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -162,6 +164,7 @@ const EditProduct = () => {
           const pData = {
             name: product.name || '',
             brand: product.brand || '',
+            brandId: product.brandId || '',
             price: product.price?.toString() || '',
             discount: product.discount?.toString() || '',
             category: product.category || '',
@@ -266,6 +269,20 @@ const EditProduct = () => {
   }, []);
 
   useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const response = await axios.get('/api/brands');
+        if (Array.isArray(response.data)) {
+          setBrandsList(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching brands:', err);
+      }
+    };
+    fetchBrands();
+  }, []);
+
+  useEffect(() => {
     const fetchTaxRules = async () => {
       if (!formData.pricelistId) {
         setTaxRules([]);
@@ -306,7 +323,7 @@ const EditProduct = () => {
     }
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const remainingSlots = 8 - images.length;
     const filesToProcess = acceptedFiles.slice(0, remainingSlots);
 
@@ -314,17 +331,26 @@ const EditProduct = () => {
       setError(`Only ${remainingSlots} more images can be added.`);
     }
 
-    filesToProcess.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        setImages(prev => {
-          if (prev.length >= 8) return prev;
-          return [...prev, { id: Math.random().toString(36).substr(2, 9), url: base64 }];
+    for (const file of filesToProcess) {
+      try {
+        const formDataUpload = new FormData();
+        formDataUpload.append('image', file);
+        
+        const response = await axios.post('/api/upload', formDataUpload, {
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
-      };
-      reader.readAsDataURL(file);
-    });
+
+        if (response.data.imageUrl) {
+          setImages(prev => {
+            if (prev.length >= 8) return prev;
+            return [...prev, { id: Math.random().toString(36).substr(2, 9), url: response.data.imageUrl }];
+          });
+        }
+      } catch (err) {
+        console.error('Image upload failed:', err);
+        setError('Failed to upload image. Please try again.');
+      }
+    }
   }, [images]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -409,7 +435,7 @@ const EditProduct = () => {
 
     setIsLoading(true);
     try {
-      const updatedProduct = {
+      const { brand, category, ...payload } = {
         ...formData,
         price: parseFloat(formData.price) || 0,
         discount: formData.discount ? parseFloat(formData.discount) : undefined,
@@ -417,9 +443,9 @@ const EditProduct = () => {
         images: images.map(img => img.url),
         dynamicFilters: formData.dynamicFilters,
         status,
-      };
+      } as any;
 
-      await axios.put(`/api/products/${id}`, updatedProduct);
+      await axios.put(`/api/products/${id}`, payload);
       setSuccess(true);
       setTimeout(() => navigate('/seller/dashboard'), 2000);
     } catch (err: any) {
@@ -585,18 +611,22 @@ const EditProduct = () => {
                     placeholder="e.g. Embroidered Silk Suit"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Brand Name</label>
-                    <input
-                      type="text"
-                      name="brand"
-                      value={formData.brand}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
-                      placeholder="e.g. Maria B"
-                    />
-                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Brand *</label>
+                      <select
+                        name="brandId"
+                        required
+                        value={formData.brandId}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
+                      >
+                        <option value="">Select a Brand</option>
+                        {brandsList.map(brand => (
+                          <option key={brand.id} value={brand.id}>{brand.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">SKU (Optional)</label>
                     <input

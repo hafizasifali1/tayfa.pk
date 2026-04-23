@@ -35,13 +35,21 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
     return promotions.find(p => p.isActive);
   }, []);
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isAdding) return; // prevent double-click
     setIsAdding(true);
-    const defaultSize = Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes[0] : '';
-    addToCart(product, defaultSize);
-    setTimeout(() => setIsAdding(false), 2000);
+    const defaultSize = Array.isArray(product.sizes) && product.sizes.length > 0
+      ? product.sizes[0]
+      : (typeof product.sizes === 'string'
+          ? (() => { try { const p = JSON.parse(product.sizes as any); return Array.isArray(p) && p.length > 0 ? p[0] : undefined; } catch { return undefined; } })()
+          : undefined);
+    try {
+      await addToCart(product, defaultSize || undefined);
+    } finally {
+      setTimeout(() => setIsAdding(false), 1500);
+    }
   };
 
   const handleToggleWishlist = (e: React.MouseEvent) => {

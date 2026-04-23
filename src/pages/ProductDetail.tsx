@@ -125,13 +125,14 @@ const ProductDetail = () => {
     );
   }
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     const sizes = Array.isArray(product.sizes) ? product.sizes : [];
     if (!selectedSize && sizes.length > 0 && sizes[0] !== 'Unstitched') {
       alert('Please select a size');
       return;
     }
-    addToCart(product, selectedSize || (sizes.length > 0 ? sizes[0] : ''));
+    const size = selectedSize || (sizes.length > 0 ? sizes[0] : undefined);
+    await addToCart(product, size, selectedColor || undefined);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
@@ -200,7 +201,7 @@ const ProductDetail = () => {
         </div>
 
         {/* Product Info */}
-        <div className="lg:w-1/2 space-y-10">
+        <div className="lg:w-1/2 space-y-5">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-brand-gold-dark font-bold uppercase tracking-[0.3em] text-sm">{product.brand}</span>
@@ -238,28 +239,28 @@ const ProductDetail = () => {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2">
             <h3 className="text-sm font-bold uppercase tracking-widest text-brand-dark">Description</h3>
-            <p className="text-brand-dark-muted leading-relaxed text-lg font-normal">{product.description}</p>
+            <p className="text-brand-dark-muted leading-relaxed text-sm font-normal">{product.description}</p>
           </div>
 
           {/* Color Selection */}
           {Array.isArray(product.colors) && product.colors.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-brand-dark">Color: <span className="text-brand-dark-muted font-semibold">{selectedColor || 'Select'}</span></h3>
-              <div className="flex flex-wrap gap-4">
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-brand-dark">Color: <span className="text-brand-dark-muted font-semibold">{selectedColor || 'Select'}</span></h3>
+              <div className="flex flex-wrap gap-2">
                 {product.colors.map((color: string) => (
                   <button
                     key={color}
                     onClick={() => setSelectedColor(color)}
-                    className={`group relative flex items-center justify-center px-6 py-3 rounded-full text-sm font-medium transition-all border ${
+                    className={`group relative flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-medium transition-all border ${
                       selectedColor === color 
-                        ? 'bg-brand-dark text-white border-brand-dark shadow-lg' 
+                        ? 'bg-brand-dark text-white border-brand-dark shadow-md' 
                         : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
                     }`}
                   >
                     {color}
-                    {selectedColor === color && <CheckCircle2 size={14} className="ml-2 text-brand-gold" />}
+                    {selectedColor === color && <CheckCircle2 size={12} className="ml-1.5 text-brand-gold" />}
                   </button>
                 ))}
               </div>
@@ -268,19 +269,19 @@ const ProductDetail = () => {
 
           {/* Size Selection */}
           {Array.isArray(product.sizes) && product.sizes.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-brand-dark">Size: <span className="text-brand-dark-muted font-semibold">{selectedSize || 'Select'}</span></h3>
-                <button className="text-xs text-brand-gold-dark underline uppercase tracking-widest font-bold hover:text-brand-dark transition-colors">Size Guide</button>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-brand-dark">Size: <span className="text-brand-dark-muted font-semibold">{selectedSize || 'Select'}</span></h3>
+                <button className="text-[10px] text-brand-gold-dark underline uppercase tracking-widest font-bold hover:text-brand-dark transition-colors">Size Guide</button>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2">
                 {product.sizes.map((size: string) => (
                   <button
                     key={size}
                     onClick={() => setSelectedSize(size)}
-                    className={`min-w-[64px] h-14 rounded-2xl text-sm font-bold transition-all border flex items-center justify-center ${
+                    className={`min-w-[48px] h-9 px-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center ${
                       selectedSize === size 
-                        ? 'bg-brand-dark text-white border-brand-dark shadow-lg scale-105' 
+                        ? 'bg-brand-dark text-white border-brand-dark shadow-md scale-105' 
                         : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
                     }`}
                   >
@@ -292,36 +293,34 @@ const ProductDetail = () => {
           )}
 
           {/* Actions */}
-          <div className="space-y-6 pt-6">
-            <div className="flex flex-col sm:flex-row gap-4">
+          <div className="space-y-3 pt-2">
+            <div className="flex gap-3">
               <button
                 onClick={handleAddToCart}
                 disabled={isAdded}
-                className={`flex-grow flex items-center justify-center space-x-4 px-8 sm:px-10 py-4 sm:py-6 rounded-3xl font-bold uppercase tracking-widest transition-all shadow-xl hover:shadow-2xl active:scale-95 ${
+                className={`flex-grow flex items-center justify-center space-x-3 px-6 py-3.5 rounded-2xl font-bold uppercase tracking-widest text-sm transition-all shadow-lg hover:shadow-xl active:scale-95 ${
                   isAdded 
                     ? 'bg-emerald-500 text-white' 
                     : 'bg-brand-dark text-white hover:bg-brand-gold'
                 }`}
               >
-                <ShoppingBag size={20} className="sm:w-6 sm:h-6" />
-                <span className="text-base sm:text-lg">{isAdded ? 'Added to Bag' : 'Add to Bag'}</span>
+                <ShoppingBag size={18} />
+                <span>{isAdded ? 'Added to Bag' : 'Add to Bag'}</span>
               </button>
-              <div className="flex gap-4">
-                <button 
-                  onClick={() => toggleWishlist(product)}
-                  className={`flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-3xl border-2 transition-all group shadow-sm ${
-                    isInWishlist(product.id) 
-                      ? 'bg-rose-500 border-rose-500 text-white' 
-                      : 'border-brand-dark/5 hover:border-brand-gold hover:text-brand-gold'
-                  }`}
-                >
-                  <Heart size={24} className={`sm:w-7 sm:h-7 ${isInWishlist(product.id) ? 'fill-current' : 'group-hover:fill-brand-gold'}`} />
-                </button>
-              </div>
+              <button 
+                onClick={() => toggleWishlist(product)}
+                className={`flex items-center justify-center w-12 h-12 rounded-2xl border-2 transition-all group shadow-sm flex-shrink-0 ${
+                  isInWishlist(product.id) 
+                    ? 'bg-rose-500 border-rose-500 text-white' 
+                    : 'border-brand-dark/10 hover:border-brand-gold hover:text-brand-gold'
+                }`}
+              >
+                <Heart size={20} className={isInWishlist(product.id) ? 'fill-current' : 'group-hover:fill-brand-gold'} />
+              </button>
             </div>
 
             {/* Stock Status */}
-            <div className="flex items-center space-x-2 text-sm font-medium">
+            <div className="flex items-center space-x-2 text-xs font-medium">
               <div className={`w-2 h-2 rounded-full ${product.stock > 10 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
               <span className={product.stock > 10 ? 'text-emerald-600' : 'text-amber-600'}>
                 {product.stock > 10 ? 'In Stock' : `Only ${product.stock} left in stock`}
@@ -329,8 +328,8 @@ const ProductDetail = () => {
             </div>
           </div>
 
-            {/* Social Sharing */}
-            <div className="space-y-4 pt-8 border-t border-brand-dark/5">
+          {/* Social Sharing */}
+          <div className="space-y-3 pt-4 border-t border-brand-dark/5">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40">Share this product</h3>
               <div className="flex items-center gap-4">
                 <a 
@@ -380,10 +379,10 @@ const ProductDetail = () => {
                   <Share2 size={18} />
                 </button>
               </div>
-            </div>
+          </div>
 
-            {/* Trust Badges */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 pt-12 border-t border-brand-dark/5">
+          {/* Trust Badges */}
+          <div className="grid grid-cols-3 gap-4 pt-5 border-t border-brand-dark/5">
             <div className="flex flex-col items-center text-center space-y-3 group">
               <div className="w-12 h-12 rounded-2xl bg-brand-gold/10 flex items-center justify-center text-brand-gold group-hover:bg-brand-gold group-hover:text-white transition-all">
                 <Truck size={24} />
@@ -405,7 +404,7 @@ const ProductDetail = () => {
           </div>
 
           {/* Accordion Sections */}
-          <div className="pt-10 space-y-4">
+          <div className="pt-4 space-y-2">
             {[
               { icon: Info, title: 'Product Details', content: 'Hand-crafted with premium materials. Features intricate embroidery and a modern silhouette designed for comfort and style.' },
               { icon: Ruler, title: 'Size & Fit', content: 'True to size. Model is 5\'10" and wearing a size Small. Please refer to our size guide for detailed measurements.' },

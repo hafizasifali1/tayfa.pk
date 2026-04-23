@@ -23,6 +23,7 @@ import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
 
 const SellerProductList = () => {
   const { user } = useAuth();
@@ -32,7 +33,13 @@ const SellerProductList = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'archived'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, productId: string | null, isBulk: boolean }>({
+    isOpen: false,
+    productId: null,
+    isBulk: false
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const getProductImage = (images: any) => {
     if (!images) return null;
@@ -98,26 +105,63 @@ const SellerProductList = () => {
 
   const deleteProduct = async (id: string) => {
     try {
+      setIsDeleting(true);
       await axios.delete(`/api/products/${id}`);
       setProducts(prev => prev.filter(p => p.id !== id));
       setNotification({ type: 'success', message: 'Product deleted successfully' });
-      setConfirmDelete(null);
     } catch (error) {
       console.error('Error deleting product:', error);
       setNotification({ type: 'error', message: 'Failed to delete product' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const toggleStatus = async (product: any) => {
     const newStatus = product.status === 'published' ? 'archived' : 'published';
     try {
-      const response = await axios.put(`/api/products/${product.id}`, { status: newStatus });
+      const response = await axios.patch(`/admin/products/${product.id}`, { status: newStatus });
       setProducts(prev => prev.map(p => p.id === product.id ? response.data : p));
-      setNotification({ type: 'success', message: `Product ${newStatus === 'published' ? 'published' : 'archived'} successfully` });
+      setNotification({ type: 'success', message: `Product ${newStatus === 'published' ? 'Published' : 'Archived'} successfully` });
     } catch (error) {
       console.error('Error updating status:', error);
       setNotification({ type: 'error', message: 'Failed to update status' });
     }
+  };
+
+  const confirmDeleteAction = async () => {
+    if (deleteModal.isBulk) {
+      if (selectedIds.length === 0) return;
+      try {
+        setIsDeleting(true);
+        await axios.post('/api/products/bulk-delete', { ids: selectedIds });
+        setProducts(prev => prev.filter(p => !selectedIds.includes(p.id)));
+        setSelectedIds([]);
+        setNotification({ type: 'success', message: `${selectedIds.length} products deleted successfully` });
+      } catch (error) {
+        console.error('Error bulk deleting products:', error);
+        setNotification({ type: 'error', message: 'Failed to bulk delete products' });
+      } finally {
+        setIsDeleting(false);
+      }
+    } else if (deleteModal.productId) {
+      await deleteProduct(deleteModal.productId);
+    }
+    setDeleteModal({ isOpen: false, productId: null, isBulk: false });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredProducts.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredProducts.map(p => p.id));
+    }
+  };
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   if (loading) {
@@ -152,25 +196,21 @@ const SellerProductList = () => {
         )}
       </AnimatePresence>
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={!!confirmDelete}
-        onClose={() => setConfirmDelete(null)}
-        title="Delete Product?"
-        subtitle="This action cannot be undone."
-        icon={AlertCircle}
-        variant="danger"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-            <Button variant="danger" onClick={() => deleteProduct(confirmDelete!)}>Delete</Button>
-          </>
+      {/* Confirm Deletion Modal */}
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, productId: null, isBulk: false })}
+        onConfirm={confirmDeleteAction}
+        title={deleteModal.isBulk ? "Delete Selected Products?" : "Delete Product?"}
+        message={
+          deleteModal.isBulk 
+            ? `Are you sure you want to delete ${selectedIds.length} products? This action cannot be undone.`
+            : "Are you sure you want to delete this product? All its data will be permanently removed."
         }
-      >
-        <p className="text-brand-dark/60">
-          This product will be permanently removed from your inventory and all associated data will be lost.
-        </p>
-      </Modal>
+        confirmText="Permanently Delete"
+        variant="danger"
+        isLoading={isDeleting}
+      />
 
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 pb-8 border-b border-brand-dark/5">
@@ -188,7 +228,7 @@ const SellerProductList = () => {
 
       {/* Filters & Search */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-        <div className="lg:col-span-5 relative group">
+        <div className="lg:col-span-5 relative group flex items-center">
           <Search size={18} className="absolute left-6 text-brand-dark/20 group-focus-within:text-brand-gold transition-colors" />
           <input 
             type="text" 
@@ -216,12 +256,60 @@ const SellerProductList = () => {
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="flex items-center justify-between bg-brand-dark text-white p-6 rounded-[2rem] shadow-2xl"
+          >
+            <div className="flex items-center space-x-6">
+              <span className="text-sm font-bold uppercase tracking-widest text-brand-gold">{selectedIds.length} Selected</span>
+              <div className="w-px h-6 bg-white/10" />
+              <Button 
+                variant="danger" 
+                size="sm" 
+                icon={<Trash2 size={16} />} 
+                onClick={() => setDeleteModal({ isOpen: true, productId: null, isBulk: true })}
+                loading={isDeleting}
+              >
+                Delete Selected
+              </Button>
+            </div>
+            <button 
+              onClick={() => setSelectedIds([])}
+              className="text-xs font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Table Section */}
       <Card className="p-0 border-brand-dark/5 shadow-2xl shadow-brand-dark/5 rounded-[2.5rem] overflow-hidden">
-        <Table headers={['Product Information', 'Pricing & Category', 'Inventory', 'Status', 'Actions']}>
+        <Table headers={[
+          <input 
+            type="checkbox" 
+            checked={selectedIds.length === filteredProducts.length && filteredProducts.length > 0}
+            onChange={toggleSelectAll}
+            className="w-5 h-5 rounded-lg border-brand-dark/10 text-brand-gold focus:ring-brand-gold/20"
+          />,
+          'Product Information', 'Pricing & Category', 'Inventory', 'Status', 'Actions'
+        ]}>
           {filteredProducts.length > 0 ? (
             filteredProducts.map((product) => (
-              <tr key={product.id} className="hover:bg-brand-cream/10 transition-colors group">
+              <tr key={product.id} className={`hover:bg-brand-cream/10 transition-colors group ${selectedIds.includes(product.id) ? 'bg-brand-gold/5' : ''}`}>
+                <td className="px-10 py-8">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.includes(product.id)}
+                    onChange={() => toggleSelectProduct(product.id)}
+                    className="w-5 h-5 rounded-lg border-brand-dark/10 text-brand-gold focus:ring-brand-gold/20"
+                  />
+                </td>
                 <td className="px-10 py-8">
                   <Link to={`/seller/edit-product/${product.id}`} className="flex items-center space-x-6 group/item cursor-pointer">
                     <div className="w-20 h-20 rounded-3xl overflow-hidden border border-brand-dark/5 shadow-sm flex-shrink-0 bg-brand-cream/50 relative group-hover/item:scale-105 transition-transform">
@@ -251,7 +339,7 @@ const SellerProductList = () => {
                 </td>
                 <td className="px-10 py-8">
                   <div className="space-y-2">
-                    <Price amount={product.price} className="text-lg font-serif italic text-brand-dark" />
+                    <Price amount={product.price} currency={product.currency} className="text-lg font-serif italic text-brand-dark" />
                     <p className="text-[10px] text-brand-dark/30 uppercase tracking-[0.1em] font-medium">
                       {product.category || 'Uncategorized'}
                     </p>
@@ -282,7 +370,7 @@ const SellerProductList = () => {
                   </Badge>
                 </td>
                 <td className="px-10 py-8 text-right">
-                  <div className="flex items-center justify-end space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center justify-end space-x-3 transition-opacity">
                     <Link to={`/seller/edit-product/${product.id}`}>
                       <Button variant="ghost" size="icon" icon={<Edit size={16} />} className="hover:bg-brand-gold hover:text-white transition-all shadow-sm" />
                     </Link>
@@ -299,7 +387,7 @@ const SellerProductList = () => {
                       variant="ghost" 
                       size="icon" 
                       icon={<Trash2 size={16} />} 
-                      onClick={() => setConfirmDelete(product.id)}
+                      onClick={() => setDeleteModal({ isOpen: true, productId: product.id, isBulk: false })}
                       className="hover:bg-rose-500 hover:text-white transition-all text-rose-400 shadow-sm"
                       title="Delete Product"
                     />

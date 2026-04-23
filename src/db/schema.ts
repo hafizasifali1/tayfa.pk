@@ -458,7 +458,7 @@ export const orderItems = table('order_items', {
   sellerId: isMysql ? char('seller_id', { length: 36 }).notNull() : char('seller_id').notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   originalPrice: decimal('original_price', { precision: 10, scale: 2 }).notNull(),
-  price: decimal('price', { precision: 10, scale: 2 }).notNull(), // Final price after overrides/discounts
+  price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   quantity: integer('quantity').notNull(),
   shippedQuantity: integer('shipped_quantity').default(0),
   returnedQuantity: integer('returned_quantity').default(0),
@@ -591,3 +591,47 @@ export const refunds = table('refunds', {
   status: varchar('status', { length: 50 }).default('pending'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// --- Carts & Cart Items ---
+export const carts = table('carts', {
+  id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+  userId: isMysql ? char('user_id', { length: 36 }) : char('user_id'),           // null = guest cart
+  sessionId: varchar('session_id', { length: 100 }),                              // guest session identifier
+  status: varchar('status', { length: 20 }).default('active'),                    // active | merged | abandoned
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const cartItems = table('cart_items', {
+  id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+  cartId: isMysql ? char('cart_id', { length: 36 }).notNull() : char('cart_id').notNull(),
+  productId: isMysql ? char('product_id', { length: 36 }).notNull() : char('product_id').notNull(),
+  sellerId: isMysql ? char('seller_id', { length: 36 }) : char('seller_id'),      // for multi-seller routing
+  variantId: varchar('variant_id', { length: 100 }),                              // size-color variant key e.g. "M-Red"
+  name: varchar('name', { length: 255 }).notNull(),
+  price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+  image: varchar('image', { length: 2048 }),
+  qty: integer('qty').default(1),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// --- Customers ---
+export const customers = table('customers', {
+  id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+  userId: isMysql ? char('user_id', { length: 36 }) : char('user_id'),            // FK → users.id (optional)
+  firstName: varchar('first_name', { length: 100 }).notNull(),
+  lastName: varchar('last_name', { length: 100 }),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  phone: varchar('phone', { length: 50 }),
+  gender: varchar('gender', { length: 20 }),
+  dateOfBirth: timestamp('date_of_birth'),
+  country: varchar('country', { length: 100 }),
+  city: varchar('city', { length: 100 }),
+  address: text('address'),
+  profileImage: text('profile_image'),
+  status: varchar('status', { length: 20 }).default('active'),                    // active | blocked
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+

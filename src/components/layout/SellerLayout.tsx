@@ -103,7 +103,7 @@ const SellerLayout = () => {
   return (
     <div className="min-h-screen bg-brand-cream flex">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-80 bg-brand-dark text-white border-r border-white/5 sticky top-0 h-screen overflow-y-auto custom-scrollbar">
+      <aside className="hidden lg:flex flex-col w-80 flex-shrink-0 bg-brand-dark text-white border-r border-white/5 sticky top-0 h-screen overflow-y-auto custom-scrollbar">
         <div className="px-10 py-6 border-b border-white/5">
           <Link to="/" className="inline-block transition-transform hover:scale-105">
             <img src="/Tayfa.png" alt="TAYFA" className="h-14 w-auto brightness-0 invert" />
@@ -145,7 +145,7 @@ const SellerLayout = () => {
                       className="overflow-hidden space-y-1"
                     >
                       {module.items.map((item) => {
-                        const isActive = location.pathname === item.path;
+                        const isActive = location.pathname === item.path || (item.path !== '/seller/dashboard' && location.pathname.startsWith(item.path));
                         return (
                           <Link
                             key={item.path}

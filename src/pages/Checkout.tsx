@@ -185,13 +185,7 @@ const Checkout = () => {
     }
     setIsSubmitting(true);
     try {
-      // Step 1: Simulate Stock Check
-      const outOfStockItems = cart.filter(item => item.stock < item.quantity);
-      if (outOfStockItems.length > 0) {
-        alert(`Some items are out of stock: ${outOfStockItems.map(i => i.name).join(', ')}`);
-        setIsSubmitting(false);
-        return;
-      }
+      // Skip client-side stock check (server handles it during order creation)
 
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -304,6 +298,41 @@ const Checkout = () => {
           ))}
         </div>
       </div>
+
+      {/* Guest Login Prompt Banner */}
+      {!user && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 bg-brand-dark text-white rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-brand-gold/20 flex items-center justify-center flex-shrink-0">
+              <Lock size={18} className="text-brand-gold" />
+            </div>
+            <div>
+              <p className="text-sm font-bold">Sign in to place your order</p>
+              <p className="text-[10px] text-white/50 font-medium mt-0.5">
+                Sign in first — your cart will be saved and merged automatically.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 flex-shrink-0">
+            <button
+              onClick={() => openModal('signin')}
+              className="px-5 py-2.5 bg-brand-gold text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-gold/80 transition-colors"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => openModal('signup')}
+              className="px-5 py-2.5 bg-white/10 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white/20 transition-colors"
+            >
+              Register
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-8 lg:gap-16">
         {/* Main Content */}
@@ -543,18 +572,18 @@ const Checkout = () => {
                   <h3 className="text-[9px] sm:text-xs font-bold uppercase tracking-widest text-brand-gold">Items in Order</h3>
                   <div className="space-y-3 sm:space-y-4">
                     {cart.map((item) => (
-                      <div key={`${item.id}-${item.selectedSize}`} className="flex items-center space-x-3 sm:space-x-4 bg-white/50 p-2 rounded-xl border border-brand-dark/5 sm:border-none sm:p-0">
+                      <div key={`${item.id}-${item.variantId}`} className="flex items-center space-x-3 sm:space-x-4 bg-white/50 p-2 rounded-xl border border-brand-dark/5 sm:border-none sm:p-0">
                         <div className="w-12 h-16 sm:w-16 sm:h-20 rounded-lg overflow-hidden flex-shrink-0">
-                          <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={item.imageUrl || (item as any).image || ''} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="flex-grow min-w-0">
                           <p className="text-xs sm:text-sm font-bold truncate">{item.name}</p>
-                          <p className="text-[9px] sm:text-xs text-brand-dark/60">Size: {item.selectedSize} • Qty: {item.quantity}</p>
+                          <p className="text-[9px] sm:text-xs text-brand-dark/60">
+                            {item.variantId && item.variantId !== 'default' ? `Variant: ${item.variantId} • ` : ''}Qty: {item.qty}
+                          </p>
                         </div>
                         <Price 
-                          amount={(item.price + (item.discount || 0)) * item.quantity} 
-                          discount={(item.discount || 0) * item.quantity} 
-                          productId={item.id}
+                          amount={item.price * item.qty}
                           className="text-xs sm:text-sm font-bold whitespace-nowrap" 
                         />
                       </div>

@@ -26,6 +26,14 @@ export const productService = {
     const response = await api.patch(`/admin/products/${id}`, data);
     return response.data;
   },
+  delete: async (id: string) => {
+    const response = await api.delete(`/products/${id}`);
+    return response.data;
+  },
+  bulkDelete: async (ids: string[]) => {
+    const response = await api.post('/products/bulk-delete', { ids });
+    return response.data;
+  },
 };
 
 export const brandService = {

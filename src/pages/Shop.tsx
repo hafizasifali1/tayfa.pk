@@ -27,11 +27,10 @@ const Shop = () => {
   const [dynamicFilters, setDynamicFilters] = useState<Filter[]>([]);
   const [filterValuesMap, setFilterValuesMap] = useState<Record<string, FilterValue[]>>({});
   
-  // Pagination state
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
   
-  // Top filter dropdown states
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   const parseJsonSafe = (field: any) => {
@@ -52,10 +51,11 @@ const Shop = () => {
       try {
         setIsLoading(true);
         const data = await productService.getAll();
-        setProducts(Array.isArray(data) && data.length > 0 ? data : mockProducts); // Fallback to mock if DB empty or not an array
+        const publishedData = Array.isArray(data) ? data.filter(p => !p.status || p.status.toLowerCase() === 'published') : [];
+        setProducts(publishedData.length > 0 ? publishedData : mockProducts.filter(p => !p.status || p.status.toLowerCase() === 'published')); // Fallback to mock if DB empty
       } catch (error) {
         console.error('Failed to fetch products:', error);
-        setProducts(mockProducts);
+        setProducts(mockProducts.filter(p => !p.status || p.status.toLowerCase() === 'published'));
       } finally {
         setIsLoading(false);
       }

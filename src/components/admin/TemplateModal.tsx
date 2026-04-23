@@ -41,10 +41,18 @@ const TemplateModal = ({ isOpen, onClose, onSuccess, template }: TemplateModalPr
     setLoading(true);
     setError('');
     try {
+      const payload = {
+        name: formData.name,
+        type: formData.type,
+        content: formData.content,
+        language: formData.language,
+        isActive: formData.isActive
+      };
+
       if (template) {
-        await axios.patch(`/api/communication/templates/${template.id}`, formData);
+        await axios.patch(`/api/communication/templates/${template.id}`, payload);
       } else {
-        await axios.post('/api/communication/templates', formData);
+        await axios.post('/api/communication/templates', payload);
       }
       onSuccess();
       onClose();
