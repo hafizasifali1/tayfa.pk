@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.refunds = exports.payments = exports.transactions = exports.communicationLogs = exports.communicationTemplates = exports.communicationProviders = exports.currencyRates = exports.countries = exports.returns = exports.shipments = exports.orderStatusHistory = exports.orderItems = exports.orders = exports.localizations = exports.notifications = exports.gatewayRules = exports.gatewayConfigs = exports.paymentMethods = exports.paymentGateways = exports.taxRules = exports.settings = exports.seo = exports.pages = exports.blogs = exports.auditLogs = exports.ledgers = exports.creditNotes = exports.invoices = exports.discounts = exports.pricelists = exports.coupons = exports.promotions = exports.productFilterValues = exports.filterValues = exports.filters = exports.products = exports.categories = exports.sellerApplications = exports.companies = exports.brands = exports.roles = exports.users = exports.alias = void 0;
+exports.customers = exports.cartItems = exports.carts = exports.refunds = exports.payments = exports.transactions = exports.communicationLogs = exports.communicationTemplates = exports.communicationProviders = exports.currencyRates = exports.countries = exports.returns = exports.shipments = exports.orderStatusHistory = exports.orderItems = exports.orders = exports.localizations = exports.notifications = exports.gatewayRules = exports.gatewayConfigs = exports.paymentMethods = exports.paymentGateways = exports.taxRules = exports.settings = exports.seo = exports.pages = exports.blogs = exports.auditLogs = exports.ledgers = exports.creditNotes = exports.invoices = exports.discounts = exports.pricelists = exports.coupons = exports.promotions = exports.productFilterValues = exports.filterValues = exports.filters = exports.products = exports.categories = exports.sellerApplications = exports.companies = exports.brands = exports.roles = exports.users = exports.alias = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const pg_core_1 = require("drizzle-orm/pg-core");
@@ -105,6 +105,10 @@ exports.products = table('products', {
     brandId: isMysql ? char('brand_id', { length: 36 }) : char('brand_id'),
     parentCategoryId: isMysql ? char('parent_category_id', { length: 36 }) : char('parent_category_id'),
     categoryId: isMysql ? char('category_id', { length: 36 }) : char('category_id'),
+    sellerId: isMysql ? char('seller_id', { length: 36 }) : char('seller_id'),
+    sku: varchar('sku', { length: 255 }),
+    pricelistId: isMysql ? char('pricelist_id', { length: 36 }) : char('pricelist_id'),
+    taxRuleId: isMysql ? char('tax_rule_id', { length: 36 }) : char('tax_rule_id'),
     price: decimal('price', { precision: 10, scale: 2 }).notNull(),
     discount: integer('discount').default(0),
     description: text('description'),
@@ -112,6 +116,7 @@ exports.products = table('products', {
     sizes: json('sizes'),
     colors: json('colors'),
     tags: json('tags'),
+    dynamicFilters: json('dynamic_filters'),
     stock: integer('stock').default(0),
     status: varchar('status', { length: 50 }).default('published'),
     isFeatured: boolean('is_featured').default(false),
@@ -185,6 +190,7 @@ exports.pricelists = table('pricelists', {
     name: varchar('name', { length: 255 }).notNull(),
     description: text('description'),
     currency: varchar('currency', { length: 10 }).default('PKR'),
+    items: json('items'),
     isActive: boolean('is_active').default(true),
     createdAt: timestamp('created_at').defaultNow(),
 });
@@ -196,6 +202,12 @@ exports.discounts = table('discounts', {
     type: varchar('type', { length: 50 }).notNull(), // percentage, fixed
     value: decimal('value', { precision: 10, scale: 2 }).notNull(),
     minPurchase: decimal('min_purchase', { precision: 10, scale: 2 }).default('0.00'),
+    status: varchar('status', { length: 50 }).default('active'), // active, inactive, scheduled
+    applyTo: varchar('apply_to', { length: 50 }).default('all'), // all, specific, category
+    categoryId: isMysql ? char('category_id', { length: 36 }) : char('category_id'),
+    productIds: json('product_ids'),
+    startDate: timestamp('start_date'),
+    endDate: timestamp('end_date'),
     isActive: boolean('is_active').default(true),
     createdAt: timestamp('created_at').defaultNow(),
 });
@@ -388,7 +400,7 @@ exports.orderItems = table('order_items', {
     sellerId: isMysql ? char('seller_id', { length: 36 }).notNull() : char('seller_id').notNull(),
     name: varchar('name', { length: 255 }).notNull(),
     originalPrice: decimal('original_price', { precision: 10, scale: 2 }).notNull(),
-    price: decimal('price', { precision: 10, scale: 2 }).notNull(), // Final price after overrides/discounts
+    price: decimal('price', { precision: 10, scale: 2 }).notNull(),
     quantity: integer('quantity').notNull(),
     shippedQuantity: integer('shipped_quantity').default(0),
     returnedQuantity: integer('returned_quantity').default(0),
@@ -509,4 +521,44 @@ exports.refunds = table('refunds', {
     amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
     status: varchar('status', { length: 50 }).default('pending'),
     createdAt: timestamp('created_at').defaultNow(),
+});
+// --- Carts & Cart Items ---
+exports.carts = table('carts', {
+    id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+    userId: isMysql ? char('user_id', { length: 36 }) : char('user_id'), // null = guest cart
+    sessionId: varchar('session_id', { length: 100 }), // guest session identifier
+    status: varchar('status', { length: 20 }).default('active'), // active | merged | abandoned
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
+exports.cartItems = table('cart_items', {
+    id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+    cartId: isMysql ? char('cart_id', { length: 36 }).notNull() : char('cart_id').notNull(),
+    productId: isMysql ? char('product_id', { length: 36 }).notNull() : char('product_id').notNull(),
+    sellerId: isMysql ? char('seller_id', { length: 36 }) : char('seller_id'), // for multi-seller routing
+    variantId: varchar('variant_id', { length: 100 }), // size-color variant key e.g. "M-Red"
+    name: varchar('name', { length: 255 }).notNull(),
+    price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+    image: varchar('image', { length: 2048 }),
+    qty: integer('qty').default(1),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
+// --- Customers ---
+exports.customers = table('customers', {
+    id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+    userId: isMysql ? char('user_id', { length: 36 }) : char('user_id'), // FK → users.id (optional)
+    firstName: varchar('first_name', { length: 100 }).notNull(),
+    lastName: varchar('last_name', { length: 100 }),
+    email: varchar('email', { length: 255 }).notNull().unique(),
+    phone: varchar('phone', { length: 50 }),
+    gender: varchar('gender', { length: 20 }),
+    dateOfBirth: timestamp('date_of_birth'),
+    country: varchar('country', { length: 100 }),
+    city: varchar('city', { length: 100 }),
+    address: text('address'),
+    profileImage: text('profile_image'),
+    status: varchar('status', { length: 20 }).default('active'), // active | blocked
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
 });

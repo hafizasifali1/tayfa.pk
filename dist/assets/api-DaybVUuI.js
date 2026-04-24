@@ -1,1 +1,0 @@
-import{a}from"./index-63K3-pSp.js";const n="/api",e=a.create({baseURL:n,headers:{"Content-Type":"application/json"}}),p={getAll:async s=>(await e.get("/products",{params:s})).data,getBySlug:async s=>(await e.get(`/products/${s}`)).data,create:async s=>(await e.post("/admin/products",s)).data,update:async(s,t)=>(await e.patch(`/admin/products/${s}`,t)).data};export{p};

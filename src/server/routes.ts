@@ -38,7 +38,14 @@ import {
   communicationLogs,
   carts,
   cartItems,
-  customers
+  customers,
+  transactions,
+  payments,
+  orderItems,
+  orderStatusHistory,
+  shipments,
+  returns,
+  refunds
 } from '../db/schema';
 import { CommunicationService } from './services/communication/CommunicationService';
 import { encrypt } from './utils/encryption';

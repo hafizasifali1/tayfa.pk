@@ -57,6 +57,8 @@ async function startServer() {
     app.use((0, cors_1.default)());
     app.use(express_1.default.json({ limit: '10mb' }));
     app.use(express_1.default.urlencoded({ limit: '10mb', extended: true }));
+    // Serve static files from public/uploads
+    app.use('/uploads', express_1.default.static(path_1.default.join(process.cwd(), 'public/uploads')));
     // API proxy for geolocation to avoid CORS on local
     app.get('/api/detect-country', async (req, res) => {
         try {

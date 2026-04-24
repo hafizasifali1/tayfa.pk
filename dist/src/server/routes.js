@@ -13,9 +13,44 @@ const drizzle_orm_1 = require("drizzle-orm");
 const uuid_1 = require("uuid");
 const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const google_auth_library_1 = require("google-auth-library");
+const multer_1 = __importDefault(require("multer"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const router = express_1.default.Router();
 const isMysql = process.env.DATABASE_URL?.startsWith('mysql');
 const idType = isMysql ? 'CHAR(36)' : 'UUID';
+// --- File Upload Configuration ---
+const uploadDir = path_1.default.join(process.cwd(), 'public/uploads');
+if (!fs_1.default.existsSync(uploadDir)) {
+    fs_1.default.mkdirSync(uploadDir, { recursive: true });
+}
+const storage = multer_1.default.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, uniqueSuffix + path_1.default.extname(file.originalname));
+    }
+});
+const upload = (0, multer_1.default)({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+router.post('/upload', upload.single('image'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        const imageUrl = `/uploads/${req.file.filename}`;
+        res.json({ imageUrl });
+    }
+    catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'Failed to upload image' });
+    }
+});
 // --- Database Migration Helper ---
 const runMigrations = async () => {
     if (!process.env.DATABASE_URL)
@@ -78,6 +113,37 @@ const runMigrations = async () => {
             await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN subcategory VARCHAR(100)`);
         }
         catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN seller_id ${drizzle_orm_1.sql.raw(idType)}`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN sku VARCHAR(255)`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN pricelist_id ${drizzle_orm_1.sql.raw(idType)}`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN tax_rule_id ${drizzle_orm_1.sql.raw(idType)}`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN dynamic_filters JSON`);
+        }
+        catch (e) { }
+        // Ensure images column is large enough for Base64 (LONGTEXT for MySQL)
+        if (isMysql) {
+            try {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products MODIFY COLUMN images LONGTEXT`);
+            }
+            catch (e) { }
+            try {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products MODIFY COLUMN description LONGTEXT`);
+            }
+            catch (e) { }
+        }
         // Tax Rules
         try {
             await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE tax_rules ADD COLUMN state VARCHAR(100)`);
@@ -97,36 +163,106 @@ const runMigrations = async () => {
         catch (e) { }
         // Blogs
         try {
-            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN status VARCHAR(50) DEFAULT 'published'`);
-        }
-        catch (e) { }
-        try {
-            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN seo JSON`);
-        }
-        catch (e) { }
-        try {
-            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN excerpt TEXT`);
-        }
-        catch (e) { }
-        try {
-            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN category VARCHAR(100)`);
-        }
-        catch (e) { }
-        try {
-            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN published_at TIMESTAMP`);
-        }
-        catch (e) { }
-        try {
-            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN cover_image TEXT`);
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN status VARCHAR(50) DEFAULT 'active'`);
         }
         catch (e) { }
         try {
             await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE blogs ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`);
         }
         catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE pricelists ADD COLUMN items JSON`);
+        }
+        catch (e) { }
+        // Discounts
+        console.log('[Migration] Checking discounts table...');
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN name VARCHAR(255)`);
+            console.log('[Migration] Added name to discounts');
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN type VARCHAR(50) DEFAULT 'percentage'`);
+            console.log('[Migration] Added type to discounts');
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN value DECIMAL(10, 2) DEFAULT 0.00`);
+            console.log('[Migration] Added value to discounts');
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN status VARCHAR(50) DEFAULT 'active'`);
+            console.log('[Migration] Added status to discounts');
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN apply_to VARCHAR(50) DEFAULT 'all'`);
+            console.log('[Migration] Added apply_to to discounts');
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN category_id ${drizzle_orm_1.sql.raw(idType)}`);
+            console.log('[Migration] Added category_id to discounts');
+        }
+        catch (e) { }
+        try {
+            // Try JSON first, then LONGTEXT if it fails (for older MySQL)
+            try {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN product_ids JSON`);
+                console.log('[Migration] Added product_ids (JSON) to discounts');
+            }
+            catch (e) {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN product_ids LONGTEXT`);
+                console.log('[Migration] Added product_ids (LONGTEXT fallback) to discounts');
+            }
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN start_date TIMESTAMP NULL`);
+            console.log('[Migration] Added start_date to discounts');
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN end_date TIMESTAMP NULL`);
+            console.log('[Migration] Added end_date to discounts');
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN description TEXT`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN min_purchase DECIMAL(10, 2) DEFAULT 0.00`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE discounts ADD COLUMN is_active BOOLEAN DEFAULT TRUE`);
+        }
+        catch (e) { }
         // Promote specific user to super_admin
         try {
             await db_1.db.execute((0, drizzle_orm_1.sql) `UPDATE users SET role = 'super_admin' WHERE email = 'tayyab786fq@gmail.com'`);
+        }
+        catch (e) { }
+        // Pages Table
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS pages (
+          id ${drizzle_orm_1.sql.raw(idType)} PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) UNIQUE NOT NULL,
+          content TEXT,
+          meta_title VARCHAR(255),
+          meta_description TEXT,
+          keywords TEXT,
+          robots VARCHAR(100) DEFAULT 'index, follow',
+          structured_data TEXT,
+          status VARCHAR(50) DEFAULT 'active',
+          seo_score DECIMAL(5, 2),
+          last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
         }
         catch (e) { }
         // Dynamic Filters
@@ -202,20 +338,84 @@ const runMigrations = async () => {
       )`);
         }
         catch (e) { }
+        // Carts
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `CREATE TABLE IF NOT EXISTS carts (
+        id CHAR(36) PRIMARY KEY,
+        user_id CHAR(36),
+        session_id VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+        }
+        catch (e) { }
+        // Cart Items
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `CREATE TABLE IF NOT EXISTS cart_items (
+        id CHAR(36) PRIMARY KEY,
+        cart_id CHAR(36) NOT NULL,
+        product_id CHAR(36) NOT NULL,
+        seller_id CHAR(36),
+        variant_id VARCHAR(100) DEFAULT 'default',
+        name VARCHAR(255) NOT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        image TEXT,
+        qty INT DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+        }
+        catch (e) { }
+        // Customers
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `CREATE TABLE IF NOT EXISTS customers (
+        id CHAR(36) PRIMARY KEY,
+        user_id CHAR(36),
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100),
+        email VARCHAR(255) NOT NULL UNIQUE,
+        phone VARCHAR(50),
+        gender VARCHAR(20),
+        date_of_birth TIMESTAMP,
+        country VARCHAR(100),
+        city VARCHAR(100),
+        address TEXT,
+        profile_image TEXT,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+        }
+        catch (e) { }
         console.log('Database migration check completed.');
     }
     catch (error) {
         console.error('Migration error (some columns might already exist):', error);
     }
 };
-// Run migrations on startup
 runMigrations();
-// Helper for pagination
 const getPagination = (query) => {
     const page = parseInt(query.page) || 1;
     const limit = parseInt(query.limit) || 10;
     const offset = (page - 1) * limit;
     return { limit, offset };
+};
+// Helper to ensure JSON fields are parsed correctly (handles double-stringification)
+const parseJsonField = (field) => {
+    if (typeof field === 'string') {
+        try {
+            const parsed = JSON.parse(field);
+            // If the result is still a string, it might have been double-stringified
+            if (typeof parsed === 'string')
+                return parseJsonField(parsed);
+            return parsed;
+        }
+        catch (e) {
+            return field;
+        }
+    }
+    return field;
 };
 // --- Coupons API ---
 router.get('/coupons', async (req, res) => {
@@ -237,10 +437,10 @@ router.get('/coupons', async (req, res) => {
         res.json(result);
     }
     catch (error) {
+        console.error('Error fetching coupons:', error);
         res.status(500).json({ error: 'Failed to fetch coupons' });
     }
 });
-// --- Dynamic Filters API ---
 router.get('/filters', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
@@ -298,7 +498,6 @@ router.patch('/filters/:id', async (req, res) => {
 router.delete('/filters/:id', async (req, res) => {
     try {
         await db_1.db.delete(schema_1.filters).where((0, drizzle_orm_1.eq)(schema_1.filters.id, req.params.id));
-        // Also delete associated values
         await db_1.db.delete(schema_1.filterValues).where((0, drizzle_orm_1.eq)(schema_1.filterValues.filterId, req.params.id));
         res.json({ success: true });
     }
@@ -306,7 +505,6 @@ router.delete('/filters/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete filter' });
     }
 });
-// --- Filter Values API ---
 router.get('/filter-values', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
@@ -373,21 +571,124 @@ router.post('/coupons', async (req, res) => {
         if (!process.env.DATABASE_URL)
             return res.status(500).json({ error: 'DB not connected' });
         const id = (0, uuid_1.v4)();
-        await db_1.db.insert(schema_1.coupons).values({ ...req.body, id });
+        const data = { ...req.body };
+        // Convert date strings to Date objects
+        if (data.expiryDate) {
+            const d = new Date(data.expiryDate);
+            data.expiryDate = isNaN(d.getTime()) ? null : d;
+        }
+        // Ensure numeric fields are correctly formatted
+        if (data.discountValue !== undefined)
+            data.discountValue = data.discountValue.toString();
+        if (data.minSpend !== undefined)
+            data.minSpend = data.minSpend.toString();
+        if (data.maxDiscount !== undefined && data.maxDiscount !== null)
+            data.maxDiscount = data.maxDiscount.toString();
+        await db_1.db.insert(schema_1.coupons).values({ ...data, id });
         const [newCoupon] = await db_1.db.select().from(schema_1.coupons).where((0, drizzle_orm_1.eq)(schema_1.coupons.id, id));
         res.status(201).json(newCoupon);
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to create coupon' });
+        console.error('Error creating coupon:', error);
+        res.status(500).json({ error: 'Failed to create coupon', details: error.message });
     }
 });
 router.put('/coupons/:id', async (req, res) => {
     try {
-        await db_1.db.update(schema_1.coupons).set(req.body).where((0, drizzle_orm_1.eq)(schema_1.coupons.id, req.params.id));
-        res.json({ success: true });
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'DB not connected' });
+        const data = { ...req.body };
+        // Convert date strings to Date objects
+        if (data.expiryDate) {
+            const d = new Date(data.expiryDate);
+            data.expiryDate = isNaN(d.getTime()) ? null : d;
+        }
+        // Ensure numeric fields are correctly formatted as strings for decimal columns
+        if (data.discountValue !== undefined)
+            data.discountValue = data.discountValue.toString();
+        if (data.minSpend !== undefined)
+            data.minSpend = data.minSpend.toString();
+        if (data.maxDiscount !== undefined && data.maxDiscount !== null)
+            data.maxDiscount = data.maxDiscount.toString();
+        await db_1.db.update(schema_1.coupons).set(data).where((0, drizzle_orm_1.eq)(schema_1.coupons.id, req.params.id));
+        const [updatedCoupon] = await db_1.db.select().from(schema_1.coupons).where((0, drizzle_orm_1.eq)(schema_1.coupons.id, req.params.id));
+        res.json(updatedCoupon);
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to update coupon' });
+        console.error('Error updating coupon:', error);
+        res.status(500).json({ error: 'Failed to update coupon', details: error.message });
+    }
+});
+router.post('/coupons/validate', async (req, res) => {
+    try {
+        const { code, subtotal, items } = req.body;
+        if (!code)
+            return res.status(400).json({ valid: false, message: 'Coupon code is required' });
+        console.log(`Validating coupon: ${code} for subtotal: ${subtotal}`);
+        // Try case-insensitive search
+        const results = await db_1.db.select()
+            .from(schema_1.coupons)
+            .where((0, drizzle_orm_1.sql) `LOWER(${schema_1.coupons.code}) = ${code.toLowerCase()}`);
+        const coupon = results[0];
+        if (!coupon) {
+            return res.json({ valid: false, message: 'Invalid or inactive coupon code.' });
+        }
+        if (coupon.sellerId && coupon.sellerId !== 'admin') {
+            if (!items || !Array.isArray(items) || items.length === 0) {
+                return res.json({ valid: false, message: 'Cart items are required for validation.' });
+            }
+            const allItemsMatch = items.every((item) => item.sellerId === coupon.sellerId);
+            if (!allItemsMatch) {
+                return res.json({
+                    valid: false,
+                    message: 'This coupon code cannot be applied to products from another seller.'
+                });
+            }
+        }
+        if (!coupon.isActive) {
+            return res.json({ valid: false, message: 'This coupon is no longer active.' });
+        }
+        // Check expiry
+        if (coupon.expiryDate) {
+            const expiry = new Date(coupon.expiryDate);
+            const now = new Date();
+            if (expiry < now) {
+                return res.json({ valid: false, message: 'This coupon has expired.' });
+            }
+        }
+        // Check usage limit
+        if (coupon.usageLimit !== null && coupon.usageLimit !== undefined && parseInt(coupon.usageLimit.toString()) > 0) {
+            const used = coupon.usedCount || 0;
+            if (used >= parseInt(coupon.usageLimit.toString())) {
+                return res.json({ valid: false, message: 'Coupon usage limit has been reached.' });
+            }
+        }
+        // Check min spend
+        if (coupon.minSpend && subtotal) {
+            const minVal = parseFloat(coupon.minSpend.toString());
+            const currentVal = parseFloat(subtotal.toString());
+            if (currentVal < minVal) {
+                return res.json({
+                    valid: false,
+                    message: `Minimum spend of PKR ${minVal.toLocaleString()} required for this coupon.`
+                });
+            }
+        }
+        res.json({
+            valid: true,
+            discountType: coupon.discountType,
+            discountValue: parseFloat(coupon.discountValue.toString()),
+            code: coupon.code,
+            message: 'Coupon complexity applied successfully!'
+        });
+    }
+    catch (error) {
+        console.error('Error validating coupon:', error);
+        res.status(500).json({
+            valid: false,
+            message: 'Server error validating coupon',
+            details: error.message
+        });
     }
 });
 router.delete('/coupons/:id', async (req, res) => {
@@ -406,12 +707,29 @@ router.get('/invoices', async (req, res) => {
             return res.json([]);
         const { sellerId, status } = req.query;
         const { limit, offset } = getPagination(req.query);
+        const customerTable = (0, schema_1.alias)(schema_1.users, 'customers');
         let conditions = [];
         if (sellerId)
             conditions.push((0, drizzle_orm_1.eq)(schema_1.invoices.sellerId, sellerId));
         if (status)
             conditions.push((0, drizzle_orm_1.eq)(schema_1.invoices.status, status));
-        const result = await db_1.db.select().from(schema_1.invoices)
+        const result = await db_1.db.select({
+            id: schema_1.invoices.id,
+            invoiceNumber: schema_1.invoices.invoiceNumber,
+            orderId: schema_1.invoices.orderId,
+            sellerId: schema_1.invoices.sellerId,
+            customerId: schema_1.invoices.customerId,
+            amount: schema_1.invoices.amount,
+            taxAmount: schema_1.invoices.taxAmount,
+            status: schema_1.invoices.status,
+            dueDate: schema_1.invoices.dueDate,
+            paidAt: schema_1.invoices.paidAt,
+            createdAt: schema_1.invoices.createdAt,
+            customerName: customerTable.fullName,
+            customerEmail: customerTable.email
+        })
+            .from(schema_1.invoices)
+            .leftJoin(customerTable, (0, drizzle_orm_1.eq)(schema_1.invoices.customerId, customerTable.id))
             .where(conditions.length > 0 ? (0, drizzle_orm_1.and)(...conditions) : undefined)
             .limit(limit)
             .offset(offset)
@@ -419,6 +737,7 @@ router.get('/invoices', async (req, res) => {
         res.json(result);
     }
     catch (error) {
+        console.error('Error fetching invoices:', error);
         res.status(500).json({ error: 'Failed to fetch invoices' });
     }
 });
@@ -534,15 +853,12 @@ router.get('/audit-logs', async (req, res) => {
 // --- Products API ---
 router.get('/products', async (req, res) => {
     try {
-        const { category, gender, type, minPrice, maxPrice, sortBy } = req.query;
-        // Check if DATABASE_URL is set
+        const { category, gender, type, minPrice, maxPrice, sortBy, sellerId, status } = req.query;
         if (!process.env.DATABASE_URL) {
-            console.warn('DATABASE_URL is not set. Returning empty product list.');
             return res.json([]);
         }
-        // Basic filtering logic (can be expanded)
         const parentCategories = (0, schema_1.alias)(schema_1.categories, 'parent_categories');
-        let query = db_1.db.select({
+        let dbQuery = db_1.db.select({
             id: schema_1.products.id,
             name: schema_1.products.name,
             slug: schema_1.products.slug,
@@ -568,20 +884,51 @@ router.get('/products', async (req, res) => {
             gender: schema_1.products.gender,
             type: schema_1.products.type,
             subcategory: schema_1.products.subcategory,
+            sellerId: schema_1.products.sellerId,
+            sellerName: schema_1.users.fullName,
+            sellerEmail: schema_1.users.email,
+            sku: schema_1.products.sku,
+            pricelistId: schema_1.products.pricelistId,
+            currency: schema_1.pricelists.currency,
+            taxRuleId: schema_1.products.taxRuleId,
+            dynamicFilters: schema_1.products.dynamicFilters,
             createdAt: schema_1.products.createdAt,
             updatedAt: schema_1.products.updatedAt
         })
             .from(schema_1.products)
             .leftJoin(schema_1.brands, (0, drizzle_orm_1.eq)(schema_1.products.brandId, schema_1.brands.id))
             .leftJoin(schema_1.categories, (0, drizzle_orm_1.eq)(schema_1.products.categoryId, schema_1.categories.id))
-            .leftJoin(parentCategories, (0, drizzle_orm_1.eq)(schema_1.products.parentCategoryId, parentCategories.id));
-        // In a real app, you'd use a more dynamic query builder
-        const result = await query.execute();
-        // Fetch dynamic filters for these products
+            .leftJoin(parentCategories, (0, drizzle_orm_1.eq)(schema_1.products.parentCategoryId, parentCategories.id))
+            .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.products.sellerId, schema_1.users.id))
+            .leftJoin(schema_1.pricelists, (0, drizzle_orm_1.eq)(schema_1.products.pricelistId, schema_1.pricelists.id));
+        // Apply filters
+        const conditions = [];
+        if (sellerId)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.products.sellerId, sellerId));
+        if (status)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.products.status, status));
+        if (category)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.categories.slug, category));
+        if (gender)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.products.gender, gender));
+        if (type)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.products.type, type));
+        if (conditions.length > 0) {
+            // @ts-ignore
+            dbQuery = dbQuery.where((0, drizzle_orm_1.and)(...conditions));
+        }
+        let result = [];
+        try {
+            result = await dbQuery.execute();
+        }
+        catch (e) {
+            console.error('Error executing product query:', e);
+            return res.status(500).json({ error: 'Failed to fetch products from database' });
+        }
+        // Group and parse results
         const productIds = result.map(p => p.id);
         if (productIds.length > 0) {
             const filterValues = await db_1.db.select().from(schema_1.productFilterValues).where((0, drizzle_orm_1.inArray)(schema_1.productFilterValues.productId, productIds));
-            // Group by productId
             const filterMap = {};
             filterValues.forEach(fv => {
                 if (!filterMap[fv.productId])
@@ -590,16 +937,31 @@ router.get('/products', async (req, res) => {
                     filterMap[fv.productId][fv.filterId] = [];
                 filterMap[fv.productId][fv.filterId].push(fv.valueId);
             });
-            // Attach to products
             result.forEach((p) => {
-                p.dynamicFilters = filterMap[p.id] || {};
+                p.dynamicFilters = p.dynamicFilters || filterMap[p.id] || {};
+                p.images = parseJsonField(p.images);
+                p.sizes = parseJsonField(p.sizes);
+                p.colors = parseJsonField(p.colors);
+                p.tags = parseJsonField(p.tags);
+                p.dynamicFilters = parseJsonField(p.dynamicFilters);
             });
+        }
+        else {
+            if (Array.isArray(result)) {
+                result.forEach((p) => {
+                    p.images = parseJsonField(p.images);
+                    p.sizes = parseJsonField(p.sizes);
+                    p.colors = parseJsonField(p.colors);
+                    p.tags = parseJsonField(p.tags);
+                    p.dynamicFilters = parseJsonField(p.dynamicFilters);
+                });
+            }
         }
         res.json(result);
     }
     catch (error) {
         console.error('Error fetching products:', error);
-        res.status(500).json({ error: 'Failed to fetch products. Please ensure the database is initialized.' });
+        res.status(500).json({ error: 'Failed to fetch products.' });
     }
 });
 router.post('/products', async (req, res) => {
@@ -608,7 +970,15 @@ router.post('/products', async (req, res) => {
             return res.status(500).json({ error: 'Database not connected' });
         const id = (0, uuid_1.v4)();
         const slug = (req.body.name || '').toLowerCase().replace(/ /g, '-') + '-' + id.substring(0, 8);
-        await db_1.db.insert(schema_1.products).values({ ...req.body, id, slug });
+        // Ensure JSON fields are properly parsed before insertion
+        const data = { ...req.body };
+        data.images = parseJsonField(data.images);
+        data.sizes = parseJsonField(data.sizes);
+        data.colors = parseJsonField(data.colors);
+        data.tags = parseJsonField(data.tags);
+        data.dynamicFilters = parseJsonField(data.dynamicFilters);
+        console.log('Creating product with data:', { ...data, id, slug });
+        await db_1.db.insert(schema_1.products).values({ ...data, id, slug });
         const [newProduct] = await db_1.db.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id));
         res.status(201).json(newProduct);
     }
@@ -619,7 +989,19 @@ router.post('/products', async (req, res) => {
 });
 router.put('/products/:id', async (req, res) => {
     try {
-        await db_1.db.update(schema_1.products).set(req.body).where((0, drizzle_orm_1.eq)(schema_1.products.id, req.params.id));
+        // Ensure JSON fields are properly parsed before update
+        const data = { ...req.body };
+        if (data.images)
+            data.images = parseJsonField(data.images);
+        if (data.sizes)
+            data.sizes = parseJsonField(data.sizes);
+        if (data.colors)
+            data.colors = parseJsonField(data.colors);
+        if (data.tags)
+            data.tags = parseJsonField(data.tags);
+        if (data.dynamicFilters)
+            data.dynamicFilters = parseJsonField(data.dynamicFilters);
+        await db_1.db.update(schema_1.products).set(data).where((0, drizzle_orm_1.eq)(schema_1.products.id, req.params.id));
         const [updated] = await db_1.db.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, req.params.id));
         res.json(updated);
     }
@@ -636,6 +1018,20 @@ router.delete('/products/:id', async (req, res) => {
     catch (error) {
         console.error('Error deleting product:', error);
         res.status(500).json({ error: 'Failed to delete product' });
+    }
+});
+router.post('/products/bulk-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'IDs must be a non-empty array' });
+        }
+        await db_1.db.delete(schema_1.products).where((0, drizzle_orm_1.inArray)(schema_1.products.id, ids));
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error bulk deleting products:', error);
+        res.status(500).json({ error: 'Failed to bulk delete products' });
     }
 });
 router.get('/products/:slug', async (req, res) => {
@@ -688,6 +1084,11 @@ router.get('/products/:slug', async (req, res) => {
             dynamicFiltersMap[fv.filterId].push(fv.valueId);
         });
         product.dynamicFilters = dynamicFiltersMap;
+        // Ensure JSON fields are parsed
+        product.images = parseJsonField(product.images);
+        product.sizes = parseJsonField(product.sizes);
+        product.colors = parseJsonField(product.colors);
+        product.tags = parseJsonField(product.tags);
         res.json(product);
     }
     catch (error) {
@@ -1289,6 +1690,7 @@ router.post('/bulk-upload', async (req, res) => {
         let count = 0;
         if (type === 'product') {
             for (const item of data) {
+                console.log(`Inserting product in bulk. sellerId: ${sellerId}, name: ${item.name}`);
                 await db_1.db.insert(schema_1.products).values({
                     id: (0, uuid_1.v4)(),
                     sellerId,
@@ -1466,7 +1868,12 @@ router.get('/pricelists', async (req, res) => {
             .limit(limit)
             .offset(offset)
             .orderBy((0, drizzle_orm_1.desc)(schema_1.pricelists.createdAt));
-        res.json(result);
+        // Parse items JSON field
+        const parsedResult = result.map(pl => ({
+            ...pl,
+            items: parseJsonField(pl.items) || []
+        }));
+        res.json(parsedResult);
     }
     catch (error) {
         console.error('Error fetching pricelists:', error);
@@ -1478,9 +1885,14 @@ router.post('/pricelists', async (req, res) => {
         if (!process.env.DATABASE_URL)
             return res.status(500).json({ error: 'DB not connected' });
         const id = (0, uuid_1.v4)();
-        await db_1.db.insert(schema_1.pricelists).values({ ...req.body, id });
+        const data = { ...req.body };
+        data.items = parseJsonField(data.items);
+        await db_1.db.insert(schema_1.pricelists).values({ ...data, id });
         const [newPricelist] = await db_1.db.select().from(schema_1.pricelists).where((0, drizzle_orm_1.eq)(schema_1.pricelists.id, id));
-        res.status(201).json(newPricelist);
+        res.status(201).json({
+            ...newPricelist,
+            items: parseJsonField(newPricelist.items) || []
+        });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to create pricelist' });
@@ -1488,8 +1900,15 @@ router.post('/pricelists', async (req, res) => {
 });
 router.put('/pricelists/:id', async (req, res) => {
     try {
-        await db_1.db.update(schema_1.pricelists).set(req.body).where((0, drizzle_orm_1.eq)(schema_1.pricelists.id, req.params.id));
-        res.json({ success: true });
+        const data = { ...req.body };
+        if (data.items)
+            data.items = parseJsonField(data.items);
+        await db_1.db.update(schema_1.pricelists).set(data).where((0, drizzle_orm_1.eq)(schema_1.pricelists.id, req.params.id));
+        const [updated] = await db_1.db.select().from(schema_1.pricelists).where((0, drizzle_orm_1.eq)(schema_1.pricelists.id, req.params.id));
+        res.json({
+            ...updated,
+            items: parseJsonField(updated.items) || []
+        });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to update pricelist' });
@@ -1516,12 +1935,37 @@ router.get('/discounts', async (req, res) => {
             conditions.push((0, drizzle_orm_1.eq)(schema_1.discounts.sellerId, sellerId));
         if (isActive !== undefined)
             conditions.push((0, drizzle_orm_1.eq)(schema_1.discounts.isActive, isActive === 'true'));
-        const result = await db_1.db.select().from(schema_1.discounts)
+        const u = (0, schema_1.alias)(schema_1.users, 'u');
+        const result = await db_1.db.select({
+            id: schema_1.discounts.id,
+            sellerId: schema_1.discounts.sellerId,
+            name: schema_1.discounts.name,
+            description: schema_1.discounts.description,
+            type: schema_1.discounts.type,
+            value: schema_1.discounts.value,
+            minPurchase: schema_1.discounts.minPurchase,
+            status: schema_1.discounts.status,
+            applyTo: schema_1.discounts.applyTo,
+            categoryId: schema_1.discounts.categoryId,
+            productIds: schema_1.discounts.productIds,
+            startDate: schema_1.discounts.startDate,
+            endDate: schema_1.discounts.endDate,
+            isActive: schema_1.discounts.isActive,
+            createdAt: schema_1.discounts.createdAt,
+            sellerName: u.fullName,
+            sellerEmail: u.email
+        })
+            .from(schema_1.discounts)
+            .leftJoin(u, (0, drizzle_orm_1.eq)(schema_1.discounts.sellerId, u.id))
             .where(conditions.length > 0 ? (0, drizzle_orm_1.and)(...conditions) : undefined)
             .limit(limit)
             .offset(offset)
             .orderBy((0, drizzle_orm_1.desc)(schema_1.discounts.createdAt));
-        res.json(result);
+        const parsedResult = result.map(d => ({
+            ...d,
+            productIds: parseJsonField(d.productIds)
+        }));
+        res.json(parsedResult);
     }
     catch (error) {
         console.error('Error fetching discounts:', error);
@@ -1533,18 +1977,67 @@ router.post('/discounts', async (req, res) => {
         if (!process.env.DATABASE_URL)
             return res.status(500).json({ error: 'DB not connected' });
         const id = (0, uuid_1.v4)();
-        await db_1.db.insert(schema_1.discounts).values({ ...req.body, id });
+        const data = { ...req.body };
+        // Sanitize and convert fields
+        if (data.productIds)
+            data.productIds = parseJsonField(data.productIds);
+        if (data.startDate) {
+            const d = new Date(data.startDate);
+            data.startDate = isNaN(d.getTime()) ? null : d;
+        }
+        if (data.endDate) {
+            const d = new Date(data.endDate);
+            data.endDate = isNaN(d.getTime()) ? null : d;
+        }
+        // Force values to numbers for decimal columns
+        if (data.value !== undefined)
+            data.value = parseFloat(data.value.toString()) || 0;
+        if (data.minPurchase !== undefined)
+            data.minPurchase = parseFloat(data.minPurchase.toString()) || 0;
+        // Handle createdAt: If string, convert to Date. If missing, let DB handle it.
+        if (data.createdAt) {
+            const cd = new Date(data.createdAt);
+            data.createdAt = isNaN(cd.getTime()) ? new Date() : cd;
+        }
+        await db_1.db.insert(schema_1.discounts).values({ ...data, id });
         const [newDiscount] = await db_1.db.select().from(schema_1.discounts).where((0, drizzle_orm_1.eq)(schema_1.discounts.id, id));
-        res.status(201).json(newDiscount);
+        res.status(201).json({
+            ...newDiscount,
+            productIds: parseJsonField(newDiscount.productIds)
+        });
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to create discount' });
+        console.error('Error creating discount:', error);
+        res.status(500).json({ error: 'Failed to create discount', details: error.message });
     }
 });
 router.put('/discounts/:id', async (req, res) => {
     try {
-        await db_1.db.update(schema_1.discounts).set(req.body).where((0, drizzle_orm_1.eq)(schema_1.discounts.id, req.params.id));
-        res.json({ success: true });
+        const data = { ...req.body };
+        // Sanitize and convert fields
+        if (data.productIds)
+            data.productIds = parseJsonField(data.productIds);
+        if (data.startDate) {
+            const d = new Date(data.startDate);
+            data.startDate = isNaN(d.getTime()) ? null : d;
+        }
+        if (data.endDate) {
+            const d = new Date(data.endDate);
+            data.endDate = isNaN(d.getTime()) ? null : d;
+        }
+        if (data.value !== undefined)
+            data.value = parseFloat(data.value.toString()) || 0;
+        if (data.minPurchase !== undefined)
+            data.minPurchase = parseFloat(data.minPurchase.toString()) || 0;
+        // Clean up internal/read-only fields if they crept in
+        delete data.id;
+        delete data.createdAt;
+        await db_1.db.update(schema_1.discounts).set(data).where((0, drizzle_orm_1.eq)(schema_1.discounts.id, req.params.id));
+        const [updated] = await db_1.db.select().from(schema_1.discounts).where((0, drizzle_orm_1.eq)(schema_1.discounts.id, req.params.id));
+        res.json({
+            ...updated,
+            productIds: parseJsonField(updated.productIds)
+        });
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to update discount' });
@@ -1566,16 +2059,33 @@ router.get('/promotions', async (req, res) => {
             return res.json([]);
         const { sellerId, isActive } = req.query;
         const { limit, offset } = getPagination(req.query);
+        const promoTable = (0, schema_1.alias)(schema_1.promotions, 'p');
+        const sellerTable = (0, schema_1.alias)(schema_1.users, 's');
         let conditions = [];
         if (sellerId)
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.promotions.sellerId, sellerId));
+            conditions.push((0, drizzle_orm_1.eq)(promoTable.sellerId, sellerId));
         if (isActive !== undefined)
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.promotions.isActive, isActive === 'true'));
-        const result = await db_1.db.select().from(schema_1.promotions)
+            conditions.push((0, drizzle_orm_1.eq)(promoTable.isActive, isActive === 'true'));
+        const result = await db_1.db.select({
+            id: promoTable.id,
+            sellerId: promoTable.sellerId,
+            name: promoTable.name,
+            description: promoTable.description,
+            type: promoTable.type,
+            value: promoTable.value,
+            minPurchase: promoTable.minPurchase,
+            startDate: promoTable.startDate,
+            endDate: promoTable.endDate,
+            isActive: promoTable.isActive,
+            createdAt: promoTable.createdAt,
+            sellerName: sellerTable.fullName
+        })
+            .from(promoTable)
+            .leftJoin(sellerTable, (0, drizzle_orm_1.eq)(promoTable.sellerId, sellerTable.id))
             .where(conditions.length > 0 ? (0, drizzle_orm_1.and)(...conditions) : undefined)
             .limit(limit)
             .offset(offset)
-            .orderBy((0, drizzle_orm_1.desc)(schema_1.promotions.createdAt));
+            .orderBy((0, drizzle_orm_1.desc)(promoTable.createdAt));
         res.json(result);
     }
     catch (error) {
@@ -1644,6 +2154,64 @@ router.get('/dashboard', async (req, res) => {
     catch (error) {
         console.error('Error fetching dashboard data:', error);
         res.status(500).json({ error: 'Failed to fetch dashboard data' });
+    }
+});
+router.get('/dashboard/seller/stats', async (req, res) => {
+    try {
+        const { sellerId } = req.query;
+        if (!sellerId)
+            return res.status(400).json({ error: 'Seller ID is required' });
+        if (!process.env.DATABASE_URL)
+            return res.json({});
+        // Get seller products count
+        let productsCountValue = 0;
+        try {
+            const pCountRes = await db_1.db
+                .select({ count: (0, drizzle_orm_1.sql) `count(*)` })
+                .from(schema_1.products)
+                .where((0, drizzle_orm_1.eq)(schema_1.products.sellerId, sellerId));
+            productsCountValue = Number(pCountRes[0]?.count) || 0;
+        }
+        catch (e) {
+            console.error('Error counting products:', e);
+        }
+        // Get seller orders and revenue via orderItems
+        let sellerOrders = [];
+        try {
+            sellerOrders = await db_1.db
+                .select({
+                id: schema_1.orders.id,
+                total: schema_1.orderItems.price, // Using the item price as the seller's portion
+                status: schema_1.orders.status,
+                customer: schema_1.orders.customerEmail,
+                createdAt: schema_1.orders.createdAt
+            })
+                .from(schema_1.orderItems)
+                .innerJoin(schema_1.orders, (0, drizzle_orm_1.eq)(schema_1.orderItems.orderId, schema_1.orders.id))
+                .where((0, drizzle_orm_1.eq)(schema_1.orderItems.sellerId, sellerId));
+        }
+        catch (e) {
+            console.error('Error fetching seller orders:', e);
+        }
+        const totalOrders = new Set(sellerOrders.map(o => o.id)).size;
+        const totalRevenue = sellerOrders.reduce((sum, o) => sum + parseFloat(o.total || '0'), 0);
+        // Get orders distribution
+        const statusCounts = {};
+        sellerOrders.forEach(o => {
+            statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
+        });
+        res.json({
+            revenue: totalRevenue,
+            orders: totalOrders,
+            products: productsCountValue,
+            recentOrders: Array.isArray(sellerOrders) ? sellerOrders.slice(0, 5) : [],
+            ordersByStatus: Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
+            salesOverTime: [] // Placeholder
+        });
+    }
+    catch (error) {
+        console.error('Error fetching seller stats:', error);
+        res.status(500).json({ error: 'Failed to fetch seller statistics' });
     }
 });
 // --- Admin Portal APIs (POST, PUT, DELETE) ---
@@ -2096,6 +2664,20 @@ router.get('/payments/admin/gateways/:id/config', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch gateway configs' });
     }
 });
+router.post('/payments/admin/gateways', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'Database not connected' });
+        const id = (0, uuid_1.v4)();
+        await db_1.db.insert(schema_1.paymentGateways).values({ ...req.body, id });
+        const [newGateway] = await db_1.db.select().from(schema_1.paymentGateways).where((0, drizzle_orm_1.eq)(schema_1.paymentGateways.id, id));
+        res.status(201).json(newGateway);
+    }
+    catch (error) {
+        console.error('Error creating gateway:', error);
+        res.status(500).json({ error: 'Failed to create gateway' });
+    }
+});
 router.post('/payments/admin/gateways/:id/config', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
@@ -2118,13 +2700,93 @@ router.patch('/payments/admin/gateways/:id', async (req, res) => {
             data: req.body,
             userId: req.body.adminId || 'system',
             module: 'PaymentGateway',
-            allowedFields: ['name', 'provider', 'isActive', 'isTestMode']
+            allowedFields: ['name', 'code', 'type', 'status', 'isDefault']
         });
         res.json(updated);
     }
     catch (error) {
         console.error('Error updating gateway:', error);
         res.status(error.message.includes('not found') ? 404 : 400).json({ error: error.message });
+    }
+});
+router.delete('/payments/admin/gateways/:id', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'Database not connected' });
+        // Also delete associated configs
+        await db_1.db.delete(schema_1.gatewayConfigs).where((0, drizzle_orm_1.eq)(schema_1.gatewayConfigs.gatewayId, req.params.id));
+        await db_1.db.delete(schema_1.paymentGateways).where((0, drizzle_orm_1.eq)(schema_1.paymentGateways.id, req.params.id));
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error deleting gateway:', error);
+        res.status(500).json({ error: 'Failed to delete gateway' });
+    }
+});
+// --- Transactions & Payments Admin API ---
+router.get('/admin/payments', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.json([]);
+        const { status, sellerId } = req.query;
+        const { limit, offset } = getPagination(req.query);
+        const customerTable = (0, schema_1.alias)(schema_1.users, 'customers');
+        const sellerTable = (0, schema_1.alias)(schema_1.users, 'sellers');
+        let conditions = [];
+        if (status)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.transactions.status, status));
+        // If we want to filter by seller, we need to join with order_items or similar
+        // For now, let's just fetch all transactions with user names
+        const result = await db_1.db.select({
+            id: schema_1.transactions.id,
+            orderId: schema_1.transactions.orderId,
+            amount: schema_1.transactions.amount,
+            currency: schema_1.transactions.currency,
+            status: schema_1.transactions.status,
+            createdAt: schema_1.transactions.createdAt,
+            paymentMethod: schema_1.payments.paymentMethod,
+        })
+            .from(schema_1.transactions)
+            .leftJoin(schema_1.payments, (0, drizzle_orm_1.eq)(schema_1.transactions.id, schema_1.payments.transactionId))
+            .where(conditions.length > 0 ? (0, drizzle_orm_1.and)(...conditions) : undefined)
+            .limit(limit)
+            .offset(offset)
+            .orderBy((0, drizzle_orm_1.desc)(schema_1.transactions.createdAt));
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Error fetching admin payments:', error);
+        res.status(500).json({ error: 'Failed to fetch global transactions' });
+    }
+});
+router.get('/transactions', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.json([]);
+        const { sellerId, status } = req.query;
+        // In a production app, we would join with order_items to filter by sellerId
+        // For now, we return all or mock filter by sellerId if it was in the tx table
+        let conditions = [];
+        if (status)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.transactions.status, status));
+        const result = await db_1.db.select({
+            id: schema_1.transactions.id,
+            orderId: schema_1.transactions.orderId,
+            amount: schema_1.transactions.amount,
+            currency: schema_1.transactions.currency,
+            status: schema_1.transactions.status,
+            createdAt: schema_1.transactions.createdAt,
+            gateway: schema_1.payments.paymentMethod, // mapping paymentMethod to gateway for consistent UI
+        })
+            .from(schema_1.transactions)
+            .leftJoin(schema_1.payments, (0, drizzle_orm_1.eq)(schema_1.transactions.id, schema_1.payments.transactionId))
+            .where(conditions.length > 0 ? (0, drizzle_orm_1.and)(...conditions) : undefined)
+            .orderBy((0, drizzle_orm_1.desc)(schema_1.transactions.createdAt));
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Error fetching transactions:', error);
+        res.status(500).json({ error: 'Failed to fetch transactions' });
     }
 });
 // --- Roles API ---
@@ -2157,7 +2819,7 @@ router.get('/roles', async (req, res) => {
                 }
             ]);
         }
-        const result = await db_1.db.select().from(schema_1.roles).orderBy((0, drizzle_orm_1.desc)(schema_1.roles.createdAt));
+        let result = await db_1.db.select().from(schema_1.roles).orderBy((0, drizzle_orm_1.desc)(schema_1.roles.createdAt));
         if (result.length === 0) {
             // Seed default roles if empty
             const defaultRoles = [
@@ -2198,9 +2860,22 @@ router.get('/roles', async (req, res) => {
                     ]
                 }
             ];
-            return res.json(defaultRoles);
+            for (const role of defaultRoles) {
+                try {
+                    await db_1.db.insert(schema_1.roles).values(role);
+                }
+                catch (e) {
+                    console.error(`Failed to seed role ${role.id}:`, e);
+                }
+            }
+            result = await db_1.db.select().from(schema_1.roles).orderBy((0, drizzle_orm_1.desc)(schema_1.roles.createdAt));
         }
-        res.json(result);
+        // Ensure permissions are clean JSON objects
+        const cleanedResult = result.map(role => ({
+            ...role,
+            permissions: parseJsonField(role.permissions)
+        }));
+        res.json(cleanedResult);
     }
     catch (error) {
         console.error('Error fetching roles:', error);
@@ -2212,9 +2887,17 @@ router.post('/roles', async (req, res) => {
         if (!process.env.DATABASE_URL)
             return res.status(500).json({ error: 'DB not connected' });
         const id = (0, uuid_1.v4)();
-        await db_1.db.insert(schema_1.roles).values({ ...req.body, id });
+        const data = { ...req.body, id };
+        // Ensure permissions is a clean object
+        if (data.permissions) {
+            data.permissions = parseJsonField(data.permissions);
+        }
+        await db_1.db.insert(schema_1.roles).values(data);
         const [newRole] = await db_1.db.select().from(schema_1.roles).where((0, drizzle_orm_1.eq)(schema_1.roles.id, id));
-        res.status(201).json(newRole);
+        res.status(201).json({
+            ...newRole,
+            permissions: parseJsonField(newRole.permissions)
+        });
     }
     catch (error) {
         console.error('Error creating role:', error);
@@ -2225,31 +2908,45 @@ router.patch('/roles/:id', async (req, res) => {
     try {
         const adminId = req.body.adminId;
         const targetRoleId = req.params.id;
+        if (!idType) { // redundant but safe
+            // No checks needed if DB not used, though it currently always is
+        }
         if (process.env.DATABASE_URL) {
             // 1. Fetch requester
             const [requester] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, adminId));
-            if (!requester)
-                return res.status(401).json({ error: 'Unauthorized' });
+            if (!requester) {
+                console.error('UpdateRole: Requester not found', { adminId });
+                return res.status(401).json({ error: 'Unauthorized: User not found' });
+            }
             // 2. Enforce hierarchy
             if (targetRoleId === 'super_admin') {
                 return res.status(403).json({ error: 'Super Administrator role cannot be modified via API for safety.' });
             }
-            if (targetRoleId === 'admin' && requester.role !== 'super_admin') {
+            const isAdmin = requester.role === 'admin' || requester.role === 'super_admin';
+            const isSuperAdmin = requester.role === 'super_admin';
+            if (targetRoleId === 'admin' && !isSuperAdmin) {
                 return res.status(403).json({ error: 'Only a Super Administrator can modify the Administrator role.' });
             }
-            if (requester.role !== 'super_admin' && requester.role !== 'admin') {
+            if (!isAdmin) {
                 return res.status(403).json({ error: 'Insufficient privileges to modify roles.' });
             }
+        }
+        const updateData = { ...req.body };
+        if (updateData.permissions) {
+            updateData.permissions = parseJsonField(updateData.permissions);
         }
         const updated = await (0, updateHandler_1.handlePatchUpdate)({
             table: schema_1.roles,
             id: targetRoleId,
-            data: req.body,
+            data: updateData,
             userId: adminId || 'system',
             module: 'Role',
             allowedFields: ['name', 'description', 'permissions', 'isSystem']
         });
-        res.json(updated);
+        res.json({
+            ...updated,
+            permissions: parseJsonField(updated.permissions)
+        });
     }
     catch (error) {
         console.error('Error updating role:', error);
@@ -2350,6 +3047,41 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
         res.status(500).json({ error: 'Failed to reset password' });
     }
 });
+router.delete('/admin/users/:id', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'DB not connected' });
+        const userId = req.params.id;
+        // 1. Delete dependent notifications
+        await db_1.db.delete(schema_1.notifications).where((0, drizzle_orm_1.eq)(schema_1.notifications.userId, userId));
+        // 2. Delete seller applications
+        await db_1.db.delete(schema_1.sellerApplications).where((0, drizzle_orm_1.eq)(schema_1.sellerApplications.userId, userId));
+        // 3. Delete linked companies (if seller)
+        await db_1.db.delete(schema_1.companies).where((0, drizzle_orm_1.eq)(schema_1.companies.sellerId, userId));
+        // 4. Delete the user
+        await db_1.db.delete(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, userId));
+        // 5. Audit Log (use a system ID if the user record is gone, but we try to log before delete if possible)
+        // Actually log after is fine if we use the ID string
+        try {
+            await db_1.db.insert(schema_1.auditLogs).values({
+                id: (0, uuid_1.v4)(),
+                userId: req.body.adminId || 'system',
+                action: 'delete_user',
+                module: 'users',
+                details: { targetUserId: userId },
+                createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
+            });
+        }
+        catch (e) {
+            console.warn('Failed to create audit log for deletion:', e);
+        }
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ error: 'Failed to delete user. The user may have existing orders or financial records that prevent deletion.' });
+    }
+});
 router.post('/users', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
@@ -2397,7 +3129,6 @@ router.post('/auth/register', async (req, res) => {
         if (!process.env.DATABASE_URL)
             return res.status(500).json({ error: 'DB not connected' });
         const { email, password, fullName, phone, role, businessData } = req.body;
-        // Restrict admin registration
         if (role === 'admin') {
             return res.status(403).json({ error: 'Admin registration is not allowed' });
         }
@@ -2407,7 +3138,6 @@ router.post('/auth/register', async (req, res) => {
         }
         const hashedPassword = await bcryptjs_1.default.hash(password, 10);
         const id = (0, uuid_1.v4)();
-        // If role is seller, status is pending
         const status = role === 'seller' ? 'pending' : 'active';
         await db_1.db.insert(schema_1.users).values({
             id,
@@ -2470,13 +3200,71 @@ router.post('/auth/login', async (req, res) => {
         if (user.status === 'inactive') {
             return res.status(403).json({ error: 'Your account is inactive.' });
         }
-        // Don't send password back
         const { password: _, ...userWithoutPassword } = user;
         res.json(userWithoutPassword);
     }
     catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ error: 'Failed to authenticate' });
+    }
+});
+router.post('/auth/google', async (req, res) => {
+    try {
+        const { token, role } = req.body;
+        if (!process.env.DATABASE_URL) {
+            return res.status(500).json({ error: 'DB not connected' });
+        }
+        const clientId = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+        const client = new google_auth_library_1.OAuth2Client(clientId);
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: clientId,
+        });
+        const payload = ticket.getPayload();
+        if (!payload)
+            throw new Error('Invalid token');
+        const email = payload.email;
+        const fullName = payload.name || 'Google User';
+        let [user] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.email, email));
+        if (!user) {
+            // Register user
+            const id = (0, uuid_1.v4)();
+            const status = role === 'seller' ? 'pending' : 'active';
+            // Generate a random password since they logged in with Google
+            const randomPassword = await bcryptjs_1.default.hash(crypto_1.default.randomBytes(16).toString('hex'), 10);
+            await db_1.db.insert(schema_1.users).values({
+                id,
+                email,
+                password: randomPassword,
+                fullName,
+                phone: '',
+                role: role || 'user',
+                status
+            });
+            const [newUser] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, id));
+            user = newUser;
+        }
+        else {
+            // Existing user checks
+            if (role && user.role !== role) {
+                return res.status(403).json({ error: `This account is already registered as a ${user.role}.` });
+            }
+            if (user.status === 'pending') {
+                return res.status(403).json({ error: 'Your account is pending approval.' });
+            }
+            if (user.status === 'rejected') {
+                return res.status(403).json({ error: 'Your account application has been rejected.' });
+            }
+            if (user.status === 'inactive') {
+                return res.status(403).json({ error: 'Your account is inactive.' });
+            }
+        }
+        const { password: _, ...userWithoutPassword } = user;
+        res.json(userWithoutPassword);
+    }
+    catch (error) {
+        console.error('Google auth error:', error);
+        res.status(500).json({ error: 'Failed to authenticate with Google' });
     }
 });
 router.post('/auth/forgot-password', async (req, res) => {
@@ -2555,7 +3343,9 @@ router.post('/communication/providers', async (req, res) => {
                 encryptedConfig[key] = (0, encryption_1.encrypt)(encryptedConfig[key]);
             }
         }
-        const [newProvider] = await db_1.db.insert(schema_1.communicationProviders).values({
+        const id = (0, uuid_1.v4)();
+        await db_1.db.insert(schema_1.communicationProviders).values({
+            id,
             name,
             type,
             config: encryptedConfig,
@@ -2564,7 +3354,8 @@ router.post('/communication/providers', async (req, res) => {
             priority,
             isActive,
             isDefault
-        }).returning();
+        });
+        const [newProvider] = await db_1.db.select().from(schema_1.communicationProviders).where((0, drizzle_orm_1.eq)(schema_1.communicationProviders.id, id));
         res.json(newProvider);
     }
     catch (error) {
@@ -2584,14 +3375,27 @@ router.patch('/communication/providers/:id', async (req, res) => {
             }
             updateData.config = encryptedConfig;
         }
-        const [updated] = await db_1.db.update(schema_1.communicationProviders)
-            .set(updateData)
-            .where((0, drizzle_orm_1.eq)(schema_1.communicationProviders.id, req.params.id))
-            .returning();
+        const updated = await (0, updateHandler_1.handlePatchUpdate)({
+            table: schema_1.communicationProviders,
+            id: req.params.id,
+            data: req.body,
+            userId: 'system',
+            module: 'CommunicationProvider',
+            allowedFields: ['name', 'type', 'config', 'senderId', 'endpointUrl', 'priority', 'isActive', 'isDefault']
+        });
         res.json(updated);
     }
     catch (error) {
         res.status(400).json({ error: error.message });
+    }
+});
+router.delete('/communication/providers/:id', async (req, res) => {
+    try {
+        await db_1.db.delete(schema_1.communicationProviders).where((0, drizzle_orm_1.eq)(schema_1.communicationProviders.id, req.params.id));
+        res.json({ success: true });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 router.get('/communication/templates', async (req, res) => {
@@ -2605,11 +3409,38 @@ router.get('/communication/templates', async (req, res) => {
 });
 router.post('/communication/templates', async (req, res) => {
     try {
-        const [newTemplate] = await db_1.db.insert(schema_1.communicationTemplates).values(req.body).returning();
+        const id = (0, uuid_1.v4)();
+        await db_1.db.insert(schema_1.communicationTemplates).values({ ...req.body, id });
+        const [newTemplate] = await db_1.db.select().from(schema_1.communicationTemplates).where((0, drizzle_orm_1.eq)(schema_1.communicationTemplates.id, id));
         res.json(newTemplate);
     }
     catch (error) {
         res.status(400).json({ error: error.message });
+    }
+});
+router.patch('/communication/templates/:id', async (req, res) => {
+    try {
+        const updated = await (0, updateHandler_1.handlePatchUpdate)({
+            table: schema_1.communicationTemplates,
+            id: req.params.id,
+            data: req.body,
+            userId: 'system',
+            module: 'CommunicationTemplate',
+            allowedFields: ['name', 'type', 'content', 'language', 'isActive']
+        });
+        res.json(updated);
+    }
+    catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+router.delete('/communication/templates/:id', async (req, res) => {
+    try {
+        await db_1.db.delete(schema_1.communicationTemplates).where((0, drizzle_orm_1.eq)(schema_1.communicationTemplates.id, req.params.id));
+        res.json({ success: true });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 router.get('/communication/logs', async (req, res) => {
@@ -2629,6 +3460,273 @@ router.post('/communication/send-test', async (req, res) => {
     }
     catch (error) {
         res.status(400).json({ error: error.message });
+    }
+});
+// ============================================================
+// --- Cart API --- 
+// ============================================================
+/** Helper: get or create the active cart for a user */
+const getOrCreateUserCart = async (userId) => {
+    const existing = await db_1.db.select().from(schema_1.carts)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.carts.userId, userId), (0, drizzle_orm_1.eq)(schema_1.carts.status, 'active')))
+        .limit(1);
+    if (existing.length > 0)
+        return existing[0];
+    const id = (0, uuid_1.v4)();
+    await db_1.db.insert(schema_1.carts).values({ id, userId, status: 'active' });
+    return { id, userId, status: 'active' };
+};
+/** Helper: load all items for a cart with formatted shape */
+const loadCartItems = async (cartId) => {
+    const rows = await db_1.db.select().from(schema_1.cartItems).where((0, drizzle_orm_1.eq)(schema_1.cartItems.cartId, cartId));
+    return rows.map((r) => ({
+        cartItemId: r.id,
+        cartId: r.cartId,
+        id: r.productId,
+        sellerId: r.sellerId,
+        name: r.name,
+        price: parseFloat(r.price),
+        imageUrl: r.image,
+        qty: r.qty,
+        variantId: r.variantId || 'default',
+        size: r.variantId?.split('-')[0] || '',
+        color: r.variantId?.split('-')[1] || '',
+    }));
+};
+// GET /api/cart?userId=xxx  — fetch cart for logged-in user
+router.get('/cart', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId)
+            return res.status(400).json({ error: 'userId required' });
+        if (!process.env.DATABASE_URL)
+            return res.json({ items: [] });
+        const cart = await getOrCreateUserCart(userId);
+        const items = await loadCartItems(cart.id);
+        res.json({ cartId: cart.id, items });
+    }
+    catch (error) {
+        console.error('Cart GET error:', error);
+        res.status(500).json({ error: 'Failed to fetch cart' });
+    }
+});
+// POST /api/cart/items  — add item to cart (idempotent: merges qty if same variant)
+router.post('/cart/items', async (req, res) => {
+    try {
+        const { userId, id: productId, sellerId, name, price, image, imageUrl, qty = 1, variantId = 'default' } = req.body;
+        if (!userId || !productId || !name || price === undefined) {
+            return res.status(400).json({ error: 'userId, id, name, price are required' });
+        }
+        const finalImage = imageUrl || image;
+        // Extra safety: reject if it's still base64
+        if (finalImage && finalImage.startsWith('data:image')) {
+            return res.status(400).json({ error: 'Image must be a URL, base64 data is too large.' });
+        }
+        if (!process.env.DATABASE_URL)
+            return res.json({ items: [] });
+        const cart = await getOrCreateUserCart(userId);
+        // Check if same product+variant already in cart
+        const existing = await db_1.db.select().from(schema_1.cartItems)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.cartItems.cartId, cart.id), (0, drizzle_orm_1.eq)(schema_1.cartItems.productId, productId), (0, drizzle_orm_1.eq)(schema_1.cartItems.variantId, variantId))).limit(1);
+        if (existing.length > 0) {
+            // Merge: add quantities
+            const newQty = existing[0].qty + qty;
+            await db_1.db.update(schema_1.cartItems)
+                .set({ qty: newQty })
+                .where((0, drizzle_orm_1.eq)(schema_1.cartItems.id, existing[0].id));
+        }
+        else {
+            // Insert new item
+            await db_1.db.insert(schema_1.cartItems).values({
+                id: (0, uuid_1.v4)(),
+                cartId: cart.id,
+                productId,
+                sellerId: sellerId || null,
+                variantId,
+                name,
+                price: price.toString(),
+                image: finalImage || null,
+                qty,
+            });
+        }
+        const items = await loadCartItems(cart.id);
+        res.json({ cartId: cart.id, items });
+    }
+    catch (error) {
+        console.error('Cart add error:', error);
+        res.status(500).json({ error: 'Failed to add to cart' });
+    }
+});
+// PUT /api/cart/items/:id  — update quantity
+router.put('/cart/items/:id', async (req, res) => {
+    try {
+        const { userId, qty } = req.body;
+        const cartItemId = req.params.id;
+        if (!userId || qty === undefined)
+            return res.status(400).json({ error: 'userId and qty required' });
+        if (!process.env.DATABASE_URL)
+            return res.json({ items: [] });
+        if (qty < 1) {
+            await db_1.db.delete(schema_1.cartItems).where((0, drizzle_orm_1.eq)(schema_1.cartItems.id, cartItemId));
+        }
+        else {
+            await db_1.db.update(schema_1.cartItems).set({ qty }).where((0, drizzle_orm_1.eq)(schema_1.cartItems.id, cartItemId));
+        }
+        const cart = await getOrCreateUserCart(userId);
+        const items = await loadCartItems(cart.id);
+        res.json({ cartId: cart.id, items });
+    }
+    catch (error) {
+        console.error('Cart update error:', error);
+        res.status(500).json({ error: 'Failed to update cart item' });
+    }
+});
+// DELETE /api/cart/items/:id  — remove a cart item
+router.delete('/cart/items/:id', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        const cartItemId = req.params.id;
+        if (!userId)
+            return res.status(400).json({ error: 'userId required' });
+        if (!process.env.DATABASE_URL)
+            return res.json({ items: [] });
+        await db_1.db.delete(schema_1.cartItems).where((0, drizzle_orm_1.eq)(schema_1.cartItems.id, cartItemId));
+        const cart = await getOrCreateUserCart(userId);
+        const items = await loadCartItems(cart.id);
+        res.json({ cartId: cart.id, items });
+    }
+    catch (error) {
+        console.error('Cart delete error:', error);
+        res.status(500).json({ error: 'Failed to remove cart item' });
+    }
+});
+// POST /api/cart/merge  — merge guest items into logged-in user cart (idempotent)
+router.post('/cart/merge', async (req, res) => {
+    try {
+        const { userId, guestItems } = req.body;
+        if (!userId || !Array.isArray(guestItems)) {
+            return res.status(400).json({ error: 'userId and guestItems array required' });
+        }
+        if (!process.env.DATABASE_URL)
+            return res.json({ items: guestItems });
+        const cart = await getOrCreateUserCart(userId);
+        for (const item of guestItems) {
+            const { id: productId, sellerId, name, price, image, qty = 1, variantId = 'default' } = item;
+            if (!productId || !name || price === undefined)
+                continue;
+            // Check if already exists in DB cart
+            const existing = await db_1.db.select().from(schema_1.cartItems)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.cartItems.cartId, cart.id), (0, drizzle_orm_1.eq)(schema_1.cartItems.productId, productId), (0, drizzle_orm_1.eq)(schema_1.cartItems.variantId, variantId))).limit(1);
+            if (existing.length > 0) {
+                // Merge quantities (don't duplicate)
+                const merged = existing[0].qty + qty;
+                await db_1.db.update(schema_1.cartItems).set({ qty: merged }).where((0, drizzle_orm_1.eq)(schema_1.cartItems.id, existing[0].id));
+            }
+            else {
+                await db_1.db.insert(schema_1.cartItems).values({
+                    id: (0, uuid_1.v4)(),
+                    cartId: cart.id,
+                    productId,
+                    sellerId: sellerId || null,
+                    variantId,
+                    name,
+                    price: price.toString(),
+                    image: image || null,
+                    qty,
+                });
+            }
+        }
+        const items = await loadCartItems(cart.id);
+        res.json({ cartId: cart.id, items, merged: guestItems.length });
+    }
+    catch (error) {
+        console.error('Cart merge error:', error);
+        res.status(500).json({ error: 'Failed to merge cart' });
+    }
+});
+// DELETE /api/cart  — clear entire cart for user
+router.delete('/cart', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId)
+            return res.status(400).json({ error: 'userId required' });
+        if (!process.env.DATABASE_URL)
+            return res.json({ success: true });
+        const userCarts = await db_1.db.select().from(schema_1.carts)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.carts.userId, userId), (0, drizzle_orm_1.eq)(schema_1.carts.status, 'active')));
+        for (const c of userCarts) {
+            await db_1.db.delete(schema_1.cartItems).where((0, drizzle_orm_1.eq)(schema_1.cartItems.cartId, c.id));
+        }
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Cart clear error:', error);
+        res.status(500).json({ error: 'Failed to clear cart' });
+    }
+});
+// ============================================================
+// --- Customers API ---
+// ============================================================
+// GET /api/customers  — list all customers (admin)
+router.get('/customers', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.json([]);
+        const all = await db_1.db.select().from(schema_1.customers).orderBy((0, drizzle_orm_1.desc)(schema_1.customers.createdAt));
+        res.json(all);
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch customers' });
+    }
+});
+// GET /api/customers/by-user/:userId  — get customer profile linked to a user
+router.get('/customers/by-user/:userId', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.json(null);
+        const [customer] = await db_1.db.select().from(schema_1.customers)
+            .where((0, drizzle_orm_1.eq)(schema_1.customers.userId, req.params.userId)).limit(1);
+        res.json(customer || null);
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch customer' });
+    }
+});
+// POST /api/customers  — create customer
+router.post('/customers', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(503).json({ error: 'DB unavailable' });
+        const id = (0, uuid_1.v4)();
+        const { userId, firstName, lastName, email, phone, gender, dateOfBirth, country, city, address, profileImage } = req.body;
+        await db_1.db.insert(schema_1.customers).values({
+            id, userId, firstName, lastName, email, phone, gender,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+            country, city, address, profileImage, status: 'active'
+        });
+        const [created] = await db_1.db.select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, id));
+        res.status(201).json(created);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to create customer' });
+    }
+});
+// PUT /api/customers/:id  — update customer
+router.put('/customers/:id', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(503).json({ error: 'DB unavailable' });
+        const { firstName, lastName, email, phone, gender, dateOfBirth, country, city, address, profileImage, status } = req.body;
+        await db_1.db.update(schema_1.customers).set({
+            firstName, lastName, email, phone, gender,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+            country, city, address, profileImage, status
+        }).where((0, drizzle_orm_1.eq)(schema_1.customers.id, req.params.id));
+        const [updated] = await db_1.db.select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, req.params.id));
+        res.json(updated);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to update customer' });
     }
 });
 exports.default = router;
