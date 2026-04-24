@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const db_1 = require("../db");
 const schema_1 = require("../db/schema");
+const nodemailer_1 = __importDefault(require("nodemailer"));
 const CommunicationService_1 = require("./services/communication/CommunicationService");
 const encryption_1 = require("./utils/encryption");
 const updateHandler_1 = require("./utils/updateHandler");
@@ -388,6 +389,54 @@ const runMigrations = async () => {
       )`);
         }
         catch (e) { }
+        // Email Settings & Templates
+        try {
+            if (isMysql) {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `
+          CREATE TABLE IF NOT EXISTS email_settings (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            mail_driver VARCHAR(50) DEFAULT 'smtp',
+            mail_host VARCHAR(255) NOT NULL,
+            mail_port INT DEFAULT 587,
+            mail_username VARCHAR(255) NOT NULL,
+            mail_password VARCHAR(255) NOT NULL,
+            mail_encryption VARCHAR(20) DEFAULT 'tls',
+            from_email VARCHAR(255) NOT NULL,
+            from_name VARCHAR(255) NOT NULL,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+                await db_1.db.execute((0, drizzle_orm_1.sql) `
+          CREATE TABLE IF NOT EXISTS email_templates (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            name VARCHAR(100) NOT NULL UNIQUE,
+            subject VARCHAR(255) NOT NULL,
+            body LONGTEXT NOT NULL,
+            variables TEXT,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+                // Check if templates exist, if not seed them
+                const existingTemplates = await db_1.db.select().from(schema_1.emailTemplates).limit(1);
+                if (existingTemplates.length === 0) {
+                    await db_1.db.execute((0, drizzle_orm_1.sql) `
+            INSERT INTO email_templates (name, subject, body, variables) VALUES
+            ('order_confirmation', 'Order Confirmed - #{{order_id}}', '<h2>Thank you {{customer_name}}!</h2><p>Your order #{{order_id}} has been confirmed.</p>', '{{customer_name}},{{order_id}},{{total_amount}}'),
+            ('welcome_email', 'Welcome to TAYFA, {{customer_name}}!', '<h2>Welcome {{customer_name}}!</h2><p>Thank you for joining TAYFA.</p>', '{{customer_name}},{{email}}'),
+            ('password_reset', 'Reset Your Password', '<p>Click <a href="{{reset_link}}">here</a> to reset your password.</p>', '{{customer_name}},{{reset_link}}'),
+            ('seller_approved', 'Your Seller Account is Approved!', '<h2>Congratulations {{seller_name}}!</h2><p>Your seller account has been approved.</p>', '{{seller_name}},{{dashboard_link}}'),
+            ('order_shipped', 'Your Order #{{order_id}} Has Been Shipped', '<p>Your order is on the way! Tracking: {{tracking_number}}</p>', '{{customer_name}},{{order_id}},{{tracking_number}}')
+          `);
+                }
+            }
+        }
+        catch (e) {
+            console.error('Error migrating email tables:', e);
+        }
         console.log('Database migration check completed.');
     }
     catch (error) {
@@ -945,6 +994,59 @@ router.get('/products', async (req, res) => {
                 p.tags = parseJsonField(p.tags);
                 p.dynamicFilters = parseJsonField(p.dynamicFilters);
             });
+            // --- Apply Active Discounts ---
+            try {
+                const now = new Date();
+                const activeDiscounts = await db_1.db.select().from(schema_1.discounts)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.discounts.isActive, true), (0, drizzle_orm_1.lte)(schema_1.discounts.startDate, now), (0, drizzle_orm_1.gte)(schema_1.discounts.endDate, now)));
+                result.forEach((product) => {
+                    // Find the best discount for this product
+                    const applicable = activeDiscounts.filter(d => {
+                        if (d.applyTo === 'all')
+                            return true;
+                        if (d.applyTo === 'category' && d.categoryId === product.categoryId)
+                            return true;
+                        if (d.applyTo === 'specific') {
+                            const pIds = parseJsonField(d.productIds);
+                            return Array.isArray(pIds) && pIds.includes(product.id);
+                        }
+                        return false;
+                    });
+                    if (applicable.length > 0) {
+                        // Pick the one that gives the lowest price
+                        let bestSalePrice = product.price;
+                        let appliedDiscountValue = 0;
+                        let appliedDiscountType = null;
+                        applicable.forEach(d => {
+                            let currentSalePrice = product.price;
+                            let currentDiscountValue = 0;
+                            const value = parseFloat(d.value);
+                            if (d.type === 'percentage') {
+                                currentSalePrice = product.price * (1 - value / 100);
+                                currentDiscountValue = value;
+                            }
+                            else {
+                                currentSalePrice = Math.max(0, product.price - value);
+                                currentDiscountValue = value;
+                            }
+                            if (currentSalePrice < bestSalePrice) {
+                                bestSalePrice = currentSalePrice;
+                                appliedDiscountValue = currentDiscountValue;
+                                appliedDiscountType = d.type;
+                            }
+                        });
+                        // If product already has a manual salePrice or discount, we respect the better one
+                        if (!product.salePrice || bestSalePrice < product.salePrice) {
+                            product.salePrice = bestSalePrice;
+                            product.discount = appliedDiscountValue;
+                            product.discountType = appliedDiscountType;
+                        }
+                    }
+                });
+            }
+            catch (discountError) {
+                console.error('Error applying discounts to products:', discountError);
+            }
         }
         else {
             if (Array.isArray(result)) {
@@ -1089,6 +1191,55 @@ router.get('/products/:slug', async (req, res) => {
         product.sizes = parseJsonField(product.sizes);
         product.colors = parseJsonField(product.colors);
         product.tags = parseJsonField(product.tags);
+        // --- Apply Active Discounts ---
+        try {
+            const now = new Date();
+            const activeDiscounts = await db_1.db.select().from(schema_1.discounts)
+                .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.discounts.isActive, true), (0, drizzle_orm_1.lte)(schema_1.discounts.startDate, now), (0, drizzle_orm_1.gte)(schema_1.discounts.endDate, now)));
+            // Find best discount
+            const applicable = activeDiscounts.filter(d => {
+                if (d.applyTo === 'all')
+                    return true;
+                if (d.applyTo === 'category' && d.categoryId === product.categoryId)
+                    return true;
+                if (d.applyTo === 'specific') {
+                    const pIds = parseJsonField(d.productIds);
+                    return Array.isArray(pIds) && pIds.includes(product.id);
+                }
+                return false;
+            });
+            if (applicable.length > 0) {
+                let bestSalePrice = product.price;
+                let appliedDiscountValue = 0;
+                let appliedDiscountType = null;
+                applicable.forEach(d => {
+                    let currentSalePrice = product.price;
+                    let currentDiscountValue = 0;
+                    const value = parseFloat(d.value);
+                    if (d.type === 'percentage') {
+                        currentSalePrice = product.price * (1 - value / 100);
+                        currentDiscountValue = value;
+                    }
+                    else {
+                        currentSalePrice = Math.max(0, product.price - value);
+                        currentDiscountValue = value;
+                    }
+                    if (currentSalePrice < bestSalePrice) {
+                        bestSalePrice = currentSalePrice;
+                        appliedDiscountValue = currentDiscountValue;
+                        appliedDiscountType = d.type;
+                    }
+                });
+                if (!product.salePrice || bestSalePrice < product.salePrice) {
+                    product.salePrice = bestSalePrice;
+                    product.discount = appliedDiscountValue;
+                    product.discountType = appliedDiscountType;
+                }
+            }
+        }
+        catch (discountError) {
+            console.error('Error applying discount to single product:', discountError);
+        }
         res.json(product);
     }
     catch (error) {
@@ -1138,6 +1289,8 @@ router.get('/admin/seller-applications', async (req, res) => {
 });
 router.patch('/admin/seller-applications/:id', async (req, res) => {
     try {
+        const [oldApp] = await db_1.db.select().from(schema_1.sellerApplications).where((0, drizzle_orm_1.eq)(schema_1.sellerApplications.id, req.params.id)).limit(1);
+        const wasNotApproved = oldApp && oldApp.status !== 'approved';
         const updated = await (0, updateHandler_1.handlePatchUpdate)({
             table: schema_1.sellerApplications,
             id: req.params.id,
@@ -1153,9 +1306,22 @@ router.patch('/admin/seller-applications/:id', async (req, res) => {
             await db_1.db.update(schema_1.users)
                 .set({ status: userStatus })
                 .where((0, drizzle_orm_1.eq)(schema_1.users.id, application.userId));
-            // If approved, create companies and brands (simplified logic for patch)
-            if (req.body.status === 'approved') {
+            // If approved and was not previously approved, create companies and send email
+            if (req.body.status === 'approved' && wasNotApproved) {
                 const data = application.businessData;
+                // Send approval email
+                const [sellerUser] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, application.userId));
+                if (sellerUser) {
+                    const siteUrl = req.get('origin') || 'http://localhost:5173';
+                    sendEmail({
+                        to: sellerUser.email,
+                        templateName: 'seller_account_approved',
+                        data: {
+                            name: sellerUser.fullName,
+                            login_url: `${siteUrl}`
+                        }
+                    });
+                }
                 if (data.companies && Array.isArray(data.companies)) {
                     for (const comp of data.companies) {
                         const companyId = (0, uuid_1.v4)();
@@ -2369,6 +2535,156 @@ router.post('/admin/settings', async (req, res) => {
         res.status(500).json({ error: 'Failed to update settings' });
     }
 });
+// --- Email Settings & Templates API ---
+router.get('/admin/email-settings', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.json({});
+        const [config] = await db_1.db.select().from(schema_1.emailSettings).limit(1);
+        res.json(config || {});
+    }
+    catch (error) {
+        console.error('Error fetching email settings:', error);
+        res.status(500).json({ error: 'Failed to fetch email settings' });
+    }
+});
+router.post('/admin/email-settings', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'Database not connected' });
+        const [existing] = await db_1.db.select().from(schema_1.emailSettings).limit(1);
+        const { id, createdAt, updatedAt, ...saveData } = req.body;
+        if (existing) {
+            await db_1.db.update(schema_1.emailSettings)
+                .set({ ...saveData, updatedAt: new Date() })
+                .where((0, drizzle_orm_1.eq)(schema_1.emailSettings.id, existing.id));
+        }
+        else {
+            await db_1.db.insert(schema_1.emailSettings).values(saveData);
+        }
+        const [updated] = await db_1.db.select().from(schema_1.emailSettings).limit(1);
+        res.json(updated);
+    }
+    catch (error) {
+        console.error('Error saving email settings:', error);
+        res.status(500).json({ error: error.message || 'Failed to save email settings' });
+    }
+});
+router.post('/admin/email-settings/test', async (req, res) => {
+    try {
+        const { toEmail, config: providedConfig } = req.body;
+        let config = providedConfig;
+        if (!config) {
+            const [dbConfig] = await db_1.db.select().from(schema_1.emailSettings).limit(1);
+            config = dbConfig;
+        }
+        if (!config || !config.mailHost) {
+            return res.status(400).json({ error: 'Email configuration not found' });
+        }
+        const transporter = nodemailer_1.default.createTransport({
+            host: config.mailHost,
+            port: parseInt(config.mailPort),
+            secure: config.mailEncryption?.toLowerCase() === 'ssl',
+            auth: {
+                user: config.mailUsername,
+                pass: config.mailPassword,
+            },
+            tls: {
+                rejectUnauthorized: false
+            }
+        });
+        await transporter.sendMail({
+            from: `"${config.fromName}" <${config.fromEmail}>`,
+            to: toEmail,
+            subject: 'Test Email - TAYFA',
+            html: `<h3>Email Configuration Test</h3><p>If you're reading this, your SMTP settings are working correctly!</p>`,
+        });
+        res.json({ success: true, message: 'Test email sent successfully' });
+    }
+    catch (error) {
+        console.error('Error sending test email:', error);
+        res.status(500).json({ error: error.message || 'Failed to send test email' });
+    }
+});
+router.get('/admin/email-templates', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.json([]);
+        const result = await db_1.db.select().from(schema_1.emailTemplates).orderBy((0, drizzle_orm_1.desc)(schema_1.emailTemplates.createdAt));
+        res.json(result);
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch email templates' });
+    }
+});
+router.put('/admin/email-templates/:id', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        await db_1.db.update(schema_1.emailTemplates).set({ ...req.body, updatedAt: new Date() }).where((0, drizzle_orm_1.eq)(schema_1.emailTemplates.id, id));
+        const [updated] = await db_1.db.select().from(schema_1.emailTemplates).where((0, drizzle_orm_1.eq)(schema_1.emailTemplates.id, id));
+        res.json(updated);
+    }
+    catch (error) {
+        console.error('Error updating email template:', error);
+        res.status(500).json({ error: 'Failed to update email template' });
+    }
+});
+async function sendEmail({ to, templateName, data }) {
+    try {
+        const [config] = await db_1.db.select().from(schema_1.emailSettings).where((0, drizzle_orm_1.eq)(schema_1.emailSettings.isActive, true)).limit(1);
+        if (!config) {
+            console.warn('Email settings not configured or inactive. Skipping email send.');
+            return;
+        }
+        const [template] = await db_1.db.select().from(schema_1.emailTemplates)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.emailTemplates.name, templateName), (0, drizzle_orm_1.eq)(schema_1.emailTemplates.isActive, true)))
+            .limit(1);
+        if (!template) {
+            console.warn(`Email template "${templateName}" not found or inactive. Skipping email send.`);
+            return;
+        }
+        let body = template.body;
+        let subject = template.subject;
+        // Replace variables
+        Object.keys(data).forEach(key => {
+            const regex = new RegExp(`{{${key}}}`, 'g');
+            body = body.replace(regex, data[key]);
+            subject = subject.replace(regex, data[key]);
+        });
+        const transporter = nodemailer_1.default.createTransport({
+            host: config.mailHost,
+            port: parseInt(config.mailPort),
+            secure: config.mailEncryption?.toLowerCase() === 'ssl',
+            auth: {
+                user: config.mailUsername,
+                pass: config.mailPassword,
+            },
+            tls: {
+                rejectUnauthorized: false
+            }
+        });
+        await transporter.sendMail({
+            from: `"${config.fromName}" <${config.fromEmail}>`,
+            to,
+            subject,
+            html: body,
+        });
+        console.log(`Email "${templateName}" sent successfully to ${to}`);
+    }
+    catch (error) {
+        console.error(`Failed to send email "${templateName}" to ${to}:`, error);
+    }
+}
+router.post('/admin/email-settings/send', async (req, res) => {
+    try {
+        const { to, templateName, data } = req.body;
+        await sendEmail({ to, templateName, data });
+        res.json({ success: true, message: 'Email sent successfully' });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || 'Failed to send email' });
+    }
+});
 router.get('/brands', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
@@ -3003,6 +3319,11 @@ router.get('/admin/users', async (req, res) => {
 });
 router.patch('/admin/users/:id', async (req, res) => {
     try {
+        // Check old status for transition detection
+        const [oldUser] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, req.params.id)).limit(1);
+        const wasNotActive = oldUser && oldUser.status !== 'active';
+        const isNowActive = req.body.status === 'active';
+        const isActivating = wasNotActive && isNowActive;
         const updated = await (0, updateHandler_1.handlePatchUpdate)({
             table: schema_1.users,
             id: req.params.id,
@@ -3015,6 +3336,18 @@ router.patch('/admin/users/:id', async (req, res) => {
                 status: ['active', 'inactive', 'pending']
             }
         });
+        // If a seller is being activated (changed from pending/inactive to active)
+        if (updated && updated.role === 'seller' && isActivating) {
+            const siteUrl = req.get('origin') || 'http://localhost:5173';
+            sendEmail({
+                to: updated.email,
+                templateName: 'seller_account_approved',
+                data: {
+                    name: updated.fullName,
+                    login_url: `${siteUrl}`
+                }
+            });
+        }
         res.json(updated);
     }
     catch (error) {
@@ -3158,6 +3491,22 @@ router.post('/auth/register', async (req, res) => {
         }
         const [newUser] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, id));
         const { password: _, ...userWithoutPassword } = newUser;
+        // Send Welcome Email asynchronously
+        const siteUrl = req.get('origin') || 'http://localhost:5173';
+        if (role === 'seller') {
+            sendEmail({
+                to: email,
+                templateName: 'seller_signup_pending',
+                data: { name: fullName, site_url: siteUrl }
+            });
+        }
+        else {
+            sendEmail({
+                to: email,
+                templateName: 'customer_welcome',
+                data: { name: fullName, site_url: siteUrl }
+            });
+        }
         res.status(201).json(userWithoutPassword);
     }
     catch (error) {

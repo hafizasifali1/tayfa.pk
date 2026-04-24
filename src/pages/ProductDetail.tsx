@@ -218,8 +218,8 @@ const ProductDetail = () => {
             
             <div className="flex items-center space-x-4">
               <Price 
-                amount={product.price + (product.discount || 0)} 
-                discount={product.discount} 
+                amount={product.price} 
+                discount={product.salePrice ? (product.price - product.salePrice) : product.discount} 
                 className="text-3xl font-medium text-brand-dark" 
                 showLocalMessage 
               />

@@ -92,6 +92,7 @@ const LocalizationManager = lazy(() => import('./pages/admin/LocalizationManager
 const FilterManager = lazy(() => import('./pages/admin/FilterManager'));
 const CountryManager = lazy(() => import('./pages/admin/CountryManager'));
 const TaxManager = lazy(() => import('./pages/admin/TaxManager'));
+const EmailSettings = lazy(() => import('./pages/admin/EmailSettings'));
 
 // --- Loading Fallback ---
 const PageLoader = () => (
@@ -191,6 +192,7 @@ export default function App() {
                       <Route path="filters" element={<ProtectedRoute module="products"><FilterManager /></ProtectedRoute>} />
                       <Route path="countries" element={<ProtectedRoute module="settings"><CountryManager /></ProtectedRoute>} />
                       <Route path="taxes" element={<ProtectedRoute module="tax_rules"><TaxManager /></ProtectedRoute>} />
+                      <Route path="email-settings" element={<ProtectedRoute module="settings"><EmailSettings /></ProtectedRoute>} />
                       <Route path="*" element={<PortalNotFound />} />
                     </Route>
                     </Routes>

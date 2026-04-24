@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Package, BarChart3, Shield, Settings, 
   LogOut, Menu, X, Bell, Search, User, ChevronRight, ChevronDown, Sparkles,
   Ticket, Tag, FileText, Globe, Layers, Award, CreditCard, Percent,
-  ShoppingBag, BookOpen, Building, MessageSquare
+  ShoppingBag, BookOpen, Building, MessageSquare, Mail
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -71,6 +71,7 @@ const AdminLayout = () => {
         { icon: Bell, label: 'Notifications', path: '/admin/notifications', module: 'settings' },
         { icon: Globe, label: 'Localizations', path: '/admin/localizations', module: 'settings' },
         { icon: MessageSquare, label: 'Communication', path: '/admin/communication', module: 'settings' },
+        { icon: Mail, label: 'Email Settings', path: '/admin/email-settings', module: 'settings' },
         { icon: Settings, label: 'System Settings', path: '/admin/settings', module: 'settings' },
       ]
     }

@@ -576,6 +576,90 @@ export async function migrate() {
     } catch (seedError) {
       console.error('Failed to seed default countries and rates:', seedError);
     }
+
+    // Seed default email templates
+    try {
+      console.log('Seeding default email templates...');
+      const { emailTemplates } = await import('./schema');
+      
+      const defaultTemplates = [
+        {
+          name: 'customer_welcome',
+          subject: 'Welcome to TAYFA Luxury Marketplace!',
+          body: `
+            <div style="font-family: serif; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #f0f0f0;">
+              <h1 style="color: #c5a059; text-align: center; font-size: 28px;">Welcome to TAYFA, {{name}}</h1>
+              <p>We're thrilled to have you join our exclusive community of luxury enthusiasts.</p>
+              <p>At TAYFA, we curate only the finest premium products to ensure you have access to the pinnacle of style and craftmanship.</p>
+              <div style="text-align: center; margin: 40px 0;">
+                <a href="{{site_url}}" style="background-color: #1a1a1a; color: white; padding: 15px 30px; text-decoration: none; border-radius: 4px; font-weight: bold; text-transform: uppercase; font-size: 12px; letter-spacing: 2px;">Start Shopping</a>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #f0f0f0; margin: 40px 0;" />
+              <p style="font-size: 12px; color: #666; text-align: center;">© 2026 TAYFA Luxury. All rights reserved.</p>
+            </div>
+          `,
+          variables: 'name,site_url'
+        },
+        {
+          name: 'seller_signup_pending',
+          subject: 'Seller Account Created - Pending Approval',
+          body: `
+            <div style="font-family: serif; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #f0f0f0;">
+              <h1 style="color: #c5a059; text-align: center; font-size: 24px;">Welcome to the TAYFA Partner Program</h1>
+              <p>Hello {{name}},</p>
+              <p>Thank you for choosing to partner with TAYFA. Your seller account has been successfully created and is now awaiting administrative review.</p>
+              <p>Our team will review your business information and get back to you within 24-48 hours. Once approved, you will receive another email with instructions to access your dashboard.</p>
+              <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; font-weight: bold;">Status: Pending Review</p>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #f0f0f0; margin: 40px 0;" />
+              <p style="font-size: 12px; color: #666; text-align: center;">© 2026 TAYFA Luxury. All rights reserved.</p>
+            </div>
+          `,
+          variables: 'name,site_url'
+        },
+        {
+          name: 'seller_account_approved',
+          subject: 'Your TAYFA Seller Account is Approved!',
+          body: `
+            <div style="font-family: serif; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 40px; border: 1px solid #f0f0f0;">
+              <h1 style="color: #c5a059; text-align: center; font-size: 24px;">Congratulations, {{name}}!</h1>
+              <p>We are pleased to inform you that your seller application has been approved.</p>
+              <p>Your portal is now fully active, and you can start listing your luxury products immediately.</p>
+              <div style="text-align: center; margin: 40px 0;">
+                <a href="{{login_url}}" style="background-color: #c5a059; color: white; padding: 15px 30px; text-decoration: none; border-radius: 4px; font-weight: bold; text-transform: uppercase; font-size: 12px; letter-spacing: 2px;">Access Seller Dashboard</a>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #f0f0f0; margin: 40px 0;" />
+              <p style="font-size: 12px; color: #666; text-align: center;">© 2026 TAYFA Luxury. All rights reserved.</p>
+            </div>
+          `,
+          variables: 'name,login_url'
+        }
+      ];
+
+      for (const template of defaultTemplates) {
+        try {
+          const [existing] = await db.select().from(emailTemplates).where(eq(emailTemplates.name, template.name));
+          if (!existing) {
+            await db.insert(emailTemplates).values({
+              ...template,
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+          }
+        } catch (e: any) {
+          if (e.code === 'ER_DUP_ENTRY') {
+            console.log(`Template ${template.name} already exists, skipping.`);
+          } else {
+            throw e;
+          }
+        }
+      }
+      console.log('Default email templates seeded successfully.');
+    } catch (seedError) {
+      console.error('Failed to seed default email templates:', seedError);
+    }
   } catch (error) {
     console.error('Migration failed:', error);
   }

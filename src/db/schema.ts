@@ -635,3 +635,30 @@ export const customers = table('customers', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// --- Email Settings & Templates ---
+export const emailSettings = table('email_settings', {
+  id: mysqlSerial('id').primaryKey(),
+  mailDriver: varchar('mail_driver', { length: 50 }).default('smtp'),
+  mailHost: varchar('mail_host', { length: 255 }).notNull(),
+  mailPort: integer('mail_port').default(587),
+  mailUsername: varchar('mail_username', { length: 255 }).notNull(),
+  mailPassword: varchar('mail_password', { length: 255 }).notNull(),
+  mailEncryption: varchar('mail_encryption', { length: 20 }).default('tls'),
+  fromEmail: varchar('from_email', { length: 255 }).notNull(),
+  fromName: varchar('from_name', { length: 255 }).notNull(),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const emailTemplates = table('email_templates', {
+  id: mysqlSerial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull().unique(),
+  subject: varchar('subject', { length: 255 }).notNull(),
+  body: text('body').notNull(),
+  variables: text('variables'),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+

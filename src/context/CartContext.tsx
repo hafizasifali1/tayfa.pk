@@ -55,7 +55,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             items = await CartService.DbCart.getAll(currentUserId);
           }
         } else {
-          items = CartService.GuestCart.getAll();
+          items = CartService.LocalCart.getAll();
         }
 
         if (!cancelled) {
@@ -132,7 +132,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: product.id,
       sellerId: product.sellerId || '',
       name: product.name,
-      price: parseFloat(String(product.price)) || 0,
+      price: parseFloat(String(product.salePrice ?? product.price)) || 0,
+      originalPrice: product.salePrice ? (parseFloat(String(product.price)) || 0) : undefined,
       imageUrl: image,
       qty: 1,
       variantId,
@@ -196,9 +197,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Clear Cart ───────────────────────────────────────────────────
   const clearCart = useCallback(() => {
-    CartService.GuestCart.clear();
+    CartService.LocalCart.clear(user?.id);
     setCart([]);
-  }, []);
+  }, [user?.id]);
 
   // ── Group by Seller ──────────────────────────────────────────────
   const groupBySeller = useCallback(() => {

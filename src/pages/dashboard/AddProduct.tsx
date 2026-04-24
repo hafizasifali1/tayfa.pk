@@ -121,7 +121,9 @@ const AddProduct = () => {
     brand: '',
     brandId: '',
     price: '',
+    salePrice: '',
     discount: '',
+    discountType: null as 'percentage' | 'fixed' | null,
     category: '',
     parentCategoryId: '',
     categoryId: '',
@@ -422,7 +424,8 @@ const AddProduct = () => {
         ...formData,
         sellerId: user?.id,
         price: parseFloat(formData.price) || 0,
-        discount: formData.discount ? parseFloat(formData.discount) : undefined,
+        salePrice: formData.salePrice ? parseFloat(formData.salePrice) : null,
+        discount: formData.discount ? parseFloat(formData.discount) : 0,
         stock: parseInt(formData.stock) || 0,
         images: images.map(img => img.url),
         status,
@@ -437,7 +440,7 @@ const AddProduct = () => {
       if (status === 'draft') {
         setError('Draft saved successfully! Redirecting...');
       }
-      setTimeout(() => navigate('/seller/dashboard'), 2000);
+      setTimeout(() => navigate('/seller/products'), 2000);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to save product. Please try again.');
     } finally {
@@ -575,8 +578,8 @@ const AddProduct = () => {
                   <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Discount Price</label>
                   <input
                     type="number"
-                    name="discount"
-                    value={formData.discount}
+                    name="salePrice"
+                    value={formData.salePrice}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                     placeholder="0.00"
@@ -603,6 +606,25 @@ const AddProduct = () => {
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                     placeholder="0"
                   />
+                </div>
+              </div>
+
+              {/* Second row of Pricing & Inventory */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-brand-dark/5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Discount</label>
+                  <div className="w-full px-4 py-3 border border-brand-dark/10 bg-brand-gold/5 rounded-xl text-sm font-bold text-brand-gold flex items-center justify-between min-h-[46px]">
+                    <span className="text-base">
+                      {formData.discount && parseFloat(formData.discount) > 0 ? (
+                        formData.discountType === 'percentage' 
+                          ? `${formData.discount}%` 
+                          : `${formData.discount} PKR`
+                      ) : 'None'}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold tracking-tighter bg-brand-gold/20 px-2 py-1 rounded-lg">
+                      {formData.discount && parseFloat(formData.discount) > 0 ? (formData.discountType === 'fixed' ? 'Fixed Amount' : 'Percentage') : ''}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

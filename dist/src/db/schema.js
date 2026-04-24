@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.customers = exports.cartItems = exports.carts = exports.refunds = exports.payments = exports.transactions = exports.communicationLogs = exports.communicationTemplates = exports.communicationProviders = exports.currencyRates = exports.countries = exports.returns = exports.shipments = exports.orderStatusHistory = exports.orderItems = exports.orders = exports.localizations = exports.notifications = exports.gatewayRules = exports.gatewayConfigs = exports.paymentMethods = exports.paymentGateways = exports.taxRules = exports.settings = exports.seo = exports.pages = exports.blogs = exports.auditLogs = exports.ledgers = exports.creditNotes = exports.invoices = exports.discounts = exports.pricelists = exports.coupons = exports.promotions = exports.productFilterValues = exports.filterValues = exports.filters = exports.products = exports.categories = exports.sellerApplications = exports.companies = exports.brands = exports.roles = exports.users = exports.alias = void 0;
+exports.emailTemplates = exports.emailSettings = exports.customers = exports.cartItems = exports.carts = exports.refunds = exports.payments = exports.transactions = exports.communicationLogs = exports.communicationTemplates = exports.communicationProviders = exports.currencyRates = exports.countries = exports.returns = exports.shipments = exports.orderStatusHistory = exports.orderItems = exports.orders = exports.localizations = exports.notifications = exports.gatewayRules = exports.gatewayConfigs = exports.paymentMethods = exports.paymentGateways = exports.taxRules = exports.settings = exports.seo = exports.pages = exports.blogs = exports.auditLogs = exports.ledgers = exports.creditNotes = exports.invoices = exports.discounts = exports.pricelists = exports.coupons = exports.promotions = exports.productFilterValues = exports.filterValues = exports.filters = exports.products = exports.categories = exports.sellerApplications = exports.companies = exports.brands = exports.roles = exports.users = exports.alias = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const pg_core_1 = require("drizzle-orm/pg-core");
@@ -559,6 +559,31 @@ exports.customers = table('customers', {
     address: text('address'),
     profileImage: text('profile_image'),
     status: varchar('status', { length: 20 }).default('active'), // active | blocked
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
+// --- Email Settings & Templates ---
+exports.emailSettings = table('email_settings', {
+    id: (0, mysql_core_1.serial)('id').primaryKey(),
+    mailDriver: varchar('mail_driver', { length: 50 }).default('smtp'),
+    mailHost: varchar('mail_host', { length: 255 }).notNull(),
+    mailPort: integer('mail_port').default(587),
+    mailUsername: varchar('mail_username', { length: 255 }).notNull(),
+    mailPassword: varchar('mail_password', { length: 255 }).notNull(),
+    mailEncryption: varchar('mail_encryption', { length: 20 }).default('tls'),
+    fromEmail: varchar('from_email', { length: 255 }).notNull(),
+    fromName: varchar('from_name', { length: 255 }).notNull(),
+    isActive: boolean('is_active').default(true),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
+exports.emailTemplates = table('email_templates', {
+    id: (0, mysql_core_1.serial)('id').primaryKey(),
+    name: varchar('name', { length: 100 }).notNull().unique(),
+    subject: varchar('subject', { length: 255 }).notNull(),
+    body: text('body').notNull(),
+    variables: text('variables'),
+    isActive: boolean('is_active').default(true),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
 });

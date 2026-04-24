@@ -19,7 +19,8 @@ export interface CartItem {
   cartId?: string;
   sellerId: string;
   name: string;
-  price: number;
+  price: number;        // Final price to be paid
+  originalPrice?: number; // Price before discount
   imageUrl: string;
   qty: number;
   variantId: string;    // "M-Red" or "M" or "Red" or "default"
@@ -28,6 +29,8 @@ export interface CartItem {
 }
 
 // ---------- Session ID for guests ----------
+// ---------- Keys ----------
+const getCartKey = (userId?: string) => userId ? `tayfa_cart_${userId}` : 'tayfa_guest_cart';
 const GUEST_CART_KEY = 'tayfa_guest_cart';
 const GUEST_SESSION_KEY = 'tayfa_guest_session';
 
@@ -46,98 +49,110 @@ export const buildVariantId = (size?: string, color?: string): string => {
 };
 
 // ============================================================
-// GUEST CART — localStorage
+// LOCAL CART — localStorage (Multi-user support)
 // ============================================================
-const GuestCart = {
-  getAll(): CartItem[] {
+const LocalCart = {
+  getAll(userId?: string): CartItem[] {
     try {
-      const raw = localStorage.getItem(GUEST_CART_KEY);
+      const key = getCartKey(userId);
+      const raw = localStorage.getItem(key);
       const parsed = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      
+      if (Array.isArray(parsed)) {
         return parsed.map((it: any) => ({
           ...it,
           imageUrl: it.imageUrl || it.image || '',
         }));
       }
 
-      // ── Migration from old 'cart' key ──────────────────────────
-      const oldRaw = localStorage.getItem('cart');
-      if (oldRaw) {
-        const oldItems = JSON.parse(oldRaw);
-        if (Array.isArray(oldItems) && oldItems.length > 0) {
-          const migrated: CartItem[] = oldItems.map((old: any) => ({
-            id: old.id,
-            sellerId: old.sellerId || '',
-            name: old.name,
-            price: parseFloat(String(old.price)) || 0,
-            imageUrl: (() => {
-              try {
-                const imgs = typeof old.images === 'string' ? JSON.parse(old.images) : old.images;
-                return Array.isArray(imgs) && imgs.length > 0 ? imgs[0] : '';
-              } catch { return ''; }
-            })(),
-            qty: old.quantity || old.qty || 1,
-            variantId: buildVariantId(old.selectedSize, old.selectedColor),
-            size: old.selectedSize,
-            color: old.selectedColor,
-          }));
-          // Save migrated items to new key, remove old key
-          localStorage.setItem(GUEST_CART_KEY, JSON.stringify(migrated));
+      // ── Migration logic only for legacy guest cart ──────────────────────────
+      if (!userId) {
+        const oldRaw = localStorage.getItem('cart');
+        if (oldRaw) {
+          const oldItems = JSON.parse(oldRaw);
+          if (Array.isArray(oldItems) && oldItems.length > 0) {
+            const migrated: CartItem[] = oldItems.map((old: any) => ({
+              id: old.id,
+              sellerId: old.sellerId || '',
+              name: old.name,
+              price: parseFloat(String(old.price)) || 0,
+              imageUrl: (() => {
+                try {
+                  const imgs = typeof old.images === 'string' ? JSON.parse(old.images) : old.images;
+                  return Array.isArray(imgs) && imgs.length > 0 ? imgs[0] : '';
+                } catch { return ''; }
+              })(),
+              qty: old.quantity || old.qty || 1,
+              variantId: buildVariantId(old.selectedSize, old.selectedColor),
+              size: old.selectedSize,
+              color: old.selectedColor,
+            }));
+            localStorage.setItem(key, JSON.stringify(migrated));
+            localStorage.removeItem('cart');
+            return migrated;
+          }
           localStorage.removeItem('cart');
-          console.log(`[CartService] Migrated ${migrated.length} items from old cart key.`);
-          return migrated;
         }
-        // Old key exists but empty — clean it up
-        localStorage.removeItem('cart');
       }
+      
       return [];
     } catch {
       return [];
     }
   },
 
-  save(items: CartItem[]): void {
-    localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
+  save(items: CartItem[], userId?: string): void {
+    const key = getCartKey(userId);
+    localStorage.setItem(key, JSON.stringify(items));
+    
+    if (userId) {
+      localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
+    }
   },
 
-  add(item: Omit<CartItem, 'cartItemId' | 'cartId'>): CartItem[] {
-    const items = GuestCart.getAll();
-    const existing = items.find(
+  add(item: Omit<CartItem, 'cartItemId' | 'cartId'>, userId?: string): CartItem[] {
+    const items = LocalCart.getAll(userId);
+    const existingIndex = items.findIndex(
       (i) => i.id === item.id && i.variantId === item.variantId
     );
+    
     let updated: CartItem[];
-    if (existing) {
-      updated = items.map((i) =>
-        i.id === item.id && i.variantId === item.variantId
-          ? { ...i, qty: i.qty + item.qty }
-          : i
-      );
+    if (existingIndex > -1) {
+      updated = [...items];
+      updated[existingIndex] = { 
+        ...updated[existingIndex], 
+        qty: updated[existingIndex].qty + item.qty 
+      };
     } else {
-      updated = [...items, item];
+      updated = [...items, item as CartItem];
     }
-    GuestCart.save(updated);
+    
+    LocalCart.save(updated, userId);
     return updated;
   },
 
-  remove(productId: string, variantId: string): CartItem[] {
-    const updated = GuestCart.getAll().filter(
+  remove(productId: string, variantId: string, userId?: string): CartItem[] {
+    const updated = LocalCart.getAll(userId).filter(
       (i) => !(i.id === productId && i.variantId === variantId)
     );
-    GuestCart.save(updated);
+    LocalCart.save(updated, userId);
     return updated;
   },
 
-  updateQty(productId: string, variantId: string, qty: number): CartItem[] {
-    if (qty < 1) return GuestCart.remove(productId, variantId);
-    const updated = GuestCart.getAll().map((i) =>
+  updateQty(productId: string, variantId: string, qty: number, userId?: string): CartItem[] {
+    if (qty < 1) return LocalCart.remove(productId, variantId, userId);
+    const updated = LocalCart.getAll(userId).map((i) =>
       i.id === productId && i.variantId === variantId ? { ...i, qty } : i
     );
-    GuestCart.save(updated);
+    LocalCart.save(updated, userId);
     return updated;
   },
 
-  clear(): void {
-    localStorage.removeItem(GUEST_CART_KEY);
+  clear(userId?: string): void {
+    localStorage.removeItem(getCartKey(userId));
+    if (userId) {
+      localStorage.removeItem(GUEST_CART_KEY);
+    }
   },
 };
 
@@ -149,55 +164,78 @@ const DbCart = {
     try {
       if (!userId) return [];
       const res = await axios.get(`/api/cart?userId=${userId}`);
-      return Array.isArray(res.data.items) ? res.data.items : [];
+      const items = Array.isArray(res.data.items) ? res.data.items : [];
+      // Synchronize local storage with DB results
+      LocalCart.save(items, userId);
+      return items;
     } catch (err) {
       console.error('[DbCart] Failed to get user cart:', err);
-      return []; // Do NOT fallback to local storage
+      // Fallback to local storage if DB is unreachable
+      return LocalCart.getAll(userId);
     }
   },
 
   async add(userId: string, item: Omit<CartItem, 'cartItemId' | 'cartId'>): Promise<CartItem[]> {
+    // 1. Update Local first
+    const local = LocalCart.add(item, userId);
+    
     try {
       const res = await axios.post('/api/cart/items', { userId, ...item });
-      return Array.isArray(res.data.items) ? res.data.items : [];
+      const items = Array.isArray(res.data.items) ? res.data.items : [];
+      LocalCart.save(items, userId);
+      return items;
     } catch (err) {
       console.error('[DbCart] Failed to add item:', err);
-      throw new Error('Failed to add item to database cart');
+      return local; 
     }
   },
 
-  async remove(cartItemId: string, userId: string): Promise<CartItem[]> {
+  async remove(cartItemId: string, userId: string, productId: string, variantId: string): Promise<CartItem[]> {
+    const local = LocalCart.remove(productId, variantId, userId);
+    
     try {
       const res = await axios.delete(`/api/cart/items/${cartItemId}?userId=${userId}`);
-      return Array.isArray(res.data.items) ? res.data.items : [];
+      const items = Array.isArray(res.data.items) ? res.data.items : [];
+      LocalCart.save(items, userId);
+      return items;
     } catch (err) {
       console.error('[DbCart] Failed to remove item:', err);
-      throw new Error('Failed to remove item from database cart');
+      return local;
     }
   },
 
-  async updateQty(cartItemId: string, userId: string, qty: number): Promise<CartItem[]> {
+  async updateQty(cartItemId: string, userId: string, qty: number, productId: string, variantId: string): Promise<CartItem[]> {
+    const local = LocalCart.updateQty(productId, variantId, qty, userId);
+    
     try {
       const res = await axios.put(`/api/cart/items/${cartItemId}`, { userId, qty });
-      return Array.isArray(res.data.items) ? res.data.items : [];
+      const items = Array.isArray(res.data.items) ? res.data.items : [];
+      LocalCart.save(items, userId);
+      return items;
     } catch (err) {
       console.error('[DbCart] Failed to update qty:', err);
-      throw new Error('Failed to update quantity in database cart');
+      return local;
     }
   },
 
   async mergeGuestCart(userId: string): Promise<CartItem[]> {
-    const guestItems = GuestCart.getAll();
-    if (guestItems.length === 0) {
-      return DbCart.getAll(userId);
-    }
+    // When merging, we use the GUEST key explicitly
+    const rawGuest = localStorage.getItem(GUEST_CART_KEY);
+    const guestItems: CartItem[] = rawGuest ? JSON.parse(rawGuest) : [];
+    
     try {
-      const res = await axios.post('/api/cart/merge', { userId, guestItems });
-      GuestCart.clear();
-      return Array.isArray(res.data.items) ? res.data.items : [];
-    } catch {
-      // If merge fails, still clear guest cart and load DB cart
-      GuestCart.clear();
+      if (guestItems.length > 0) {
+        const res = await axios.post('/api/cart/merge', { userId, guestItems });
+        const mergedItems = Array.isArray(res.data.items) ? res.data.items : [];
+        
+        LocalCart.save(mergedItems, userId);
+        // Note: we don't clear the guest key anymore, because LocalCart.save already keeps it in sync
+        return mergedItems;
+      }
+      
+      return DbCart.getAll(userId);
+    } catch (err) {
+      console.error('[DbCart] Merge failed:', err);
       return DbCart.getAll(userId);
     }
   },
@@ -207,12 +245,12 @@ const DbCart = {
 // PUBLIC API — used by CartContext
 // ============================================================
 export const CartService = {
-  GuestCart,
+  LocalCart,
   DbCart,
 
   async getCart(userId?: string): Promise<CartItem[]> {
     if (userId) return DbCart.getAll(userId);
-    return GuestCart.getAll();
+    return LocalCart.getAll();
   },
 
   async addItem(
@@ -220,7 +258,7 @@ export const CartService = {
     userId?: string
   ): Promise<CartItem[]> {
     if (userId) return DbCart.add(userId, item);
-    return GuestCart.add(item);
+    return LocalCart.add(item);
   },
 
   async removeItem(
@@ -229,8 +267,8 @@ export const CartService = {
     userId?: string,
     cartItemId?: string
   ): Promise<CartItem[]> {
-    if (userId && cartItemId) return DbCart.remove(cartItemId, userId);
-    return GuestCart.remove(productId, variantId);
+    if (userId && cartItemId) return DbCart.remove(cartItemId, userId, productId, variantId);
+    return LocalCart.remove(productId, variantId, userId);
   },
 
   async updateQty(
@@ -240,8 +278,8 @@ export const CartService = {
     userId?: string,
     cartItemId?: string
   ): Promise<CartItem[]> {
-    if (userId && cartItemId) return DbCart.updateQty(cartItemId, userId, qty);
-    return GuestCart.updateQty(productId, variantId, qty);
+    if (userId && cartItemId) return DbCart.updateQty(cartItemId, userId, qty, productId, variantId);
+    return LocalCart.updateQty(productId, variantId, qty, userId);
   },
 
   async onLogin(userId: string): Promise<CartItem[]> {

@@ -245,12 +245,16 @@ const ShoppingBagPage = () => {
                         </div>
                         <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-brand-dark/5">
                           <Price 
-                            amount={item.price * item.qty}
+                            amount={(item.originalPrice || item.price) * item.qty}
+                            discount={item.originalPrice ? (item.originalPrice - item.price) * item.qty : 0}
                             className="text-base sm:text-xl font-bold text-brand-dark" 
                           />
                           {item.qty > 1 && (
                             <p className="text-[9px] sm:text-[10px] text-brand-dark/40 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">
-                              <Price amount={item.price} /> each
+                              <Price 
+                                amount={item.originalPrice || item.price} 
+                                discount={item.originalPrice ? (item.originalPrice - item.price) : 0}
+                              /> each
                             </p>
                           )}
                         </div>

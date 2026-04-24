@@ -123,8 +123,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
           
           <div className="flex items-center justify-between pt-2">
             <Price 
-              amount={product.price + (product.discount || 0)} 
-              discount={product.discount} 
+              amount={product.price} 
+              discount={product.salePrice ? (product.price - product.salePrice) : product.discount} 
               productId={product.id} 
               className="text-2xl font-medium" 
             />
@@ -236,8 +236,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
         
         <div className="flex items-center justify-between pt-1">
           <Price 
-            amount={product.price + (product.discount || 0)} 
-            discount={product.discount} 
+            amount={product.price} 
+            discount={product.salePrice ? (product.price - product.salePrice) : product.discount} 
             productId={product.id} 
             className="text-sm font-bold" 
           />

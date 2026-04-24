@@ -22,7 +22,7 @@ const BulkUpload = () => {
 
   const getRequiredHeaders = (type: BulkUploadType) => {
     switch (type) {
-      case 'product': return ['name', 'brand', 'price', 'parentCategoryId', 'categoryId', 'description', 'stock'];
+      case 'product': return ['name', 'brand', 'price', 'salePrice', 'parentCategoryId', 'categoryId', 'description', 'stock'];
       case 'pricelist': return ['name', 'description', 'currency', 'productid', 'price'];
       case 'promotion': return ['name', 'description', 'type', 'value', 'minPurchase', 'startDate', 'endDate'];
       case 'coupon': return ['code', 'description', 'discounttype', 'discountvalue', 'minpurchase', 'expirydate', 'usagelimit'];
@@ -80,7 +80,7 @@ const BulkUpload = () => {
             }
 
             // Type conversion and basic validation
-            if (['price', 'stock', 'value', 'discountvalue', 'minpurchase', 'usagelimit'].includes(mapping)) {
+            if (['price', 'salePrice', 'stock', 'value', 'discountvalue', 'minpurchase', 'usagelimit'].includes(mapping)) {
               const num = parseFloat(value);
               if (isNaN(num)) {
                 rowErrors.push(`${header} must be a number`);
@@ -162,7 +162,7 @@ const BulkUpload = () => {
           `Uploaded ${response.data.count} items via bulk CSV.`,
           'success'
         );
-        navigate('/seller/dashboard');
+        navigate('/seller/products');
       }
     } catch (error) {
       console.error('Bulk upload error:', error);
@@ -175,7 +175,7 @@ const BulkUpload = () => {
   const downloadTemplate = () => {
     const headers = getRequiredHeaders(uploadType).join(',');
     let example = '';
-    if (uploadType === 'product') example = 'Silk Saree,brand-id,120,parent-cat-id,child-cat-id,Beautiful silk saree,50';
+    if (uploadType === 'product') example = 'Silk Saree,brand-id,120,99,parent-cat-id,child-cat-id,Beautiful silk saree,50';
     if (uploadType === 'pricelist') example = 'Summer Sale,Summer discounts,USD,prod-123,99.99';
     if (uploadType === 'promotion') example = 'Black Friday,Huge discounts across the store,percentage,20,500,2026-11-20,2026-11-30';
     if (uploadType === 'coupon') example = 'SAVE20,20% off on all items,percentage,20,100,2024-12-31,500';
