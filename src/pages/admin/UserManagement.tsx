@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, Search, Filter, Plus, MoreVertical, 
@@ -25,6 +26,7 @@ interface User {
 }
 
 const UserManagement = () => {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,7 +248,12 @@ const UserManagement = () => {
                     key={user.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="hover:bg-brand-cream/10 transition-colors group"
+                    onClick={() => {
+                      if (user.role === 'seller') {
+                        navigate(`/admin/users/seller/${user.id}`);
+                      }
+                    }}
+                    className={`transition-colors group ${user.role === 'seller' ? 'cursor-pointer hover:bg-brand-gold/[0.03]' : 'hover:bg-brand-cream/10'}`}
                   >
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-4">
@@ -277,18 +284,31 @@ const UserManagement = () => {
                     <td className="px-8 py-6 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => handleEditClick(user)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (user.role === 'seller') {
+                              navigate(`/admin/users/seller/${user.id}`);
+                            } else {
+                              handleEditClick(user);
+                            }
+                          }}
                           className="p-3 text-brand-dark/40 hover:text-brand-gold hover:bg-brand-gold/10 rounded-xl transition-all"
                         >
                           <Edit2 size={16} />
                         </button>
                         <button 
-                          onClick={() => handleDeleteClick(user)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(user);
+                          }}
                           className="p-3 text-brand-dark/40 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
                         >
                           <Trash2 size={16} />
                         </button>
-                        <button className="p-3 text-brand-dark/40 hover:text-brand-dark hover:bg-brand-dark/5 rounded-xl transition-all">
+                        <button 
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-3 text-brand-dark/40 hover:text-brand-dark hover:bg-brand-dark/5 rounded-xl transition-all"
+                        >
                           <MoreVertical size={16} />
                         </button>
                       </div>

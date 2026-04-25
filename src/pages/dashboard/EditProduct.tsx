@@ -226,7 +226,7 @@ const EditProduct = () => {
   useEffect(() => {
     const fetchPricelists = async () => {
       try {
-        const response = await axios.get('/api/pricelists');
+        const response = await axios.get(`/api/pricelists?sellerId=${user?.id}`);
         if (Array.isArray(response.data)) {
           setPricelists(response.data);
         }
@@ -235,7 +235,7 @@ const EditProduct = () => {
       }
     };
     fetchPricelists();
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     const fetchCategories = async () => {

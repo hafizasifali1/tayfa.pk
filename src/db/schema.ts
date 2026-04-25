@@ -28,7 +28,7 @@ import {
   alias as mysqlAlias
 } from 'drizzle-orm/mysql-core';
 
-const isMysql = true; // Target specifically for your MySQL setup to prevent dialect mismatch
+const isMysql = true;
 
 const table: any = isMysql ? mysqlTable : pgTable;
 const text: any = isMysql ? mysqlText : pgText;
@@ -106,7 +106,24 @@ export const companies = table('companies', {
 export const sellerApplications = table('seller_applications', {
   id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
   userId: isMysql ? char('user_id', { length: 36 }).notNull() : char('user_id').notNull(),
-  businessData: json('business_data').notNull(), // Stores companies, brands, docs
+  businessData: json('business_data').notNull(), // Keep for backup
+  
+  // New separate columns for easier querying
+  category: varchar('category', { length: 100 }),
+  customCategory: varchar('custom_category', { length: 100 }),
+  companyName: varchar('company_name', { length: 255 }),
+  registrationNumber: varchar('registration_number', { length: 100 }),
+  taxId: varchar('tax_id', { length: 100 }),
+  addressLine1: text('address_line1'),
+  city: varchar('city', { length: 100 }),
+  state: varchar('state', { length: 100 }),
+  postalCode: varchar('postal_code', { length: 20 }),
+  countryCode: varchar('country_code', { length: 10 }),
+  companyPhone: varchar('company_phone', { length: 50 }),
+  companyEmail: varchar('company_email', { length: 255 }),
+  brands: json('brands'),
+  overviewDocumentUrl: varchar('overview_document_url', { length: 500 }),
+
   status: varchar('status', { length: 50 }).default('pending'), // pending, approved, rejected, more_info_requested
   adminNotes: text('admin_notes'),
   reviewedBy: isMysql ? char('reviewed_by', { length: 36 }) : char('reviewed_by'),
@@ -203,6 +220,11 @@ export const promotions = table('promotions', {
   type: varchar('type', { length: 50 }).notNull(),
   value: decimal('value', { precision: 10, scale: 2 }).notNull(),
   minPurchase: decimal('min_purchase', { precision: 10, scale: 2 }).default('0.00'),
+  buyQuantity: integer('buy_quantity'),
+  getQuantity: integer('get_quantity'),
+  applyTo: varchar('apply_to', { length: 50 }).default('all'),
+  productIds: json('product_ids'),
+  categoryId: isMysql ? char('category_id', { length: 36 }) : char('category_id'),
   startDate: timestamp('start_date'),
   endDate: timestamp('end_date'),
   isActive: boolean('is_active').default(true),
@@ -232,6 +254,7 @@ export const pricelists = table('pricelists', {
   currency: varchar('currency', { length: 10 }).default('PKR'),
   items: json('items'),
   isActive: boolean('is_active').default(true),
+  isGlobal: boolean('is_global').default(false),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -619,7 +642,7 @@ export const cartItems = table('cart_items', {
 // --- Customers ---
 export const customers = table('customers', {
   id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
-  userId: isMysql ? char('user_id', { length: 36 }) : char('user_id'),            // FK → users.id (optional)
+  userId: isMysql ? char('user_id', { length: 36 }) : char('user_id'),          
   firstName: varchar('first_name', { length: 100 }).notNull(),
   lastName: varchar('last_name', { length: 100 }),
   email: varchar('email', { length: 255 }).notNull().unique(),
@@ -630,7 +653,7 @@ export const customers = table('customers', {
   city: varchar('city', { length: 100 }),
   address: text('address'),
   profileImage: text('profile_image'),
-  status: varchar('status', { length: 20 }).default('active'),                    // active | blocked
+  status: varchar('status', { length: 20 }).default('active'),                   
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

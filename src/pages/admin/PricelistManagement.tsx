@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { products as allProductsData } from '../../data/products';
 import Price from '../../components/common/Price';
@@ -41,24 +42,22 @@ const AdminPricelistManagement = () => {
   });
 
   useEffect(() => {
-    const rawData = localStorage.getItem('tayfa_pricelists');
-    let savedPricelists = [];
-    try {
-      savedPricelists = JSON.parse(rawData || '[]');
-      if (!Array.isArray(savedPricelists)) {
-        savedPricelists = [];
+    const fetchPricelists = async () => {
+      try {
+        const response = await axios.get('/api/pricelists');
+        if (Array.isArray(response.data)) {
+          // Enriched with seller names (Global if isGlobal is true)
+          const enriched = response.data.map((pl: any) => ({
+            ...pl,
+            sellerName: pl.isGlobal ? 'Global' : (pl.sellerId === 'admin' ? 'Global' : `Seller ${pl.sellerId?.slice(0, 4) || 'Unknown'}`)
+          }));
+          setPricelists(enriched);
+        }
+      } catch (err) {
+        console.error('Error fetching pricelists:', err);
       }
-    } catch (e) {
-      console.error('Error parsing pricelists from localStorage:', e);
-      savedPricelists = [];
-    }
-    
-    // In a real app, we'd fetch seller names. Here we'll mock them.
-    const enriched = savedPricelists.map((pl: any) => ({
-      ...pl,
-      sellerName: pl.sellerId === 'admin' ? 'Global' : `Seller ${pl.sellerId.slice(0, 4)}`
-    }));
-    setPricelists(enriched);
+    };
+    fetchPricelists();
   }, []);
 
   useEffect(() => {
@@ -82,70 +81,54 @@ const AdminPricelistManagement = () => {
     loadCurrencies();
   }, []);
 
-  const toggleStatus = (id: string) => {
+  const toggleStatus = async (id: string) => {
     if (!Array.isArray(pricelists)) return;
-    const updated = pricelists.map(pl => {
-      if (pl.id === id) {
-        const newStatus = !pl.isActive;
-        auditService.logAction(
-          { id: user?.id || 'admin', name: user?.fullName || 'Admin', role: 'admin' },
-          'UPDATE',
-          'pricelist',
-          `Admin toggled pricelist status to ${newStatus ? 'Active' : 'Inactive'}`,
-          'info',
-          id
-        );
-        return { ...pl, isActive: newStatus };
-      }
-      return pl;
-    });
-    
-    setPricelists(updated);
-    const rawAll = localStorage.getItem('tayfa_pricelists');
-    let allPricelists = [];
+    const pl = pricelists.find(p => p.id === id);
+    if (!pl) return;
+
     try {
-      allPricelists = JSON.parse(rawAll || '[]');
-      if (!Array.isArray(allPricelists)) allPricelists = [];
-    } catch (e) {
-      allPricelists = [];
+      const newStatus = !pl.isActive;
+      await axios.put(`/api/pricelists/${id}`, { isActive: newStatus });
+      
+      setPricelists(prev => prev.map(p => p.id === id ? { ...p, isActive: newStatus } : p));
+
+      auditService.logAction(
+        { id: user?.id || 'admin', name: user?.fullName || 'Admin', role: 'admin' },
+        'UPDATE',
+        'pricelist',
+        `Admin toggled pricelist status to ${newStatus ? 'Active' : 'Inactive'}`,
+        'info',
+        id
+      );
+    } catch (err) {
+      console.error('Error toggling pricelist status:', err);
     }
-    const finalAll = allPricelists.map((pl: Pricelist) => {
-      const found = updated.find(u => u.id === pl.id);
-      return found ? { ...pl, isActive: found.isActive } : pl;
-    });
-    localStorage.setItem('tayfa_pricelists', JSON.stringify(finalAll));
   };
 
   const handleDeleteClick = (id: string) => {
     setDeleteModal({ isOpen: true, id });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteModal.id) return;
     
-    const id = deleteModal.id;
-    const updated = pricelists.filter(pl => pl.id !== id);
-    setPricelists(updated);
-    
-    const rawAll = localStorage.getItem('tayfa_pricelists');
-    let allPricelists = [];
     try {
-      allPricelists = JSON.parse(rawAll || '[]');
-      if (!Array.isArray(allPricelists)) allPricelists = [];
-    } catch (e) {
-      allPricelists = [];
-    }
-    const finalAll = allPricelists.filter((pl: Pricelist) => pl.id !== id);
-    localStorage.setItem('tayfa_pricelists', JSON.stringify(finalAll));
+      const id = deleteModal.id;
+      await axios.delete(`/api/pricelists/${id}`);
+      
+      setPricelists(prev => prev.filter(pl => pl.id !== id));
 
-    auditService.logAction(
-      { id: user?.id || 'admin', name: user?.fullName || 'Admin', role: 'admin' },
-      'DELETE',
-      'pricelist',
-      'Admin deleted pricelist',
-      'warning',
-      id
-    );
+      auditService.logAction(
+        { id: user?.id || 'admin', name: user?.fullName || 'Admin', role: 'admin' },
+        'DELETE',
+        'pricelist',
+        'Admin deleted pricelist',
+        'warning',
+        id
+      );
+    } catch (err) {
+      console.error('Error deleting pricelist:', err);
+    }
     setDeleteModal({ isOpen: false, id: null });
   };
 
@@ -183,66 +166,56 @@ const AdminPricelistManagement = () => {
     setIsCreateModalOpen(true);
   };
 
-  const handleSavePricelist = (e: React.FormEvent) => {
+  const handleSavePricelist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
-    const rawAll = localStorage.getItem('tayfa_pricelists');
-    let allPricelists = [];
     try {
-      allPricelists = JSON.parse(rawAll || '[]');
-      if (!Array.isArray(allPricelists)) allPricelists = [];
-    } catch (e) {
-      allPricelists = [];
+      if (editingId) {
+        // Update existing
+        await axios.put(`/api/pricelists/${editingId}`, {
+          ...newPricelist,
+          isGlobal: true // This page is specifically for global pricelists
+        });
+        
+        setPricelists(prev => prev.map(pl => 
+          pl.id === editingId ? { ...pl, ...newPricelist, isGlobal: true } : pl
+        ));
+
+        auditService.logAction(
+          { id: user.id, name: user.fullName, role: 'admin' },
+          'UPDATE',
+          'pricelist',
+          `Admin updated global pricelist: ${newPricelist.name}`,
+          'success',
+          editingId
+        );
+      } else {
+        // Create new
+        const response = await axios.post('/api/pricelists', {
+          ...newPricelist,
+          isGlobal: true,
+          sellerId: null, // Global pricelists have no specific seller
+          isActive: true
+        });
+
+        const pricelist = response.data;
+        setPricelists(prev => [...prev, { ...pricelist, sellerName: 'Global' }]);
+
+        auditService.logAction(
+          { id: user.id, name: user.fullName, role: 'admin' },
+          'CREATE',
+          'pricelist',
+          `Admin created global pricelist: ${pricelist.name}`,
+          'success',
+          pricelist.id
+        );
+      }
+      setIsCreateModalOpen(false);
+      setEditingId(null);
+    } catch (err) {
+      console.error('Error saving pricelist:', err);
     }
-
-    if (editingId) {
-      // Update existing
-      const updatedAll = allPricelists.map((pl: Pricelist) => 
-        pl.id === editingId ? { ...pl, ...newPricelist } : pl
-      );
-      localStorage.setItem('tayfa_pricelists', JSON.stringify(updatedAll));
-      
-      setPricelists(prev => prev.map(pl => 
-        pl.id === editingId ? { ...pl, ...newPricelist } : pl
-      ));
-
-      auditService.logAction(
-        { id: user.id, name: user.fullName, role: 'admin' },
-        'UPDATE',
-        'pricelist',
-        `Admin updated pricelist: ${newPricelist.name}`,
-        'success',
-        editingId
-      );
-    } else {
-      // Create new
-      const pricelist: Pricelist = {
-        id: Math.random().toString(36).substr(2, 9),
-        sellerId: 'admin',
-        ...newPricelist,
-        isActive: true,
-        createdAt: new Date().toISOString()
-      };
-
-      const updatedAll = [...allPricelists, pricelist];
-      localStorage.setItem('tayfa_pricelists', JSON.stringify(updatedAll));
-      
-      setPricelists(prev => [...prev, { ...pricelist, sellerName: 'Global' }]);
-
-      auditService.logAction(
-        { id: user.id, name: user.fullName, role: 'admin' },
-        'CREATE',
-        'pricelist',
-        `Admin created global pricelist: ${pricelist.name}`,
-        'success',
-        pricelist.id
-      );
-    }
-
-    setIsCreateModalOpen(false);
-    setEditingId(null);
-    setNewPricelist({ name: '', description: '', currency: availableCurrencies[0]?.code || 'USD', items: [] });
   };
 
   const filteredPricelists = Array.isArray(pricelists) ? pricelists.filter(pl => 

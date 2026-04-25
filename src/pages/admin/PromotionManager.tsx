@@ -44,9 +44,14 @@ const AdminPromotionManager = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    type: 'percentage' as 'percentage' | 'fixed_amount',
+    type: 'percentage' as 'percentage' | 'fixed_amount' | 'free_shipping' | 'buy_x_get_y_free',
     value: '',
     minPurchase: '0',
+    buyQuantity: '',
+    getQuantity: '',
+    applyTo: 'all' as 'all' | 'specific' | 'category',
+    productIds: [] as string[],
+    categoryId: '',
     startDate: '',
     endDate: '',
     isActive: true
@@ -87,8 +92,13 @@ const AdminPromotionManager = () => {
         name: formData.name,
         description: formData.description,
         type: formData.type,
-        value: parseFloat(formData.value) || 0,
+        value: (formData.type === 'free_shipping' || formData.type === 'buy_x_get_y_free') ? 0 : (parseFloat(formData.value) || 0),
         minPurchase: parseFloat(formData.minPurchase) || 0,
+        buyQuantity: formData.type === 'buy_x_get_y_free' ? (parseInt(formData.buyQuantity) || 0) : null,
+        getQuantity: formData.type === 'buy_x_get_y_free' ? (parseInt(formData.getQuantity) || 0) : null,
+        applyTo: formData.applyTo,
+        productIds: formData.applyTo === 'specific' ? formData.productIds : [],
+        categoryId: formData.applyTo === 'category' ? formData.categoryId : null,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
         isActive: formData.isActive
@@ -131,8 +141,13 @@ const AdminPromotionManager = () => {
       name: promo.name,
       description: promo.description || '',
       type: promo.type as any,
-      value: promo.value.toString(),
+      value: promo.value?.toString() || '',
       minPurchase: (promo.minPurchase || 0).toString(),
+      buyQuantity: (promo as any).buyQuantity?.toString() || '',
+      getQuantity: (promo as any).getQuantity?.toString() || '',
+      applyTo: ((promo as any).applyTo || 'all') as 'all' | 'specific' | 'category',
+      productIds: Array.isArray((promo as any).productIds) ? (promo as any).productIds : [],
+      categoryId: (promo as any).categoryId || '',
       startDate: promo.startDate ? new Date(promo.startDate).toISOString().split('T')[0] : '',
       endDate: promo.endDate ? new Date(promo.endDate).toISOString().split('T')[0] : '',
       isActive: promo.isActive
@@ -180,6 +195,11 @@ const AdminPromotionManager = () => {
               type: 'percentage',
               value: '',
               minPurchase: '0',
+              buyQuantity: '',
+              getQuantity: '',
+              applyTo: 'all',
+              productIds: [],
+              categoryId: '',
               startDate: '',
               endDate: '',
               isActive: true
@@ -261,7 +281,10 @@ const AdminPromotionManager = () => {
                     <div className="flex items-center space-x-2 text-brand-dark">
                       <Tag size={14} className="text-brand-gold" />
                       <span className="text-sm font-bold uppercase">
-                        {promo.type === 'percentage' ? `${promo.value}% Off` : `$${promo.value} Off`}
+                        {promo.type === 'percentage' && `${promo.value}% Off`}
+                        {promo.type === 'fixed_amount' && `$${promo.value} Off`}
+                        {promo.type === 'free_shipping' && 'Free Shipping'}
+                        {promo.type === 'buy_x_get_y_free' && `Buy ${(promo as any).buyQuantity || 'X'} Get ${(promo as any).getQuantity || 'Y'} Free`}
                       </span>
                     </div>
                   </div>
@@ -350,42 +373,176 @@ const AdminPromotionManager = () => {
               >
                 <option value="percentage">Percentage Discount</option>
                 <option value="fixed_amount">Fixed Amount</option>
+                <option value="free_shipping">Free Shipping</option>
+                <option value="buy_x_get_y_free">Buy X Get Y Free</option>
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Value</label>
-              <div className="relative">
-                <input
-                  type="number"
-                  required
-                  value={formData.value}
-                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                  className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
-                  placeholder="0.00"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">
-                  {formData.type === 'percentage' ? '%' : '$'}
-                </span>
+            {(formData.type === 'percentage' || formData.type === 'fixed_amount') && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Value</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    required
+                    value={formData.value}
+                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                    className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
+                    placeholder="0.00"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">
+                    {formData.type === 'percentage' ? '%' : '$'}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
+
+            {formData.type === 'free_shipping' && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Min. Order for Free Shipping (Optional)</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">$</div>
+                  <input
+                    type="number"
+                    value={formData.minPurchase}
+                    onChange={(e) => setFormData({ ...formData, minPurchase: e.target.value })}
+                    className="w-full bg-white border border-brand-dark/10 rounded-xl pl-8 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+            )}
+
+            {formData.type === 'buy_x_get_y_free' && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Buy Qty (X)</label>
+                  <input
+                    type="number"
+                    required
+                    value={formData.buyQuantity}
+                    onChange={(e) => setFormData({ ...formData, buyQuantity: e.target.value })}
+                    className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
+                    placeholder="2"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Get Qty (Y)</label>
+                  <input
+                    type="number"
+                    required
+                    value={formData.getQuantity}
+                    onChange={(e) => setFormData({ ...formData, getQuantity: e.target.value })}
+                    className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
+                    placeholder="1"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          {/* Apply To */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Apply To</label>
+            <select
+              value={formData.applyTo}
+              onChange={(e) => setFormData({ ...formData, applyTo: e.target.value as any, productIds: [], categoryId: '' })}
+              className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all appearance-none"
+            >
+              <option value="all">All Products</option>
+              <option value="specific">Specific Products</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+
+          {formData.applyTo === 'specific' && (
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Min. Purchase Amount</label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">$</div>
-                <input
-                  type="number"
-                  value={formData.minPurchase}
-                  onChange={(e) => setFormData({ ...formData, minPurchase: e.target.value })}
-                  className="w-full bg-white border border-brand-dark/10 rounded-xl pl-8 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
-                  placeholder="0"
-                />
+              <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Select Products</label>
+              <div className="w-full bg-white border border-brand-dark/10 rounded-xl p-4 min-h-[3.5rem]">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {formData.productIds.map(pid => {
+                    const product = products.find(p => p.id === pid);
+                    return (
+                      <div key={pid} className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold bg-brand-gold text-brand-dark">
+                        <span>{product?.name || pid}</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, productIds: formData.productIds.filter(id => id !== pid) })}
+                          className="hover:opacity-70 transition-opacity"
+                        >
+                          <LucideX size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <select
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val && !formData.productIds.includes(val)) {
+                      setFormData({ ...formData, productIds: [...formData.productIds, val] });
+                    }
+                    e.target.value = '';
+                  }}
+                  className="w-full bg-transparent border-none p-0 text-sm focus:ring-0 outline-none cursor-pointer text-brand-dark/60"
+                >
+                  <option value="">{formData.productIds.length > 0 ? 'Add more products...' : 'Choose products...'}</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id} disabled={formData.productIds.includes(p.id)}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
+          )}
 
+          {formData.applyTo === 'category' && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Select Category</label>
+              <select
+                required
+                value={formData.categoryId}
+                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all appearance-none"
+              >
+                <option value="">Choose a category...</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {formData.type !== 'free_shipping' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Min. Purchase Amount</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">$</div>
+                  <input
+                    type="number"
+                    value={formData.minPurchase}
+                    onChange={(e) => setFormData({ ...formData, minPurchase: e.target.value })}
+                    className="w-full bg-white border border-brand-dark/10 rounded-xl pl-8 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 pb-3">
+                <div 
+                  onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                  className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${formData.isActive ? 'bg-brand-gold' : 'bg-brand-dark/20'}`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-all transform ${formData.isActive ? 'translate-x-6' : 'translate-x-0'}`} />
+                </div>
+                <span className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Active Status</span>
+              </div>
+            </div>
+          )}
+
+          {formData.type === 'free_shipping' && (
             <div className="flex items-center space-x-3 pb-3">
               <div 
                 onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
@@ -395,7 +552,7 @@ const AdminPromotionManager = () => {
               </div>
               <span className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Active Status</span>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">

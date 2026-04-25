@@ -238,6 +238,7 @@ export interface Pricelist {
     price: number;
   }[];
   isActive: boolean;
+  isGlobal?: boolean;
   createdAt: string;
 }
 
@@ -246,9 +247,11 @@ export interface Promotion {
   sellerId: string;
   name: string;
   description: string;
-  type: 'percentage' | 'fixed_amount' | 'buy_x_get_y';
+  type: 'percentage' | 'fixed_amount' | 'free_shipping' | 'buy_x_get_y_free';
   value: number;
   minPurchase: number;
+  buyQuantity?: number;
+  getQuantity?: number;
   startDate: string;
   endDate: string;
   isActive: boolean;

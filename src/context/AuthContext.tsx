@@ -195,7 +195,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const registerSeller = async (data: any) => {
     try {
-      const { fullName, email, password, phone, ...businessData } = data;
+      const { fullName, email, password, phone, ...rest } = data;
+      const { overviewDocument, ...businessInfo } = rest;
+
+      let overviewDocumentUrl = null;
+      let overviewDocumentName = null;
+
+      // Upload document if exists
+      if (overviewDocument instanceof File) {
+        const formData = new FormData();
+        formData.append('image', overviewDocument); // Backend expects 'image' field
+        
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          console.log('Document upload success:', uploadData);
+          overviewDocumentUrl = uploadData.imageUrl;
+          overviewDocumentName = overviewDocument.name;
+        } else {
+          console.error('Document upload failed:', await uploadRes.text());
+          throw new Error('Failed to upload business document');
+        }
+      }
+
+      console.log('Sending registration request with document URL:', overviewDocumentUrl);
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,7 +232,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           password, 
           phone, 
           role: 'seller',
-          businessData 
+          businessData: {
+            ...businessInfo,
+            overviewDocumentUrl,
+            overviewDocumentName
+          }
         })
       });
 

@@ -65,6 +65,7 @@ const PortalNotFound = lazy(() => import('./pages/dashboard/PortalNotFound'));
 // --- Admin Pages ---
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const SellerDetail = lazy(() => import('./pages/admin/SellerDetail'));
 const SellerApplications = lazy(() => import('./pages/admin/SellerApplications'));
 const ProductModeration = lazy(() => import('./pages/admin/ProductModeration'));
 const AdminOrderManager = lazy(() => import('./pages/admin/OrderManager'));
@@ -164,6 +165,7 @@ export default function App() {
                     <Route path="/admin" element={<AdminLayout />}>
                       <Route path="dashboard" element={<ProtectedRoute module="overview"><AdminDashboard /></ProtectedRoute>} />
                       <Route path="users" element={<ProtectedRoute module="users"><UserManagement /></ProtectedRoute>} />
+                      <Route path="users/seller/:id" element={<ProtectedRoute module="users"><SellerDetail /></ProtectedRoute>} />
                       <Route path="seller-applications" element={<ProtectedRoute module="users"><SellerApplications /></ProtectedRoute>} />
                       <Route path="products" element={<ProtectedRoute module="products"><ProductModeration /></ProtectedRoute>} />
                       <Route path="orders" element={<ProtectedRoute module="orders"><AdminOrderManager /></ProtectedRoute>} />

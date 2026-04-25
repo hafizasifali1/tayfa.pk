@@ -240,6 +240,28 @@ export async function migrate() {
       await addColumn('users', 'updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 
       await addColumn('brands', 'company_id', 'CHAR(36)');
+ 
+      await addColumn('seller_applications', 'category', 'VARCHAR(100)');
+      await addColumn('seller_applications', 'custom_category', 'VARCHAR(100)');
+      await addColumn('seller_applications', 'company_name', 'VARCHAR(255)');
+      await addColumn('seller_applications', 'registration_number', 'VARCHAR(100)');
+      await addColumn('seller_applications', 'tax_id', 'VARCHAR(100)');
+      await addColumn('seller_applications', 'address_line1', 'TEXT');
+      await addColumn('seller_applications', 'city', 'VARCHAR(100)');
+      await addColumn('seller_applications', 'state', 'VARCHAR(100)');
+      await addColumn('seller_applications', 'postal_code', 'VARCHAR(20)');
+      await addColumn('seller_applications', 'country_code', 'VARCHAR(10)');
+      await addColumn('seller_applications', 'company_phone', 'VARCHAR(50)');
+      await addColumn('seller_applications', 'company_email', 'VARCHAR(255)');
+  
+      await addColumn('pricelists', 'is_global', 'BOOLEAN DEFAULT FALSE');
+      await addColumn('promotions', 'buy_quantity', 'INT');
+      await addColumn('promotions', 'get_quantity', 'INT');
+      await addColumn('promotions', 'apply_to', "VARCHAR(50) DEFAULT 'all'");
+      await addColumn('promotions', 'product_ids', 'JSON');
+      await addColumn('promotions', 'category_id', 'CHAR(36)');
+      await addColumn('seller_applications', 'brands', 'JSON');
+      await addColumn('seller_applications', 'overview_document_url', 'VARCHAR(500)');
     } else {
       // PostgreSQL
       const addColumnPg = async (table: string, column: string, definition: string) => {
@@ -426,7 +448,84 @@ export async function migrate() {
       await addColumnPg('users', 'reset_token', 'VARCHAR(255)');
       await addColumnPg('users', 'reset_token_expires_at', 'TIMESTAMP');
 
+      await addColumnPg('users', 'reset_token_expires_at', 'TIMESTAMP');
+ 
+      await addColumnPg('seller_applications', 'category', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'custom_category', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'company_name', 'VARCHAR(255)');
+      await addColumnPg('seller_applications', 'registration_number', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'tax_id', 'VARCHAR(100)');
+  
+      await addColumnPg('pricelists', 'is_global', 'BOOLEAN DEFAULT FALSE');
+      await addColumnPg('promotions', 'buy_quantity', 'INT');
+      await addColumnPg('promotions', 'get_quantity', 'INT');
+      await addColumnPg('promotions', 'apply_to', "VARCHAR(50) DEFAULT 'all'");
+      await addColumnPg('promotions', 'product_ids', 'JSONB');
+      await addColumnPg('promotions', 'category_id', 'UUID');
+      await addColumnPg('seller_applications', 'address_line1', 'TEXT');
+      await addColumnPg('seller_applications', 'city', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'state', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'postal_code', 'VARCHAR(20)');
+      await addColumnPg('seller_applications', 'country_code', 'VARCHAR(10)');
+      await addColumnPg('seller_applications', 'company_phone', 'VARCHAR(50)');
+      await addColumnPg('seller_applications', 'company_email', 'VARCHAR(255)');
+      await addColumnPg('seller_applications', 'brands', 'JSONB');
+      await addColumnPg('seller_applications', 'overview_document_url', 'VARCHAR(500)');
+ 
       await addColumnPg('brands', 'company_id', 'UUID');
+ 
+      await addColumnPg('seller_applications', 'category', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'custom_category', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'company_name', 'VARCHAR(255)');
+      await addColumnPg('seller_applications', 'registration_number', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'tax_id', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'address_line1', 'TEXT');
+      await addColumnPg('seller_applications', 'city', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'state', 'VARCHAR(100)');
+      await addColumnPg('seller_applications', 'postal_code', 'VARCHAR(20)');
+      await addColumnPg('seller_applications', 'country_code', 'VARCHAR(10)');
+      await addColumnPg('seller_applications', 'company_phone', 'VARCHAR(50)');
+      await addColumnPg('seller_applications', 'company_email', 'VARCHAR(255)');
+      await addColumnPg('seller_applications', 'brands', 'JSONB');
+      await addColumnPg('seller_applications', 'overview_document_url', 'VARCHAR(500)');
+    }
+
+    // Data migration for seller_applications
+    try {
+      console.log('Migrating existing seller_applications data...');
+      const { sellerApplications } = await import('./schema');
+      const apps = await db.select().from(sellerApplications);
+      
+      for (const app of apps) {
+        if (app.businessData && typeof app.businessData === 'object' && !app.companyName) {
+          console.log(`Migrating data for application ${app.id}...`);
+          const bd: any = app.businessData;
+          const company = bd.companies?.[0] || {};
+          
+          await db.update(sellerApplications)
+            .set({
+              category: bd.category,
+              customCategory: bd.customCategory,
+              companyName: company.name,
+              registrationNumber: company.registrationNumber,
+              taxId: company.taxId,
+              addressLine1: company.addressLine1 || company.address,
+              city: company.city,
+              state: company.state,
+              postalCode: company.postalCode,
+              countryCode: company.countryCode,
+              companyPhone: company.phone,
+              companyEmail: company.email,
+              brands: company.brands,
+              overviewDocumentUrl: bd.overviewDocumentUrl || (Array.isArray(bd.overviewDocument) ? bd.overviewDocument[0]?.url : null),
+              updatedAt: new Date()
+            } as any)
+            .where(eq(sellerApplications.id, app.id));
+        }
+      }
+      console.log('Seller applications data migration completed.');
+    } catch (migError) {
+      console.error('Failed to migrate seller applications data:', migError);
     }
 
     // Seed/Sync roles and permissions
@@ -664,3 +763,4 @@ export async function migrate() {
     console.error('Migration failed:', error);
   }
 }
+migrate();

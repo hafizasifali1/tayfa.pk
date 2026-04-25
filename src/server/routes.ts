@@ -53,7 +53,7 @@ import nodemailer from 'nodemailer';
 import { CommunicationService } from './services/communication/CommunicationService';
 import { encrypt } from './utils/encryption';
 import { handlePatchUpdate } from './utils/updateHandler';
-import { eq, desc, and, gte, lte, like, sql, inArray } from 'drizzle-orm';
+import { eq, desc, and, or, gte, lte, like, sql, inArray, isNull } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -2007,11 +2007,16 @@ router.get('/seller/analytics', async (req, res) => {
 router.get('/pricelists', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.json([]);
-    const { sellerId, isActive } = req.query;
+    const { sellerId, isActive, isGlobal } = req.query;
     const { limit, offset } = getPagination(req.query);
 
     let conditions = [];
-    if (sellerId) conditions.push(eq(pricelists.sellerId, sellerId as string));
+    if (sellerId) {
+      conditions.push(or(eq(pricelists.sellerId, sellerId as string), eq(pricelists.isGlobal, true)));
+    } else if (isGlobal === 'true') {
+      conditions.push(eq(pricelists.isGlobal, true));
+    }
+    
     if (isActive !== undefined) conditions.push(eq(pricelists.isActive, isActive === 'true'));
 
     const result = await db.select().from(pricelists)
@@ -2251,20 +2256,63 @@ router.post('/promotions', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const id = uuidv4();
-    await db.insert(promotions).values({ ...req.body, id });
+    const {
+      sellerId, name, description, type, value, minPurchase,
+      buyQuantity, getQuantity, applyTo, productIds, categoryId,
+      startDate, endDate, isActive
+    } = req.body;
+
+    await db.insert(promotions).values({
+      id, sellerId, name, description, type,
+      value: value?.toString() || '0',
+      minPurchase: minPurchase?.toString() || '0.00',
+      buyQuantity: buyQuantity ?? null,
+      getQuantity: getQuantity ?? null,
+      applyTo: applyTo || 'all',
+      productIds: productIds || [],
+      categoryId: categoryId || null,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+      isActive: isActive !== undefined ? isActive : true,
+    } as any);
+
     const [newPromotion] = await db.select().from(promotions).where(eq(promotions.id, id));
     res.status(201).json(newPromotion);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create promotion' });
+  } catch (error: any) {
+    console.error('Error creating promotion:', error);
+    res.status(500).json({ error: 'Failed to create promotion', details: error.message });
   }
 });
 
 router.put('/promotions/:id', async (req, res) => {
   try {
-    await db.update(promotions).set(req.body).where(eq(promotions.id, req.params.id));
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update promotion' });
+    const {
+      name, description, type, value, minPurchase,
+      buyQuantity, getQuantity, applyTo, productIds, categoryId,
+      startDate, endDate, isActive
+    } = req.body;
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (type !== undefined) updateData.type = type;
+    if (value !== undefined) updateData.value = value?.toString();
+    if (minPurchase !== undefined) updateData.minPurchase = minPurchase?.toString();
+    if (buyQuantity !== undefined) updateData.buyQuantity = buyQuantity;
+    if (getQuantity !== undefined) updateData.getQuantity = getQuantity;
+    if (applyTo !== undefined) updateData.applyTo = applyTo;
+    if (productIds !== undefined) updateData.productIds = productIds;
+    if (categoryId !== undefined) updateData.categoryId = categoryId || null;
+    if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
+    if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    await db.update(promotions).set(updateData).where(eq(promotions.id, req.params.id));
+    const [updated] = await db.select().from(promotions).where(eq(promotions.id, req.params.id));
+    res.json(updated || { success: true });
+  } catch (error: any) {
+    console.error('Error updating promotion:', error);
+    res.status(500).json({ error: 'Failed to update promotion', details: error.message });
   }
 });
 
@@ -3422,6 +3470,150 @@ router.delete('/admin/users/:id', async (req, res) => {
   }
 });
 
+// --- Admin Seller Details API ---
+router.get('/admin/sellers/:id', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
+    const sellerId = req.params.id;
+
+    const [user] = await db.select().from(users).where(eq(users.id, sellerId)).limit(1);
+    if (!user) return res.status(404).json({ error: 'Seller not found' });
+
+    const [application] = await db.select().from(sellerApplications).where(eq(sellerApplications.userId, sellerId)).limit(1);
+    const sellerCompanies = await db.select().from(companies).where(eq(companies.sellerId, sellerId));
+    
+    // Fetch brands for each company
+    const companiesWithBrands = await Promise.all(sellerCompanies.map(async (company: any) => {
+      const companyBrands = await db.select().from(brands).where(eq(brands.companyId, company.id));
+      return { ...company, brands: companyBrands };
+    }));
+
+    // Quick Stats (if approved)
+    let stats = null;
+    if (user.role === 'seller' || user.role === 'admin') {
+      const [productCount] = await db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.sellerId, sellerId));
+      const [orderCount] = await db.select({ count: sql<number>`count(distinct ${orderItems.orderId})` }).from(orderItems).where(eq(orderItems.sellerId, sellerId));
+      const [revenue] = await db.select({ total: sql<string>`sum(${orderItems.price} * ${orderItems.quantity})` }).from(orderItems).where(eq(orderItems.sellerId, sellerId));
+
+      stats = {
+        totalProducts: productCount?.count || 0,
+        totalOrders: orderCount?.count || 0,
+        totalRevenue: parseFloat(revenue?.total || '0')
+      };
+    }
+
+    // Reconstruct businessData structure from separate columns to ensure new columns are the source of truth
+    const formattedApplication = application ? {
+      ...application,
+      businessData: {
+        ...(application.businessData as any || {}),
+        category: application.category,
+        customCategory: application.customCategory,
+        overviewDocumentUrl: application.overviewDocumentUrl,
+        companies: application.companyName ? [{
+            ...((application.businessData as any)?.companies?.[0] || {}),
+            name: application.companyName,
+            registrationNumber: application.registrationNumber,
+            taxId: application.taxId,
+            address: application.addressLine1,
+            addressLine1: application.addressLine1,
+            city: application.city,
+            state: application.state,
+            postalCode: application.postalCode,
+            countryCode: application.countryCode,
+            phone: application.companyPhone,
+            email: application.companyEmail,
+            brands: application.brands || []
+        }] : ((application.businessData as any)?.companies || [])
+      }
+    } : null;
+
+    res.json({
+      user,
+      application: formattedApplication,
+      companies: companiesWithBrands,
+      stats
+    });
+  } catch (error) {
+    console.error('Error fetching seller details:', error);
+    res.status(500).json({ error: 'Failed to fetch seller details' });
+  }
+});
+
+router.patch('/admin/sellers/:id/approve', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
+    const sellerId = req.params.id;
+    const { adminId } = req.body;
+
+    await db.update(users).set({ status: 'active', role: 'seller' }).where(eq(users.id, sellerId));
+    await db.update(sellerApplications).set({ 
+      status: 'approved', 
+      reviewedBy: adminId, 
+      reviewedAt: new Date() 
+    }).where(eq(sellerApplications.userId, sellerId));
+
+    const [user] = await db.select().from(users).where(eq(users.id, sellerId)).limit(1);
+    
+    // Audit Log
+    await db.insert(auditLogs).values({
+      id: uuidv4(),
+      userId: adminId || 'system',
+      action: 'approve_seller',
+      module: 'sellers',
+      details: { targetUserId: sellerId },
+      createdAt: sql`CURRENT_TIMESTAMP`
+    });
+
+    // Send Email
+    if (user) {
+      const siteUrl = req.get('origin') || 'http://localhost:5173';
+      sendEmail({
+        to: user.email,
+        templateName: 'seller_account_approved',
+        data: { name: user.fullName, login_url: `${siteUrl}` }
+      });
+    }
+
+    res.json({ success: true, status: 'active' });
+  } catch (error) {
+    console.error('Error approving seller:', error);
+    res.status(500).json({ error: 'Failed to approve seller' });
+  }
+});
+
+router.patch('/admin/sellers/:id/reject', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
+    const sellerId = req.params.id;
+    const { reason, adminId } = req.body;
+
+    await db.update(users).set({ status: 'rejected' }).where(eq(users.id, sellerId));
+    await db.update(sellerApplications).set({ 
+      status: 'rejected', 
+      adminNotes: reason,
+      reviewedBy: adminId, 
+      reviewedAt: new Date() 
+    }).where(eq(sellerApplications.userId, sellerId));
+
+    // Audit Log
+    await db.insert(auditLogs).values({
+      id: uuidv4(),
+      userId: adminId || 'system',
+      action: 'reject_seller',
+      module: 'sellers',
+      details: { targetUserId: sellerId, reason },
+      createdAt: sql`CURRENT_TIMESTAMP`
+    });
+
+    res.json({ success: true, status: 'rejected' });
+  } catch (error) {
+    console.error('Error rejecting seller:', error);
+    res.status(500).json({ error: 'Failed to reject seller' });
+  }
+});
+
+
 router.post('/users', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
@@ -3492,12 +3684,34 @@ router.post('/auth/register', async (req, res) => {
     });
 
     if (role === 'seller' && businessData) {
+      const bd = businessData as any;
+      console.log('Registering seller with businessData keys:', Object.keys(bd));
+      console.log('Overview Document URL received:', bd.overviewDocumentUrl);
+      const firstCompany = bd.companies?.[0] || {};
+      
       await db.insert(sellerApplications).values({
         id: uuidv4(),
         userId: id,
-        businessData: businessData, // Contains companies, brands, etc.
+        businessData, // Keep for backup
+        
+        // New separate columns
+        category: bd.category,
+        customCategory: bd.customCategory,
+        companyName: firstCompany.name,
+        registrationNumber: firstCompany.registrationNumber,
+        taxId: firstCompany.taxId,
+        addressLine1: firstCompany.addressLine1 || firstCompany.address,
+        city: firstCompany.city,
+        state: firstCompany.state,
+        postalCode: firstCompany.postalCode,
+        countryCode: firstCompany.countryCode,
+        companyPhone: firstCompany.phone,
+        companyEmail: firstCompany.email,
+        brands: firstCompany.brands,
+        overviewDocumentUrl: bd.overviewDocumentUrl || (Array.isArray(bd.overviewDocument) ? bd.overviewDocument[0]?.url : null),
+        
         status: 'pending'
-      });
+      } as any);
     }
 
     const [newUser] = await db.select().from(users).where(eq(users.id, id));
