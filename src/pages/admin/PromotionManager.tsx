@@ -140,14 +140,14 @@ const AdminPromotionManager = () => {
     setFormData({
       name: promo.name,
       description: promo.description || '',
-      type: promo.type as any,
+      type: promo.type,
       value: promo.value?.toString() || '',
       minPurchase: (promo.minPurchase || 0).toString(),
-      buyQuantity: (promo as any).buyQuantity?.toString() || '',
-      getQuantity: (promo as any).getQuantity?.toString() || '',
-      applyTo: ((promo as any).applyTo || 'all') as 'all' | 'specific' | 'category',
-      productIds: Array.isArray((promo as any).productIds) ? (promo as any).productIds : [],
-      categoryId: (promo as any).categoryId || '',
+      buyQuantity: promo.buyQuantity?.toString() || '',
+      getQuantity: promo.getQuantity?.toString() || '',
+      applyTo: promo.applyTo || 'all',
+      productIds: Array.isArray(promo.productIds) ? promo.productIds : [],
+      categoryId: promo.categoryId || '',
       startDate: promo.startDate ? new Date(promo.startDate).toISOString().split('T')[0] : '',
       endDate: promo.endDate ? new Date(promo.endDate).toISOString().split('T')[0] : '',
       isActive: promo.isActive
@@ -293,7 +293,10 @@ const AdminPromotionManager = () => {
                     <div className="flex items-center space-x-2 text-brand-dark/60">
                       <Package size={14} className="text-brand-gold" />
                       <span className="text-[10px] font-bold uppercase tracking-widest">
-                        Store-wide
+                        {promo.applyTo === 'all' && 'Store-wide'}
+                        {promo.applyTo === 'specific' && `${promo.productIds?.length || 0} Products`}
+                        {promo.applyTo === 'category' && 'Specific Category'}
+                        {!promo.applyTo && 'Store-wide'}
                       </span>
                     </div>
                   </div>
@@ -517,7 +520,7 @@ const AdminPromotionManager = () => {
           {formData.type !== 'free_shipping' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Min. Purchase Amount</label>
+                <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Min. Purchase Amount (Optional)</label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">$</div>
                   <input

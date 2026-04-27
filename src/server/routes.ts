@@ -2232,6 +2232,11 @@ router.get('/promotions', async (req, res) => {
       type: promoTable.type,
       value: promoTable.value,
       minPurchase: promoTable.minPurchase,
+      buyQuantity: promoTable.buyQuantity,
+      getQuantity: promoTable.getQuantity,
+      applyTo: promoTable.applyTo,
+      productIds: promoTable.productIds,
+      categoryId: promoTable.categoryId,
       startDate: promoTable.startDate,
       endDate: promoTable.endDate,
       isActive: promoTable.isActive,
@@ -2245,7 +2250,12 @@ router.get('/promotions', async (req, res) => {
     .offset(offset)
     .orderBy(desc(promoTable.createdAt));
 
-    res.json(result);
+    const parsedResult = result.map(p => ({
+      ...p,
+      productIds: parseJsonField(p.productIds) || []
+    }));
+
+    res.json(parsedResult);
   } catch (error) {
     console.error('Error fetching promotions:', error);
     res.status(500).json({ error: 'Failed to fetch promotions' });
@@ -2277,7 +2287,10 @@ router.post('/promotions', async (req, res) => {
     } as any);
 
     const [newPromotion] = await db.select().from(promotions).where(eq(promotions.id, id));
-    res.status(201).json(newPromotion);
+    res.status(201).json({
+      ...newPromotion,
+      productIds: parseJsonField(newPromotion.productIds) || []
+    });
   } catch (error: any) {
     console.error('Error creating promotion:', error);
     res.status(500).json({ error: 'Failed to create promotion', details: error.message });
@@ -2309,7 +2322,10 @@ router.put('/promotions/:id', async (req, res) => {
 
     await db.update(promotions).set(updateData).where(eq(promotions.id, req.params.id));
     const [updated] = await db.select().from(promotions).where(eq(promotions.id, req.params.id));
-    res.json(updated || { success: true });
+    res.json({
+      ...(updated || {}),
+      productIds: updated ? (parseJsonField(updated.productIds) || []) : []
+    });
   } catch (error: any) {
     console.error('Error updating promotion:', error);
     res.status(500).json({ error: 'Failed to update promotion', details: error.message });

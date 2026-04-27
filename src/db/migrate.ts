@@ -537,7 +537,7 @@ export async function migrate() {
           name: 'Administrator',
           description: 'Full system access',
           isSystem: true,
-          permissions: [] // Admin bypasses checks
+          permissions: [] 
         },
         {
           id: 'seller',

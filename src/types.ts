@@ -252,6 +252,9 @@ export interface Promotion {
   minPurchase: number;
   buyQuantity?: number;
   getQuantity?: number;
+  applyTo?: 'all' | 'specific' | 'category';
+  productIds?: string[];
+  categoryId?: string;
   startDate: string;
   endDate: string;
   isActive: boolean;
