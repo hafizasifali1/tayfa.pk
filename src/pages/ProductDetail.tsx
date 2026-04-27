@@ -7,6 +7,7 @@ import { useWishlist } from '../context/WishlistContext';
 import Price from '../components/common/Price';
 import ProductCard from '../components/common/ProductCard';
 import { motion, AnimatePresence } from 'motion/react';
+import { calculatePromotionDiscount, getSavings } from '../utils/promotionUtils';
 
 const TikTokIcon = ({ size = 24, className = "" }) => (
   <svg 
@@ -32,6 +33,18 @@ const ProductDetail = () => {
   const [selectedColor, setSelectedColor] = useState('');
   const [currentImage, setCurrentImage] = useState(0);
   const [isAdded, setIsAdded] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+
+
+
+  const bestPromotion = useMemo(() => {
+    if (!product || !product.applicablePromotions || product.applicablePromotions.length === 0) return null;
+    return [...product.applicablePromotions].sort((a, b) => {
+      const valA = a.type === 'percentage' ? a.value : 0;
+      const valB = b.type === 'percentage' ? b.value : 0;
+      return valB - valA;
+    })[0];
+  }, [product]);
 
   const getProductImages = (images: any): string[] => {
     const fallback = ['https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop'];
@@ -132,10 +145,64 @@ const ProductDetail = () => {
       return;
     }
     const size = selectedSize || (sizes.length > 0 ? sizes[0] : undefined);
-    await addToCart(product, size, selectedColor || undefined);
+    await addToCart(product, size, selectedColor || undefined, quantity);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
+
+  const renderSelectors = (inline = false) => (
+    <div className={`space-y-4 ${inline ? 'mt-2 border-t border-brand-dark/5 pt-4' : ''}`}>
+      {/* Color Selection */}
+      {Array.isArray(product.colors) && product.colors.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">Color: <span className="text-brand-dark-muted font-black">{selectedColor || 'Select'}</span></h3>
+          <div className="flex flex-wrap gap-2">
+            {product.colors.map((color: string) => (
+              <button
+                key={color}
+                onClick={(e) => { e.stopPropagation(); setSelectedColor(color); }}
+                className={`group relative flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${
+                  selectedColor === color 
+                    ? 'bg-brand-dark text-white border-brand-dark shadow-sm' 
+                    : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
+                }`}
+              >
+                {color}
+                {selectedColor === color && <CheckCircle2 size={10} className="ml-1 text-brand-gold" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Size Selection */}
+      {Array.isArray(product.sizes) && product.sizes.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">Size: <span className="text-brand-dark-muted font-black">{selectedSize || 'Select'}</span></h3>
+            <button className="text-[9px] text-brand-gold-dark underline uppercase tracking-widest font-black hover:text-brand-dark transition-colors">Size Guide</button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {product.sizes.map((size: string) => (
+              <button
+                key={size}
+                onClick={(e) => { e.stopPropagation(); setSelectedSize(size); }}
+                className={`min-w-[40px] h-8 px-2 rounded-lg text-[10px] font-black transition-all border flex items-center justify-center ${
+                  selectedSize === size 
+                    ? 'bg-brand-dark text-white border-brand-dark shadow-md' 
+                    : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -176,11 +243,24 @@ const ProductDetail = () => {
 
             {/* Badges */}
             <div className="absolute top-6 left-6 flex flex-col gap-3">
-              {product.isNew && (
-                <span className="bg-brand-gold text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-widest shadow-lg">New Arrival</span>
-              )}
+              {/* product.isNew Arrival tag removed as per request */}
               {product.isBestSeller && (
                 <span className="bg-brand-dark text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-widest shadow-lg">Best Seller</span>
+              )}
+              {bestPromotion && (
+                <div className="group relative">
+                  <span className="bg-brand-gold text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-widest shadow-lg flex items-center cursor-help">
+                    <Sparkles size={14} className="mr-2" />
+                    {bestPromotion.name || "Special Offer"}
+                  </span>
+                  {bestPromotion.description && (
+                    <div className="absolute top-full left-0 mt-2 w-64 bg-white p-4 rounded-2xl shadow-xl border border-brand-gold/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                      <p className="text-xs text-brand-dark leading-relaxed font-medium">
+                        {bestPromotion.description}
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -244,56 +324,32 @@ const ProductDetail = () => {
             <p className="text-brand-dark-muted leading-relaxed text-sm font-normal">{product.description}</p>
           </div>
 
-          {/* Color Selection */}
-          {Array.isArray(product.colors) && product.colors.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-brand-dark">Color: <span className="text-brand-dark-muted font-semibold">{selectedColor || 'Select'}</span></h3>
-              <div className="flex flex-wrap gap-2">
-                {product.colors.map((color: string) => (
-                  <button
-                    key={color}
-                    onClick={() => setSelectedColor(color)}
-                    className={`group relative flex items-center justify-center px-4 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                      selectedColor === color 
-                        ? 'bg-brand-dark text-white border-brand-dark shadow-md' 
-                        : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
-                    }`}
-                  >
-                    {color}
-                    {selectedColor === color && <CheckCircle2 size={12} className="ml-1.5 text-brand-gold" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Selectors */}
+          {renderSelectors()}
 
-          {/* Size Selection */}
-          {Array.isArray(product.sizes) && product.sizes.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-brand-dark">Size: <span className="text-brand-dark-muted font-semibold">{selectedSize || 'Select'}</span></h3>
-                <button className="text-[10px] text-brand-gold-dark underline uppercase tracking-widest font-bold hover:text-brand-dark transition-colors">Size Guide</button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {product.sizes.map((size: string) => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`min-w-[48px] h-9 px-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center ${
-                      selectedSize === size 
-                        ? 'bg-brand-dark text-white border-brand-dark shadow-md scale-105' 
-                        : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
+          {/* Quantity Selector */}
+          <div className="space-y-2 pt-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">Quantity</h3>
+            <div className="flex items-center bg-brand-cream/50 border border-brand-dark/10 rounded-xl w-fit p-1">
+              <button 
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                className="w-10 h-10 flex items-center justify-center hover:text-brand-gold transition-colors"
+              >
+                <Minus size={16} />
+              </button>
+              <span className="w-12 text-center font-bold text-brand-dark">{quantity}</span>
+              <button 
+                onClick={() => setQuantity(quantity + 1)}
+                className="w-10 h-10 flex items-center justify-center hover:text-brand-gold transition-colors"
+              >
+                <Plus size={16} />
+              </button>
             </div>
-          )}
+          </div>
 
           {/* Actions */}
-          <div className="space-y-3 pt-2">
+          <div className="space-y-3 pt-6">
+
             <div className="flex gap-3">
               <button
                 onClick={handleAddToCart}
@@ -305,7 +361,7 @@ const ProductDetail = () => {
                 }`}
               >
                 <ShoppingBag size={18} />
-                <span>{isAdded ? 'Added to Bag' : 'Add to Bag'}</span>
+                <span>{isAdded ? 'Added to Bag' : `Add ${quantity > 1 ? quantity + ' Items' : 'to Bag'}`}</span>
               </button>
               <button 
                 onClick={() => toggleWishlist(product)}

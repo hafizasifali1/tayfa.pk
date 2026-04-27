@@ -22,8 +22,10 @@ import {
   Wallet,
   Info,
   Tag,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
+import { calculatePromotionDiscount, formatPromotionLabel, getSavings } from '../utils/promotionUtils';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
@@ -99,17 +101,27 @@ const Checkout = () => {
     }
   };
 
+  const autoPromoDiscount = React.useMemo(() => {
+    return cart.reduce((total, item) => {
+      const bestPromo = calculatePromotionDiscount(item as any, item.qty);
+      if (bestPromo) {
+        return total + getSavings(item.price, bestPromo as any, item.qty);
+      }
+      return total;
+    }, 0);
+  }, [cart]);
+
   const discountAmount = React.useMemo(() => {
     if (!appliedCoupon) return 0;
     if (appliedCoupon.discountType === 'percentage') {
-      return (cartTotal * appliedCoupon.discountValue) / 100;
+      return ((cartTotal - autoPromoDiscount) * appliedCoupon.discountValue) / 100;
     }
     return appliedCoupon.discountValue;
-  }, [appliedCoupon, cartTotal]);
+  }, [appliedCoupon, cartTotal, autoPromoDiscount]);
 
   const shipping = cartTotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
-  const taxes = (cartTotal - discountAmount) * TAX_RATE;
-  const finalTotal = Math.max(0, cartTotal - discountAmount + shipping + taxes);
+  const taxes = (cartTotal - autoPromoDiscount - discountAmount) * TAX_RATE;
+  const finalTotal = Math.max(0, cartTotal - autoPromoDiscount - discountAmount + shipping + taxes);
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -192,8 +204,9 @@ const Checkout = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: cart,
-          totalAmount: finalTotal, // Use finalTotal instead of cartTotal
-          discountAmount,
+          totalAmount: finalTotal,
+          discountAmount: discountAmount + autoPromoDiscount,
+          autoPromoDiscount,
           couponCode: appliedCoupon?.code,
           customerId: user?.id,
           shippingAddress: formData,
@@ -631,6 +644,16 @@ const Checkout = () => {
                 <Price amount={cartTotal} className="font-bold" />
               </div>
               
+              {autoPromoDiscount > 0 && (
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-emerald-600 font-medium flex items-center gap-1.5 font-serif">
+                    <Sparkles size={12} />
+                    Promos & Discounts
+                  </span>
+                  <span className="text-emerald-600 font-bold">- <Price amount={autoPromoDiscount} /></span>
+                </div>
+              )}
+
               {appliedCoupon && (
                 <div className="flex justify-between text-xs sm:text-sm">
                   <span className="text-emerald-600 font-medium flex items-center gap-1.5 font-serif">

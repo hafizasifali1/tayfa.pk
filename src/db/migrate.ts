@@ -257,6 +257,7 @@ export async function migrate() {
       await addColumn('pricelists', 'is_global', 'BOOLEAN DEFAULT FALSE');
       await addColumn('promotions', 'buy_quantity', 'INT');
       await addColumn('promotions', 'get_quantity', 'INT');
+      await addColumn('promotions', 'min_quantity', 'INT DEFAULT 1');
       await addColumn('promotions', 'apply_to', "VARCHAR(50) DEFAULT 'all'");
       await addColumn('promotions', 'product_ids', 'JSON');
       await addColumn('promotions', 'category_id', 'CHAR(36)');
@@ -459,6 +460,7 @@ export async function migrate() {
       await addColumnPg('pricelists', 'is_global', 'BOOLEAN DEFAULT FALSE');
       await addColumnPg('promotions', 'buy_quantity', 'INT');
       await addColumnPg('promotions', 'get_quantity', 'INT');
+      await addColumnPg('promotions', 'min_quantity', 'INT DEFAULT 1');
       await addColumnPg('promotions', 'apply_to', "VARCHAR(50) DEFAULT 'all'");
       await addColumnPg('promotions', 'product_ids', 'JSONB');
       await addColumnPg('promotions', 'category_id', 'UUID');

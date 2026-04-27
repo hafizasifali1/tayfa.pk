@@ -5,7 +5,8 @@ import { Product, Promotion } from '../../types';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 import Price from './Price';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { calculatePromotionDiscount, formatPromotionLabel } from '../../utils/promotionUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -30,10 +31,14 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
     }
   };
 
-  const activePromotion = useMemo(() => {
-    const promotions: Promotion[] = JSON.parse(localStorage.getItem('tayfa_promotions') || '[]');
-    return promotions.find(p => p.isActive);
-  }, []);
+  const bestPromotion = useMemo(() => {
+    if (!product.applicablePromotions || product.applicablePromotions.length === 0) return null;
+    return [...product.applicablePromotions].sort((a, b) => {
+      const valA = a.type === 'percentage' ? a.value : 0;
+      const valB = b.type === 'percentage' ? b.value : 0;
+      return valB - valA;
+    })[0];
+  }, [product.applicablePromotions]);
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -76,11 +81,17 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
             />
           </Link>
           
-          {activePromotion && (
-            <span className="absolute top-4 left-4 bg-emerald-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] flex items-center shadow-lg shadow-emerald-500/20 z-20">
+          {bestPromotion && (
+            <motion.span 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="absolute top-4 left-4 bg-brand-gold text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] flex items-center shadow-lg shadow-brand-gold/20 z-20"
+            >
               <Sparkles size={10} className="mr-1" />
-              Promo
-            </span>
+              {bestPromotion.name || (bestPromotion.buyQuantity && bestPromotion.buyQuantity > 1 && bestPromotion.type === 'percentage'
+                ? `Buy ${bestPromotion.buyQuantity} Save ${bestPromotion.value}%`
+                : formatPromotionLabel(bestPromotion))}
+            </motion.span>
           )}
 
           <button 
@@ -164,16 +175,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
         </Link>
         
         <div className="absolute top-4 left-4 flex flex-col gap-2">
-          {product.isNew && (
-            <span className="bg-brand-gold text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] shadow-lg shadow-brand-gold/20">New</span>
-          )}
+          {/* product.isNew removed as per request */}
           {product.isBestSeller && (
             <span className="bg-brand-dark text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] shadow-lg shadow-brand-dark/20">Best Seller</span>
           )}
-          {activePromotion && (
-            <span className="bg-emerald-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] flex items-center shadow-lg shadow-emerald-500/20">
+          {bestPromotion && (
+            <span className="bg-brand-gold text-white text-[9px] font-bold px-3 py-1.5 rounded-full uppercase tracking-[0.15em] flex items-center shadow-lg shadow-brand-gold/20">
               <Sparkles size={10} className="mr-1" />
-              Promo
+              {bestPromotion.name || (bestPromotion.buyQuantity && bestPromotion.buyQuantity > 1 && bestPromotion.type === 'percentage'
+                ? `Buy ${bestPromotion.buyQuantity} Save ${bestPromotion.value}%`
+                : formatPromotionLabel(bestPromotion))}
             </span>
           )}
         </div>

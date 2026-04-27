@@ -429,6 +429,57 @@ const parseJsonField = (field: any) => {
   return field;
 };
 
+// Helper to find applicable promotions for a product
+const getApplicablePromotionsInternal = (product: any, allPromotions: any[]) => {
+  if (!allPromotions || !product) return [];
+  
+  const now = new Date();
+  return allPromotions.filter(promo => {
+    if (!promo.isActive) return false;
+    
+    // Check dates
+    if (promo.startDate && new Date(promo.startDate) > now) return false;
+    if (promo.endDate && new Date(promo.endDate) < now) return false;
+
+    // Check scope
+    if (promo.applyTo === 'all') return true;
+    if (promo.applyTo === 'category' && (promo.categoryId === product.categoryId || promo.categoryId === product.parentCategoryId)) return true;
+    if (promo.applyTo === 'specific') {
+      const pIds = parseJsonField(promo.productIds);
+      return Array.isArray(pIds) && (pIds.includes(product.id) || pIds.includes(product.slug));
+    }
+    return false;
+  });
+};
+
+const getBestPromotion = (product: any, promotions: any[], quantity: number = 1) => {
+  const applicable = promotions.filter(promo => {
+    const minQty = parseInt(promo.buyQuantity?.toString() || '1');
+    return quantity >= minQty;
+  });
+
+  if (applicable.length === 0) return null;
+
+  // Pick the one with highest discount
+  return applicable.reduce((best, current) => {
+    const bestDiscount = calculateDiscountAmount(product.price, best, quantity);
+    const currentDiscount = calculateDiscountAmount(product.price, current, quantity);
+    return currentDiscount > bestDiscount ? current : best;
+  });
+};
+
+const calculateDiscountAmount = (price: number, promotion: any, quantity: number) => {
+  if (!promotion) return 0;
+  const val = parseFloat(promotion.value?.toString() || '0');
+  if (promotion.type === 'percentage') {
+    return price * quantity * (val / 100);
+  } else if (promotion.type === 'fixed_amount') {
+    return val * quantity;
+  }
+  return 0;
+};
+
+
 // --- Coupons API ---
 router.get('/coupons', async (req, res) => {
   try {
@@ -927,6 +978,9 @@ router.get('/products', async (req, res) => {
     .leftJoin(users, eq(products.sellerId, users.id))
     .leftJoin(pricelists, eq(products.pricelistId, pricelists.id));
 
+    // Fetch active promotions
+    const activePromotions = await db.select().from(promotions).where(eq(promotions.isActive, true));
+
     // Apply filters
     const conditions = [];
     if (sellerId) conditions.push(eq(products.sellerId, sellerId as string));
@@ -966,6 +1020,9 @@ router.get('/products', async (req, res) => {
         p.colors = parseJsonField(p.colors);
         p.tags = parseJsonField(p.tags);
         p.dynamicFilters = parseJsonField(p.dynamicFilters);
+        
+        // Add applicable promotions
+        p.applicablePromotions = getApplicablePromotionsInternal(p, activePromotions);
       });
 
       // --- Apply Active Discounts ---
@@ -1226,6 +1283,9 @@ router.get('/products/:slug', async (req, res) => {
     } catch (discountError) {
       console.error('Error applying discount to single product:', discountError);
     }
+
+    const activePromotions = await db.select().from(promotions).where(eq(promotions.isActive, true));
+    product.applicablePromotions = getApplicablePromotionsInternal(product, activePromotions);
 
     res.json(product);
   } catch (error) {
@@ -2234,6 +2294,7 @@ router.get('/promotions', async (req, res) => {
       minPurchase: promoTable.minPurchase,
       buyQuantity: promoTable.buyQuantity,
       getQuantity: promoTable.getQuantity,
+      minQuantity: promoTable.minQuantity,
       applyTo: promoTable.applyTo,
       productIds: promoTable.productIds,
       categoryId: promoTable.categoryId,
@@ -2268,7 +2329,7 @@ router.post('/promotions', async (req, res) => {
     const id = uuidv4();
     const {
       sellerId, name, description, type, value, minPurchase,
-      buyQuantity, getQuantity, applyTo, productIds, categoryId,
+      buyQuantity, getQuantity, minQuantity, applyTo, productIds, categoryId,
       startDate, endDate, isActive
     } = req.body;
 
@@ -2278,6 +2339,7 @@ router.post('/promotions', async (req, res) => {
       minPurchase: minPurchase?.toString() || '0.00',
       buyQuantity: buyQuantity ?? null,
       getQuantity: getQuantity ?? null,
+      minQuantity: minQuantity ?? 1,
       applyTo: applyTo || 'all',
       productIds: productIds || [],
       categoryId: categoryId || null,
@@ -2301,7 +2363,7 @@ router.put('/promotions/:id', async (req, res) => {
   try {
     const {
       name, description, type, value, minPurchase,
-      buyQuantity, getQuantity, applyTo, productIds, categoryId,
+      buyQuantity, getQuantity, minQuantity, applyTo, productIds, categoryId,
       startDate, endDate, isActive
     } = req.body;
 
@@ -2313,6 +2375,7 @@ router.put('/promotions/:id', async (req, res) => {
     if (minPurchase !== undefined) updateData.minPurchase = minPurchase?.toString();
     if (buyQuantity !== undefined) updateData.buyQuantity = buyQuantity;
     if (getQuantity !== undefined) updateData.getQuantity = getQuantity;
+    if (minQuantity !== undefined) updateData.minQuantity = minQuantity ?? 1;
     if (applyTo !== undefined) updateData.applyTo = applyTo;
     if (productIds !== undefined) updateData.productIds = productIds;
     if (categoryId !== undefined) updateData.categoryId = categoryId || null;
@@ -4358,6 +4421,49 @@ router.put('/customers/:id', async (req, res) => {
     res.json(updated);
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to update customer' });
+  }
+});
+
+router.post('/cart/apply-promotion', async (req, res) => {
+  try {
+    const { productId, quantity } = req.body;
+    if (!productId || !quantity) {
+      return res.status(400).json({ error: 'Product ID and quantity are required' });
+    }
+
+    const [product] = await db.select().from(products).where(eq(products.id, productId));
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const activePromotions = await db.select().from(promotions).where(eq(promotions.isActive, true));
+    const applicable = getApplicablePromotionsInternal(product, activePromotions);
+    const bestPromo = getBestPromotion(product, applicable, quantity);
+
+    if (!bestPromo) {
+      return res.json({ 
+        applied: false, 
+        originalPrice: product.price,
+        discountedPrice: product.price,
+        savings: 0 
+      });
+    }
+
+    const savings = calculateDiscountAmount(product.price, bestPromo, quantity);
+    const originalTotal = product.price * quantity;
+    const discountedTotal = originalTotal - savings;
+
+    res.json({
+      applied: true,
+      promotionName: bestPromo.name,
+      promotionType: bestPromo.type,
+      promotionValue: bestPromo.value,
+      originalPrice: product.price,
+      discountedPrice: discountedTotal / quantity,
+      savings,
+      discountLabel: bestPromo.type === 'percentage' ? `${bestPromo.value}% OFF` : `PKR ${bestPromo.value} OFF`
+    });
+  } catch (error) {
+    console.error('Error applying promotion:', error);
+    res.status(500).json({ error: 'Failed to apply promotion' });
   }
 });
 

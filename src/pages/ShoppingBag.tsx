@@ -11,7 +11,9 @@ import { useAuthModal } from '../context/AuthModalContext';
 import { useWishlist } from '../context/WishlistContext';
 import Price from '../components/common/Price';
 import { motion, AnimatePresence } from 'motion/react';
-import { Coupon } from '../types';
+import { Coupon, Promotion } from '../types';
+import { calculatePromotionDiscount, formatPromotionLabel, getSavings, checkPromotionStatus } from '../utils/promotionUtils';
+import { Sparkles, Gift, Zap, DollarSign } from 'lucide-react';
 
 const ShoppingBagPage = () => {
   const { cart, removeFromCart, updateQuantity, cartTotal, cartCount, isLoading } = useCart();
@@ -52,6 +54,16 @@ const ShoppingBagPage = () => {
   const FREE_SHIPPING_THRESHOLD = 200;
   const SHIPPING_COST = 15;
   const TAX_RATE = 0.08;
+
+  const autoPromoDiscount = useMemo(() => {
+    return cart.reduce((total, item) => {
+      const bestPromo = calculatePromotionDiscount(item as any, item.qty);
+      if (bestPromo) {
+        return total + getSavings(item.price, bestPromo as any, item.qty);
+      }
+      return total;
+    }, 0);
+  }, [cart]);
 
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
@@ -103,9 +115,59 @@ const ShoppingBagPage = () => {
     return appliedCoupon.discountValue;
   }, [appliedCoupon, cartTotal]);
 
+  // --- Dynamic Promotions Logic ---
+  const promoStatus = useMemo(() => {
+    // Find all items with a promotion status
+    const statuses = cart.map(item => ({
+      item,
+      promo: checkPromotionStatus(item as any)
+    })).filter(s => s.promo !== null);
+
+    if (statuses.length === 0) return null;
+
+    // Prioritize "Almost There" if it exists, otherwise show the best "Applied" one
+    const almost = statuses.find(s => s.promo?.status === 'almost');
+    if (almost) return almost;
+
+    const applied = statuses.filter(s => s.promo?.status === 'applied');
+    if (applied.length > 0) {
+      return applied.reduce((max, curr) => 
+        (curr.promo?.savings || 0) > (max.promo?.savings || 0) ? curr : max
+      );
+    }
+
+    return null;
+  }, [cart]);
+
+  // Virtual Free Gifts Calculation
+  const freeGifts = useMemo(() => {
+    return cart.flatMap(item => {
+      const bestPromo = calculatePromotionDiscount(item as any, item.qty);
+      if (bestPromo && bestPromo.type === 'buy_x_get_y_free') {
+        const multipliers = Math.floor(item.qty / (bestPromo.buyQuantity || 1));
+        const giftQty = multipliers * (bestPromo.getQuantity || 0);
+        
+        if (giftQty > 0) {
+          return [{
+            ...item,
+            cartItemId: `gift-${item.id}`,
+            name: `FREE Gift — ${item.name}`,
+            qty: giftQty,
+            price: 0,
+            originalPrice: item.price,
+            isFreeGift: true
+          }];
+        }
+      }
+      return [];
+    });
+  }, [cart]);
+
+  const displayItems = useMemo(() => [...cart, ...freeGifts], [cart, freeGifts]);
+
   const shipping = cartTotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
-  const taxes = (cartTotal - discountAmount) * TAX_RATE;
-  const finalTotal = Math.max(0, cartTotal - discountAmount + shipping + taxes);
+  const taxes = (cartTotal - autoPromoDiscount - discountAmount) * TAX_RATE;
+  const finalTotal = Math.max(0, cartTotal - autoPromoDiscount - discountAmount + shipping + taxes);
   const amountToFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - cartTotal);
 
   if (isLoading) {
@@ -152,6 +214,78 @@ const ShoppingBagPage = () => {
         </div>
 
         {/* Guest Login Prompt Banner */}
+        {/* Savings Alert Banner */}
+        <AnimatePresence mode="wait">
+          {promoStatus && (
+            <motion.div
+              key={promoStatus.promo?.status + '-' + promoStatus.item.id}
+              initial={{ opacity: 0, y: -20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.98 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className={`mb-8 p-4 rounded-2xl border shadow-sm ${
+                promoStatus.promo?.status === 'applied' 
+                  ? (promoStatus.promo?.promotion?.type === 'buy_x_get_y_free' 
+                      ? 'bg-brand-gold/10 border-brand-gold/30' 
+                      : (promoStatus.promo?.promotion?.type === 'fixed_amount' 
+                          ? 'bg-blue-50 border-blue-200' 
+                          : 'bg-emerald-50 border-emerald-200'))
+                  : 'bg-amber-50 border-amber-200'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4 w-full">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    promoStatus.promo?.status === 'applied'
+                      ? (promoStatus.promo?.promotion?.type === 'buy_x_get_y_free' ? 'bg-brand-gold text-white' : 'bg-emerald-100 text-emerald-600')
+                      : 'bg-amber-100 text-amber-600'
+                  }`}>
+                    {promoStatus.promo?.status === 'applied' 
+                      ? (promoStatus.promo?.promotion?.type === 'buy_x_get_y_free' ? <Gift size={24} /> : <CheckCircle2 size={24} />)
+                      : <Zap size={24} />
+                    }
+                  </div>
+                  <div className="flex-grow">
+                    <h4 className="text-sm font-bold text-brand-dark">
+                      {promoStatus.promo?.status === 'applied' 
+                        ? (promoStatus.promo?.promotion?.type === 'buy_x_get_y_free' 
+                            ? "Congratulations! You've unlocked a FREE product!" 
+                            : `Congratulations! You're saving PKR ${promoStatus.promo?.savings?.toLocaleString()} on this order!`)
+                        : `Add ${promoStatus.promo?.remaining} more to unlock ${promoStatus.promo?.promotion?.value}${promoStatus.promo?.promotion?.type === 'percentage' ? '%' : ''} OFF!`
+                      }
+                    </h4>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 mt-0.5">
+                      {promoStatus.item.name} — {promoStatus.promo?.promotion?.name || formatPromotionLabel(promoStatus.promo?.promotion as any)}
+                    </p>
+                    
+                    {promoStatus.promo?.status === 'almost' && (
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex justify-between text-[9px] font-black uppercase text-brand-dark/30">
+                          <span>Progress</span>
+                          <span>{promoStatus.item.qty} of {promoStatus.promo?.promotion?.buyQuantity} items</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-brand-dark/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${promoStatus.promo?.progress}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                            className="h-full bg-brand-gold"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {promoStatus.promo?.status === 'applied' && (
+                  <div className="flex-shrink-0 bg-white/50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-brand-dark/60 border border-brand-dark/5">
+                    applied ✓
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {!user && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -188,14 +322,16 @@ const ShoppingBagPage = () => {
           {/* LEFT SECTION — CART ITEMS (70%) */}
           <div className="lg:w-[70%] space-y-6">
             <AnimatePresence>
-              {cart.map((item) => (
+              {displayItems.map((item) => (
                 <motion.div
-                  key={`${item.id}-${item.variantId}`}
+                  key={item.cartItemId || `${item.id}-${item.variantId}`}
                   layout
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-white p-6 rounded-2xl shadow-sm border border-brand-dark/5 flex flex-col sm:flex-row gap-6 group relative"
+                  className={`p-6 rounded-2xl shadow-sm border flex flex-col sm:flex-row gap-6 group relative ${
+                    (item as any).isFreeGift ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-brand-dark/5'
+                  }`}
                 >
                   {/* Product Image */}
                   <Link to={`/product/${item.id}`} className="block w-24 sm:w-40 aspect-[3/4] rounded-xl overflow-hidden flex-shrink-0 bg-brand-cream mx-auto sm:mx-0">
@@ -229,26 +365,42 @@ const ShoppingBagPage = () => {
                             <div className="flex items-center bg-brand-cream/50 border border-brand-dark/5 rounded-lg p-0.5 sm:p-1">
                               <button 
                                 onClick={() => updateQuantity(item.id, item.variantId, item.qty - 1, item.cartItemId)}
-                                className="p-1 hover:text-brand-gold transition-colors"
+                                disabled={(item as any).isFreeGift}
+                                className="p-1 hover:text-brand-gold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                               >
                                 <Minus size={10} />
                               </button>
                               <span className="w-5 sm:w-6 text-center text-[9px] sm:text-[10px] font-bold">{item.qty}</span>
                               <button 
                                 onClick={() => updateQuantity(item.id, item.variantId, item.qty + 1, item.cartItemId)}
-                                className="p-1 hover:text-brand-gold transition-colors"
+                                disabled={(item as any).isFreeGift}
+                                className="p-1 hover:text-brand-gold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                               >
                                 <Plus size={10} />
                               </button>
                             </div>
+
+                            {/* Applied Promotion Badge */}
+                            {calculatePromotionDiscount(item as any, item.qty) && (
+                              <div className="flex items-center space-x-1.5 bg-brand-gold/10 text-brand-gold px-2 py-1 rounded-lg border border-brand-gold/10">
+                                <Sparkles size={10} />
+                                <span className="text-[9px] font-bold uppercase tracking-widest">
+                                  {formatPromotionLabel(calculatePromotionDiscount(item as any, item.qty) as any)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-brand-dark/5">
-                          <Price 
-                            amount={(item.originalPrice || item.price) * item.qty}
-                            discount={item.originalPrice ? (item.originalPrice - item.price) * item.qty : 0}
-                            className="text-base sm:text-xl font-bold text-brand-dark" 
-                          />
+                          {(item as any).isFreeGift ? (
+                            <span className="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1.5 rounded-full uppercase tracking-widest">Free</span>
+                          ) : (
+                            <Price 
+                              amount={(item.originalPrice || item.price) * item.qty}
+                              discount={item.originalPrice ? (item.originalPrice - item.price) * item.qty : 0}
+                              className="text-base sm:text-xl font-bold text-brand-dark" 
+                            />
+                          )}
                           {item.qty > 1 && (
                             <p className="text-[9px] sm:text-[10px] text-brand-dark/40 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">
                               <Price 
@@ -271,13 +423,15 @@ const ShoppingBagPage = () => {
 
                     {/* Actions */}
                     <div className="flex items-center space-x-4 sm:space-x-6 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-brand-dark/5">
-                      <button 
-                        onClick={() => removeFromCart(item.id, item.variantId, item.cartItemId)}
-                        className="flex items-center space-x-1.5 sm:space-x-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={12} />
-                        <span>Remove</span>
-                      </button>
+                      {! (item as any).isFreeGift && (
+                        <button 
+                          onClick={() => removeFromCart(item.id, item.variantId, item.cartItemId)}
+                          className="flex items-center space-x-1.5 sm:space-x-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                          <span>Remove</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -298,6 +452,16 @@ const ShoppingBagPage = () => {
                     <Price amount={cartTotal} className="font-bold" />
                   </div>
                   
+                  {autoPromoDiscount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-brand-gold font-medium flex items-center gap-1.5">
+                        <Sparkles size={14} />
+                        Promotion Discount
+                      </span>
+                      <span className="text-brand-gold font-bold">- <Price amount={autoPromoDiscount} /></span>
+                    </div>
+                  )}
+
                   {appliedCoupon && (
                     <div className="flex justify-between text-sm">
                       <span className="text-emerald-600 font-medium flex items-center gap-1.5">
@@ -397,6 +561,16 @@ const ShoppingBagPage = () => {
                   )}
                 </div>
 
+                {/* Savings Callout */}
+                {autoPromoDiscount > 0 && (
+                  <div className="bg-brand-gold/10 rounded-xl p-3 flex items-center justify-center space-x-2 border border-brand-gold/10">
+                    <Tag size={14} className="text-brand-gold" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-gold-dark">
+                      🏷 You're saving PKR {autoPromoDiscount.toLocaleString()} today!
+                    </span>
+                  </div>
+                )}
+
                 {/* Checkout Button */}
                 <div className="space-y-4">
                   <p className="text-[10px] text-center font-bold uppercase tracking-widest text-brand-dark/40">You're almost there</p>
@@ -453,6 +627,12 @@ const ShoppingBagPage = () => {
                   <span className="text-brand-dark/60">Subtotal</span>
                   <Price amount={cartTotal} />
                 </div>
+                {autoPromoDiscount > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-emerald-600">Promotions</span>
+                    <span className="text-emerald-600">- <Price amount={autoPromoDiscount} /></span>
+                  </div>
+                )}
                 {appliedCoupon && (
                   <div className="flex justify-between text-xs">
                     <span className="text-emerald-600">Discount</span>

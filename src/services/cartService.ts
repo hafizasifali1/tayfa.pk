@@ -26,6 +26,7 @@ export interface CartItem {
   variantId: string;    // "M-Red" or "M" or "Red" or "default"
   size?: string;
   color?: string;
+  applicablePromotions?: any[];
 }
 
 // ---------- Session ID for guests ----------
@@ -104,10 +105,6 @@ const LocalCart = {
   save(items: CartItem[], userId?: string): void {
     const key = getCartKey(userId);
     localStorage.setItem(key, JSON.stringify(items));
-    
-    if (userId) {
-      localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
-    }
   },
 
   add(item: Omit<CartItem, 'cartItemId' | 'cartId'>, userId?: string): CartItem[] {
@@ -229,7 +226,8 @@ const DbCart = {
         const mergedItems = Array.isArray(res.data.items) ? res.data.items : [];
         
         LocalCart.save(mergedItems, userId);
-        // Note: we don't clear the guest key anymore, because LocalCart.save already keeps it in sync
+        // Clear the guest cart after successful merge to avoid double merging on future refreshes
+        localStorage.removeItem(GUEST_CART_KEY);
         return mergedItems;
       }
       

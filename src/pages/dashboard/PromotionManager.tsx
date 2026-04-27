@@ -42,6 +42,7 @@ const PromotionManager = () => {
     type: 'percentage' as 'percentage' | 'fixed_amount' | 'free_shipping' | 'buy_x_get_y_free',
     value: '',
     minPurchase: '0',
+    minQuantity: '1',
     buyQuantity: '',
     getQuantity: '',
     applyTo: 'all' as 'all' | 'specific' | 'category',
@@ -92,6 +93,7 @@ const PromotionManager = () => {
         minPurchase: parseFloat(formData.minPurchase) || 0,
         buyQuantity: formData.type === 'buy_x_get_y_free' ? (parseInt(formData.buyQuantity) || 0) : null,
         getQuantity: formData.type === 'buy_x_get_y_free' ? (parseInt(formData.getQuantity) || 0) : null,
+        minQuantity: formData.type !== 'buy_x_get_y_free' ? (parseInt(formData.minQuantity) || 1) : null,
         applyTo: formData.applyTo,
         productIds: formData.applyTo === 'specific' ? formData.productIds : [],
         categoryId: formData.applyTo === 'category' ? formData.categoryId : null,
@@ -141,6 +143,7 @@ const PromotionManager = () => {
       minPurchase: (promo.minPurchase || 0).toString(),
       buyQuantity: promo.buyQuantity?.toString() || '',
       getQuantity: promo.getQuantity?.toString() || '',
+      minQuantity: (promo as any).minQuantity?.toString() || '1',
       applyTo: promo.applyTo || 'all',
       productIds: Array.isArray(promo.productIds) ? promo.productIds : [],
       categoryId: promo.categoryId || '',
@@ -192,6 +195,7 @@ const PromotionManager = () => {
               minPurchase: '0',
               buyQuantity: '',
               getQuantity: '',
+              minQuantity: '1',
               applyTo: 'all',
               productIds: [],
               categoryId: '',
@@ -347,9 +351,9 @@ const PromotionManager = () => {
         submitLabel={editingId ? 'Save Changes' : 'Create Promotion'}
       >
         <div className="space-y-6">
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <h4 className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold">Campaign Details</h4>
-          </div>
+          </div> */}
 
           <div className="space-y-1.5">
             <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Campaign Name</label>
@@ -447,6 +451,27 @@ const PromotionManager = () => {
                     placeholder="1"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Min Quantity — for percentage / fixed_amount / free_shipping */}
+            {(formData.type === 'percentage' || formData.type === 'fixed_amount' || formData.type === 'free_shipping') && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Minimum Quantity to Unlock</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.minQuantity}
+                    onChange={(e) => setFormData({ ...formData, minQuantity: e.target.value })}
+                    className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
+                    placeholder="1"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">items</span>
+                </div>
+                <p className="text-[10px] text-brand-dark/40 font-medium">
+                  Customer must buy at least <strong>{formData.minQuantity || 1}</strong> item(s) to unlock this promotion
+                </p>
               </div>
             )}
           </div>

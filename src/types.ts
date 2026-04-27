@@ -138,6 +138,7 @@ export interface Product {
   seo?: SEOMetadata;
   slug: string;
   dynamicFilters?: Record<string, string[]>;
+  applicablePromotions?: Promotion[];
   createdAt: string;
   taxRuleId?: string;
   pricelistId?: string;
@@ -252,6 +253,7 @@ export interface Promotion {
   minPurchase: number;
   buyQuantity?: number;
   getQuantity?: number;
+  minQuantity?: number;
   applyTo?: 'all' | 'specific' | 'category';
   productIds?: string[];
   categoryId?: string;

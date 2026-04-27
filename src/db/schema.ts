@@ -222,6 +222,7 @@ export const promotions = table('promotions', {
   minPurchase: decimal('min_purchase', { precision: 10, scale: 2 }).default('0.00'),
   buyQuantity: integer('buy_quantity'),
   getQuantity: integer('get_quantity'),
+  minQuantity: integer('min_quantity').default(1),
   applyTo: varchar('apply_to', { length: 50 }).default('all'),
   productIds: json('product_ids'),
   categoryId: isMysql ? char('category_id', { length: 36 }) : char('category_id'),

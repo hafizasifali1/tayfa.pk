@@ -7,7 +7,7 @@ interface CartContextType {
   cartCount: number;
   cartTotal: number;
   isLoading: boolean;
-  addToCart: (product: any, size?: string, color?: string) => Promise<void>;
+  addToCart: (product: any, size?: string, color?: string, qty?: number) => Promise<void>;
   removeFromCart: (productId: string, variantId: string, cartItemId?: string) => Promise<void>;
   updateQuantity: (productId: string, variantId: string, qty: number, cartItemId?: string) => Promise<void>;
   clearCart: () => void;
@@ -36,6 +36,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const prevUserIdRef = useRef<string | undefined>(undefined);
   const initDoneRef = useRef(false);
 
+  const attachPromotions = async (items: CartItem[]): Promise<CartItem[]> => {
+    if (items.length === 0) return items;
+    return Promise.all(
+      items.map(async (item) => {
+        try {
+          const res = await fetch(`/api/promotions?product_id=${item.id}&status=active`);
+          const data = await res.json();
+          const promos = Array.isArray(data) ? data : (data.promotions || data.data || []);
+          return { ...item, applicablePromotions: promos };
+        } catch {
+          return { ...item, applicablePromotions: [] };
+        }
+      })
+    );
+  };
+
   useEffect(() => {
     let cancelled = false;
     getOrCreateSessionId();
@@ -59,14 +75,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (!cancelled) {
-          setCart(items);
+          const itemsWithPromos = await attachPromotions(items);
+          setCart(itemsWithPromos);
           prevUserIdRef.current = currentUserId;
           initDoneRef.current = true;
         }
       } catch (err) {
         console.error('[CartContext] Init error:', err);
         if (!cancelled) {
-          setCart(CartService.GuestCart.getAll());
+          const freshGuest = await attachPromotions(CartService.GuestCart.getAll());
+          setCart(freshGuest);
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -83,7 +101,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       try {
         const items = await CartService.getCart(user?.id);
-        setCart(items);
+        const withPromos = await attachPromotions(items);
+        setCart(withPromos);
       } finally {
         setIsLoading(false);
       }
@@ -91,7 +110,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user?.id, withLock]);
 
   // ── Add to Cart ──────────────────────────────────────────────────
-  const addToCart = useCallback(async (product: any, size?: string, color?: string) => {
+  const addToCart = useCallback(async (product: any, size?: string, color?: string, qty: number = 1) => {
     getOrCreateSessionId();
     let variantId = buildVariantId(size, color);
     
@@ -135,16 +154,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       price: parseFloat(String(product.salePrice ?? product.price)) || 0,
       originalPrice: product.salePrice ? (parseFloat(String(product.price)) || 0) : undefined,
       imageUrl: image,
-      qty: 1,
+      qty,
       variantId,
       size,
       color,
+      applicablePromotions: product.applicablePromotions
     };
 
     await withLock(async () => {
       try {
         const updated = await CartService.addItem(item, user?.id);
-        setCart(updated);
+        const withPromos = await attachPromotions(updated);
+        setCart(withPromos);
       } catch (err) {
         console.error("Failed to add to cart:", err);
       }
@@ -160,7 +181,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await withLock(async () => {
       try {
         const updated = await CartService.removeItem(productId, variantId, user?.id, cartItemId);
-        setCart(updated);
+        const withPromos = await attachPromotions(updated);
+        setCart(withPromos);
       } catch (err) {
         console.error("Failed to remove from cart:", err);
       }
@@ -185,12 +207,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await withLock(async () => {
       try {
         const updated = await CartService.updateQty(productId, variantId, qty, user?.id, cartItemId);
-        setCart(updated);
+        const withPromos = await attachPromotions(updated);
+        setCart(withPromos);
       } catch (err) {
         console.error("Failed to update cart qty:", err);
         // Rollback on failure
         const fresh = await CartService.getCart(user?.id);
-        setCart(fresh);
+        const freshWithPromos = await attachPromotions(fresh);
+        setCart(freshWithPromos);
       }
     });
   }, [user?.id, withLock]);

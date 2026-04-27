@@ -3,8 +3,8 @@ import { useCurrency } from '../../context/CurrencyContext';
 import { Pricelist, Promotion, Discount } from '../../types';
 
 interface PriceProps {
-  amount: number; // Base amount in USD (Original Price)
-  discount?: number; // Discount amount in USD
+  amount: number; 
+  discount?: number; 
   productId?: string;
   className?: string;
   showLocalMessage?: boolean;
@@ -18,7 +18,6 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
     let currentPriceUSD = amount - discount;
     if (!productId || !selectedCountry) return currentPriceUSD;
 
-    // 1. Check for active product-specific Discounts
     let discounts: Discount[] = [];
     try {
       const stored = localStorage.getItem('tayfa_discounts');
@@ -33,7 +32,6 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
       currentPriceUSD = currentPriceUSD * (1 - activeDiscount.percentage / 100);
     }
 
-    // 2. Check for active Pricelists matching the selected currency
     let pricelists: Pricelist[] = [];
     try {
       const stored = localStorage.getItem('tayfa_pricelists');
@@ -43,13 +41,10 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
       }
     } catch (e) {}
 
-    // Find a pricelist that is active AND matches the current currency
     const activePricelist = pricelists.find(pl => pl.isActive && pl.currency === selectedCountry.currency);
     if (activePricelist) {
       const item = activePricelist.items.find(i => i.productId === productId);
       if (item) {
-        // This price is ALREADY in the target currency.
-        // To make it work with formatPrice(usdAmount), we convert it back to USD.
         const rate = exchangeRates[selectedCountry.currency] || 1;
         currentPriceUSD = item.price / rate;
       }
@@ -112,7 +107,7 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
       </span>
       {showLocalMessage && selectedCountry && !currency && (
         <span className="text-[10px] text-brand-dark-muted italic mt-0.5 font-medium">
-          Prices are shown in your local currency ({selectedCountry.currency})
+          {/* Prices are shown in your local currency ({selectedCountry.currency}) */}
         </span>
       )}
     </span>
