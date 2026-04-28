@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, Search, Edit2, Trash2, 
+import {
+  Plus, Search, Edit2, Trash2,
   ChevronRight, Save, X, Globe, Info, AlertCircle,
-  List, CheckSquare, ChevronDown, Sliders
+  List, CheckSquare, ChevronDown, Sliders, SlidersHorizontal, Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { Filter, FilterValue } from '../../types';
+
+interface CategoryOption {
+  id: string;
+  name: string;
+}
 
 const FilterManager = () => {
   const [filters, setFilters] = useState<Filter[]>([]);
@@ -15,7 +20,8 @@ const FilterManager = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<Partial<Filter> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  
+  const [parentCategories, setParentCategories] = useState<CategoryOption[]>([]);
+
   // Filter Values State
   const [filterValues, setFilterValues] = useState<FilterValue[]>([]);
   const [isEditingValues, setIsEditingValues] = useState(false);
@@ -24,6 +30,7 @@ const FilterManager = () => {
 
   useEffect(() => {
     fetchFilters();
+    fetchParentCategories();
   }, []);
 
   const fetchFilters = async () => {
@@ -36,6 +43,21 @@ const FilterManager = () => {
       console.error('Error fetching filters:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchParentCategories = async () => {
+    try {
+      const response = await axios.get('/api/categories');
+      if (Array.isArray(response.data)) {
+        setParentCategories(
+          response.data
+            .filter((c: any) => !c.parentId)
+            .map((c: any) => ({ id: c.id, name: c.name }))
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -61,7 +83,10 @@ const FilterManager = () => {
       type: 'checkbox',
       displayOrder: filters.length + 1,
       isActive: true,
-      labels: {}
+      labels: {},
+      categoryId: null,
+      isFilterable: false,
+      isAttribute: false,
     });
     setIsEditing(true);
   };
@@ -174,6 +199,7 @@ const FilterManager = () => {
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Order</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Filter Name</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Type</th>
+                <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Usage</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Status</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4 text-right">Actions</th>
               </tr>
@@ -181,13 +207,13 @@ const FilterManager = () => {
             <tbody className="divide-y divide-brand-dark/5">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center">
+                  <td colSpan={6} className="py-12 text-center">
                     <div className="w-8 h-8 border-2 border-brand-gold border-t-transparent rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : filteredFilters.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-brand-dark/40 italic">No filters found.</td>
+                  <td colSpan={6} className="py-12 text-center text-brand-dark/40 italic">No filters found.</td>
                 </tr>
               ) : (
                 filteredFilters.map((filter) => (
@@ -202,6 +228,25 @@ const FilterManager = () => {
                       <div className="flex items-center space-x-2 text-brand-dark/60">
                         {getFilterIcon(filter.type)}
                         <span className="text-[10px] font-bold uppercase tracking-widest">{filter.type}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center space-x-2">
+                        {filter.isFilterable && (
+                          <span className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-bold uppercase tracking-widest">
+                            <SlidersHorizontal size={10} />
+                            <span>Sidebar</span>
+                          </span>
+                        )}
+                        {filter.isAttribute && (
+                          <span className="inline-flex items-center space-x-1 px-2 py-1 bg-violet-50 text-violet-600 rounded-lg text-[9px] font-bold uppercase tracking-widest">
+                            <Tag size={10} />
+                            <span>Detail</span>
+                          </span>
+                        )}
+                        {!filter.isFilterable && !filter.isAttribute && (
+                          <span className="text-[10px] text-brand-dark/20">—</span>
+                        )}
                       </div>
                     </td>
                     <td className="py-4 px-4">
@@ -324,6 +369,49 @@ const FilterManager = () => {
                         <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${currentFilter.isActive ? 'left-7' : 'left-1'}`} />
                       </button>
                       <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Active Status</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-brand-dark/5 pt-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Category (optional)</label>
+                    <select
+                      value={currentFilter.categoryId || ''}
+                      onChange={(e) => setCurrentFilter(prev => ({ ...prev!, categoryId: e.target.value || null }))}
+                      className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
+                    >
+                      <option value="">All Categories</option>
+                      {parentCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => setCurrentFilter(prev => ({ ...prev!, isFilterable: !prev?.isFilterable }))}
+                        className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${currentFilter.isFilterable ? 'bg-blue-500' : 'bg-brand-dark/20'}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${currentFilter.isFilterable ? 'left-7' : 'left-1'}`} />
+                      </button>
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Show in Shop Sidebar</span>
+                        <p className="text-[10px] text-brand-dark/30 mt-0.5">Visible as a filter option on the shop page</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => setCurrentFilter(prev => ({ ...prev!, isAttribute: !prev?.isAttribute }))}
+                        className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${currentFilter.isAttribute ? 'bg-violet-500' : 'bg-brand-dark/20'}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${currentFilter.isAttribute ? 'left-7' : 'left-1'}`} />
+                      </button>
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Show on Product Detail Page</span>
+                        <p className="text-[10px] text-brand-dark/30 mt-0.5">Displayed as a product attribute/spec</p>
+                      </div>
                     </div>
                   </div>
                 </div>

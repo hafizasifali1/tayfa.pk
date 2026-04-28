@@ -198,25 +198,32 @@ const AddProduct = () => {
   }, []);
 
   useEffect(() => {
+    if (!formData.parentCategoryId) {
+      setDynamicFilters([]);
+      setFilterValuesMap({});
+      setFormData(prev => ({ ...prev, dynamicFilters: {} }));
+      return;
+    }
     const fetchDynamicFilters = async () => {
       try {
-        const response = await axios.get('/api/filters?isActive=true');
+        const response = await axios.get(`/api/filters?isActive=true&category_id=${formData.parentCategoryId}`);
         if (Array.isArray(response.data)) {
           setDynamicFilters(response.data);
-          const valuesPromises = response.data.map(f => axios.get(`/api/filter-values?filterId=${f.id}`));
+          const valuesPromises = response.data.map((f: Filter) => axios.get(`/api/filter-values?filterId=${f.id}`));
           const valuesResponses = await Promise.all(valuesPromises);
           const newMap: Record<string, FilterValue[]> = {};
-          response.data.forEach((f, idx) => {
+          response.data.forEach((f: Filter, idx: number) => {
             newMap[f.id] = valuesResponses[idx].data;
           });
           setFilterValuesMap(newMap);
+          setFormData(prev => ({ ...prev, dynamicFilters: {} }));
         }
       } catch (err) {
         console.error('Error fetching dynamic filters:', err);
       }
     };
     fetchDynamicFilters();
-  }, []);
+  }, [formData.parentCategoryId]);
 
   useEffect(() => {
     const fetchBrands = async () => {
@@ -839,7 +846,8 @@ const AddProduct = () => {
                   )}
                 </div>
 
-                <div>
+                {/* Available Sizes — replaced by dynamic Product Attributes filters below */}
+                {/* <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Available Sizes</label>
                   <div className="flex flex-wrap gap-2">
                     {(sizeOptions[formData.type as keyof typeof sizeOptions] || []).map(size => (
@@ -857,15 +865,16 @@ const AddProduct = () => {
                       </button>
                     ))}
                   </div>
-                </div>
+                </div> */}
 
-                <div>
+                {/* Available Colors — replaced by dynamic Product Attributes filters below */}
+                {/* <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-4">Available Colors</label>
                   <div className="flex flex-wrap gap-4">
                     {COLOR_OPTIONS.map((color) => {
                       const isSelected = formData.colors.includes(color.name);
                       const isLight = ['White', 'Beige', 'Silver', 'Yellow'].includes(color.name);
-                      
+
                       return (
                         <button
                           key={color.name}
@@ -889,9 +898,9 @@ const AddProduct = () => {
                           }`}>
                             {color.name}
                           </span>
-                          
+
                           {isSelected && (
-                            <motion.div 
+                            <motion.div
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
                               className="absolute -top-1 -right-1 bg-brand-gold text-white rounded-full p-1 shadow-lg border-2 border-white"
@@ -903,7 +912,7 @@ const AddProduct = () => {
                       );
                     })}
                   </div>
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Tags</label>
@@ -950,11 +959,15 @@ const AddProduct = () => {
                   <p className="mt-1 text-[8px] text-brand-dark/40 uppercase tracking-widest">Press Enter or use commas to add tags.</p>
                 </div>
 
-                {/* Dynamic Filters */}
-                {dynamicFilters.length > 0 && (
-                  <div className="pt-6 border-t border-brand-dark/5 space-y-6">
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Marketplace Filters</h4>
-                    {dynamicFilters.map(filter => (
+                {/* Dynamic Attributes */}
+                <div className="pt-6 border-t border-brand-dark/5 space-y-6">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Product Attributes</h4>
+                  {!formData.parentCategoryId ? (
+                    <p className="text-[10px] text-brand-dark/40 italic">Select a Parent Category above to load available attributes.</p>
+                  ) : dynamicFilters.length === 0 ? (
+                    <p className="text-[10px] text-brand-dark/40 italic">No attributes configured for this category yet.</p>
+                  ) : (
+                    dynamicFilters.map(filter => (
                       <div key={filter.id} className="space-y-3">
                         <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60">{filter.name}</label>
                         <div className="flex flex-wrap gap-2">
@@ -974,9 +987,9 @@ const AddProduct = () => {
                           ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 

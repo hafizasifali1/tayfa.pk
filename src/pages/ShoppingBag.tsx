@@ -354,12 +354,19 @@ const ShoppingBagPage = () => {
                           
                           {/* Variant & Quantity */}
                           <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
-                            {/* Variant badge */}
-                            {item.variantId && item.variantId !== 'default' && (
-                              <span className="bg-brand-cream/80 border border-brand-dark/5 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-brand-dark/60">
-                                {item.variantId}
-                              </span>
-                            )}
+                            {/* Per-attribute badges */}
+                            {item.attributes && Object.keys(item.attributes).length > 0
+                              ? Object.entries(item.attributes).map(([name, value]) => (
+                                  <span key={name} className="bg-brand-cream/80 border border-brand-dark/5 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-brand-dark/60">
+                                    {name}: {value}
+                                  </span>
+                                ))
+                              : item.variantId && item.variantId !== 'default' && (
+                                  <span className="bg-brand-cream/80 border border-brand-dark/5 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-brand-dark/60">
+                                    {item.variantId}
+                                  </span>
+                                )
+                            }
 
                             {/* Quantity Selector */}
                             <div className="flex items-center bg-brand-cream/50 border border-brand-dark/5 rounded-lg p-0.5 sm:p-1">

@@ -23,9 +23,8 @@ export interface CartItem {
   originalPrice?: number; // Price before discount
   imageUrl: string;
   qty: number;
-  variantId: string;    // "M-Red" or "M" or "Red" or "default"
-  size?: string;
-  color?: string;
+  variantId: string;    // encodes all selected attribute values e.g. "Green-Cotton"
+  attributes?: Record<string, string>; // { "Color": "Green", "Fabric": "Cotton" }
   applicablePromotions?: any[];
 }
 
@@ -44,8 +43,9 @@ export const getOrCreateSessionId = (): string => {
   return sessionId;
 };
 
-export const buildVariantId = (size?: string, color?: string): string => {
-  const parts = [size, color].filter(Boolean);
+export const buildVariantId = (attributes?: Record<string, string>): string => {
+  if (!attributes || Object.keys(attributes).length === 0) return 'default';
+  const parts = Object.values(attributes).filter(Boolean);
   return parts.length > 0 ? parts.join('-') : 'default';
 };
 
@@ -84,9 +84,8 @@ const LocalCart = {
                 } catch { return ''; }
               })(),
               qty: old.quantity || old.qty || 1,
-              variantId: buildVariantId(old.selectedSize, old.selectedColor),
-              size: old.selectedSize,
-              color: old.selectedColor,
+              variantId: buildVariantId({ ...(old.selectedSize ? { Size: old.selectedSize } : {}), ...(old.selectedColor ? { Color: old.selectedColor } : {}) }),
+              attributes: { ...(old.selectedSize ? { Size: old.selectedSize } : {}), ...(old.selectedColor ? { Color: old.selectedColor } : {}) },
             }));
             localStorage.setItem(key, JSON.stringify(migrated));
             localStorage.removeItem('cart');

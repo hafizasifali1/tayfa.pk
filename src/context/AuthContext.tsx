@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasPermission = (module: Module, action: Action = 'view'): boolean => {
     if (!user) return false;
-    if (user.role === 'admin' || user.role === 'super_admin') return true;
+    if (user.role === 'super_admin') return true;
 
     const rolesArray = Array.isArray(roles) ? roles : [];
     const roleConfig = rolesArray.find(r => r.id === user.role);

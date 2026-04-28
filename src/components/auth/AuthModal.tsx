@@ -152,7 +152,8 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [role, setRole] = useState<'user' | 'seller' | 'admin'>('user');
+  // const [role, setRole] = useState<'user' | 'seller' | 'admin'>('user');
+  const role = 'user' as const; // role tabs hidden — backend determines actual role
   const [rememberMe, setRememberMe] = useState(false);
 
   const { login, googleLogin } = useAuth();
@@ -160,8 +161,8 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
   const navigate = useNavigate();
 
   useEffect(() => {
-    const lastRole = localStorage.getItem('tayfa_last_role');
-    if (lastRole === 'user' || lastRole === 'seller' || lastRole === 'admin') setRole(lastRole);
+    // const lastRole = localStorage.getItem('tayfa_last_role');
+    // if (lastRole === 'user' || lastRole === 'seller' || lastRole === 'admin') setRole(lastRole);
     const savedEmail = localStorage.getItem('tayfa_remember_email');
     if (savedEmail) { setEmail(savedEmail); setRememberMe(true); }
   }, []);
@@ -170,13 +171,15 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
     e.preventDefault();
     setError(''); setIsLoading(true);
     try {
-      await login(email, password, role);
+      await login(email, password);
       if (rememberMe) localStorage.setItem('tayfa_remember_email', email);
       else localStorage.removeItem('tayfa_remember_email');
       closeModal();
-      if (role === 'admin') navigate('/admin/dashboard');
-      else if (role === 'seller') navigate('/seller/dashboard');
-      else navigate('/');
+      navigate('/');
+      // Role-based navigation removed — tabs hidden, backend determines role
+      // if (role === 'admin') navigate('/admin/dashboard');
+      // else if (role === 'seller') navigate('/seller/dashboard');
+      // else navigate('/');
     } catch (err: any) { setError(err.message || 'Invalid credentials'); }
     finally { setIsLoading(false); }
   };
@@ -185,11 +188,9 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
     setIsLoading(true);
     setError('');
     try {
-      await googleLogin(token, role);
+      await googleLogin(token, '');
       closeModal();
-      if (role === 'admin') navigate('/admin/dashboard');
-      else if (role === 'seller') navigate('/seller/dashboard');
-      else navigate('/');
+      navigate('/');
     } catch (err: any) {
       setError(err.message || 'Google login failed.');
     } finally {
@@ -197,16 +198,17 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
     }
   };
 
-  const roles = [
-    { id: 'user', label: 'Customer', icon: UserIcon },
-    { id: 'seller', label: 'Seller', icon: Store },
-    { id: 'admin', label: 'Admin', icon: ShieldCheck },
-  ];
+  // Role tabs hidden — role selector removed
+  // const roles = [
+  //   { id: 'user', label: 'Customer', icon: UserIcon },
+  //   { id: 'seller', label: 'Seller', icon: Store },
+  //   { id: 'admin', label: 'Admin', icon: ShieldCheck },
+  // ];
 
   return (
     <div className="space-y-4">
-      {/* Role selector */}
-      <div>
+      {/* Role selector — hidden */}
+      {/* <div>
         <label className="block text-[10px] font-bold uppercase tracking-[0.3em] text-brand-dark mb-3 text-center">Select Your Role</label>
         <div className="flex p-1.5 bg-brand-cream/50 rounded-2xl border border-brand-dark/5">
           {roles.map((r) => (
@@ -218,7 +220,7 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
             </button>
           ))}
         </div>
-      </div>
+      </div> */}
 
       <AnimatePresence mode="wait">
         <motion.form key={role} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} onSubmit={handleSubmit} className="space-y-4">
@@ -262,40 +264,37 @@ const SignInForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
           </label>
           <button type="submit" disabled={isLoading}
             className="w-full flex items-center justify-center space-x-3 py-3.5 px-4 rounded-xl text-[11px] font-bold uppercase tracking-[0.2em] text-white bg-brand-dark hover:bg-brand-gold disabled:opacity-50 transition-all duration-300 group shadow-lg shadow-brand-dark/10">
-            <span>{isLoading ? 'Authenticating...' : `Sign In as ${role}`}</span>
+            <span>{isLoading ? 'Authenticating...' : 'Sign In'}</span>
             {!isLoading && <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />}
           </button>
         </motion.form>
       </AnimatePresence>
 
       {/* Google Login */}
-      {role === 'user' && (
-        <div className="pt-1">
-          <div className="relative mb-4">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-brand-dark/5" /></div>
-            <div className="relative flex justify-center text-[9px]"><span className="px-3 bg-white text-brand-dark/30 uppercase tracking-[0.3em] font-bold">Or continue with</span></div>
-          </div>
-          <GoogleLoginButton
-            onSuccess={handleGoogleSuccess}
-            onError={() => setError('Google login failed. Please try again.')}
-            label="Google"
-          />
+      <div className="pt-1">
+        <div className="relative mb-4">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-brand-dark/5" /></div>
+          <div className="relative flex justify-center text-[9px]"><span className="px-3 bg-white text-brand-dark/30 uppercase tracking-[0.3em] font-bold">Or continue with</span></div>
         </div>
-      )}
+        <GoogleLoginButton
+          onSuccess={handleGoogleSuccess}
+          onError={() => setError('Google login failed. Please try again.')}
+          label="Google"
+        />
+      </div>
 
       <div className="text-center pt-1">
-        {role === 'user' && (
-          <p className="text-[11px] text-brand-dark/40 uppercase tracking-widest font-medium">
-            New to the platform?{' '}
-            <button onClick={() => onSwitch('signup')} className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">Create Account</button>
-          </p>
-        )}
-        {role === 'seller' && (
+        <p className="text-[11px] text-brand-dark/40 uppercase tracking-widest font-medium">
+          New to the platform?{' '}
+          <button onClick={() => onSwitch('signup')} className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">Create Account</button>
+        </p>
+        {/* Seller link hidden — role tabs removed */}
+        {/* {role === 'seller' && (
           <p className="text-[11px] text-brand-dark/40 uppercase tracking-widest font-medium">
             Want to sell?{' '}
             <button onClick={() => onSwitch('seller')} className="font-bold text-brand-gold hover:text-brand-gold/80 transition-colors underline underline-offset-4">Apply as Seller</button>
           </p>
-        )}
+        )} */}
       </div>
     </div>
   );
@@ -309,7 +308,7 @@ const SignUpForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const { registerUser, googleLogin } = useAuth();
+  const { registerUser } = useAuth();
   const { closeModal } = useAuthModal();
   const navigate = useNavigate();
 
@@ -329,19 +328,20 @@ const SignUpForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
     finally { setIsLoading(false); }
   };
 
-  const handleGoogleSuccess = async (token: string) => {
-    setIsLoading(true);
-    setError('');
-    try {
-      await googleLogin(token, 'user');
-      closeModal();
-      navigate('/');
-    } catch (err: any) {
-      setError(err.message || 'Google sign-up failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Google sign-up hidden — handler kept for reference
+  // const handleGoogleSuccess = async (token: string) => {
+  //   setIsLoading(true);
+  //   setError('');
+  //   try {
+  //     await googleLogin(token, 'user');
+  //     closeModal();
+  //     navigate('/');
+  //   } catch (err: any) {
+  //     setError(err.message || 'Google sign-up failed.');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   if (isSuccess) return (
     <div className="text-center py-10">
@@ -418,8 +418,8 @@ const SignUpForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
         </button>
       </form>
 
-      {/* Google Sign Up */}
-      <div>
+      {/* Google Sign Up — hidden on sign-up page */}
+      {/* <div>
         <div className="relative mb-4">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-brand-dark/5" /></div>
           <div className="relative flex justify-center text-[9px]"><span className="px-3 bg-white text-brand-dark/30 uppercase tracking-[0.3em] font-bold">Or sign up with</span></div>
@@ -428,7 +428,7 @@ const SignUpForm = ({ onSwitch }: { onSwitch: (tab: AuthModalTab) => void }) => 
           onSuccess={handleGoogleSuccess}
           onError={() => setError('Google sign-up failed. Please try again.')}
         />
-      </div>
+      </div> */}
 
       <div className="text-center">
         <p className="text-[11px] text-brand-dark/40 uppercase tracking-widest font-medium">

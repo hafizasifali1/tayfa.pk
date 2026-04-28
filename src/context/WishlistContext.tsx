@@ -61,7 +61,8 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const moveToCart = (product: Product, size?: string) => {
-    addToCart(product, size || product.sizes[0]);
+    const sz = size || (Array.isArray(product.sizes) ? product.sizes[0] : undefined);
+    addToCart(product, sz ? { Size: sz } : undefined);
     removeFromWishlist(product.id);
   };
 

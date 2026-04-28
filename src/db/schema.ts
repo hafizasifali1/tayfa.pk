@@ -189,6 +189,9 @@ export const filters = table('filters', {
   displayOrder: integer('display_order').default(0),
   isActive: boolean('is_active').default(true),
   labels: json('labels'), // For multi-language support
+  categoryId: isMysql ? char('category_id', { length: 36 }) : char('category_id'), // FK to parent categories (parent_id IS NULL)
+  isFilterable: boolean('is_filterable').default(false), // show in shop sidebar
+  isAttribute: boolean('is_attribute').default(false),   // show on product detail page
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -631,11 +634,12 @@ export const cartItems = table('cart_items', {
   cartId: isMysql ? char('cart_id', { length: 36 }).notNull() : char('cart_id').notNull(),
   productId: isMysql ? char('product_id', { length: 36 }).notNull() : char('product_id').notNull(),
   sellerId: isMysql ? char('seller_id', { length: 36 }) : char('seller_id'),      // for multi-seller routing
-  variantId: varchar('variant_id', { length: 100 }),                              // size-color variant key e.g. "M-Red"
+  variantId: varchar('variant_id', { length: 255 }),                              // encodes all selected attribute values
   name: varchar('name', { length: 255 }).notNull(),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   image: varchar('image', { length: 2048 }),
   qty: integer('qty').default(1),
+  attributes: json('attributes'),                                                 // { "Color": "Green", "Fabric": "Cotton" }
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

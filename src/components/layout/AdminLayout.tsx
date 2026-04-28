@@ -90,8 +90,8 @@ const AdminLayout = () => {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  // Show Access Denied if logged in but not admin
-  if (user.role !== 'admin') {
+  // Show Access Denied if logged in but not admin or super_admin
+  if (user.role !== 'admin' && user.role !== 'super_admin') {
     return (
       <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
         <AccessDenied requiredRole="admin" />

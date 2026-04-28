@@ -263,6 +263,13 @@ export async function migrate() {
       await addColumn('promotions', 'category_id', 'CHAR(36)');
       await addColumn('seller_applications', 'brands', 'JSON');
       await addColumn('seller_applications', 'overview_document_url', 'VARCHAR(500)');
+
+      await addColumn('filters', 'category_id', 'CHAR(36) NULL');
+      await addColumn('filters', 'is_filterable', 'TINYINT(1) NOT NULL DEFAULT 0');
+      await addColumn('filters', 'is_attribute', 'TINYINT(1) NOT NULL DEFAULT 0');
+
+      await addColumn('cart_items', 'attributes', 'JSON NULL');
+      await addColumn('cart_items', 'variant_id', 'VARCHAR(255)');
     } else {
       // PostgreSQL
       const addColumnPg = async (table: string, column: string, definition: string) => {
@@ -464,6 +471,12 @@ export async function migrate() {
       await addColumnPg('promotions', 'apply_to', "VARCHAR(50) DEFAULT 'all'");
       await addColumnPg('promotions', 'product_ids', 'JSONB');
       await addColumnPg('promotions', 'category_id', 'UUID');
+      await addColumnPg('filters', 'category_id', 'UUID NULL');
+      await addColumnPg('filters', 'is_filterable', 'BOOLEAN NOT NULL DEFAULT FALSE');
+      await addColumnPg('filters', 'is_attribute', 'BOOLEAN NOT NULL DEFAULT FALSE');
+
+      await addColumnPg('cart_items', 'attributes', 'JSONB NULL');
+      await addColumnPg('cart_items', 'variant_id', 'VARCHAR(255)');
       await addColumnPg('seller_applications', 'address_line1', 'TEXT');
       await addColumnPg('seller_applications', 'city', 'VARCHAR(100)');
       await addColumnPg('seller_applications', 'state', 'VARCHAR(100)');

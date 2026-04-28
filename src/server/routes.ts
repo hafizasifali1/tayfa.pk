@@ -507,9 +507,12 @@ router.get('/coupons', async (req, res) => {
 router.get('/filters', async (req, res) => {
   try {
     if (!process.env.DATABASE_URL) return res.json([]);
-    const { isActive } = req.query;
+    const { isActive, category_id, isFilterable, isAttribute } = req.query;
     let conditions = [];
     if (isActive !== undefined) conditions.push(eq(filters.isActive, isActive === 'true'));
+    if (category_id) conditions.push(eq(filters.categoryId, category_id as string));
+    if (isFilterable !== undefined) conditions.push(eq(filters.isFilterable, isFilterable === 'true'));
+    if (isAttribute !== undefined) conditions.push(eq(filters.isAttribute, isAttribute === 'true'));
 
     const result = await db.select().from(filters)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -525,14 +528,17 @@ router.get('/filters', async (req, res) => {
 router.post('/filters', async (req, res) => {
   try {
     const id = uuidv4();
-    const { name, type, displayOrder, isActive, labels } = req.body;
+    const { name, type, displayOrder, isActive, labels, categoryId, isFilterable, isAttribute } = req.body;
     await db.insert(filters).values({
       id,
       name,
       type,
       displayOrder: displayOrder || 0,
       isActive: isActive !== undefined ? isActive : true,
-      labels: labels || {}
+      labels: labels || {},
+      categoryId: categoryId || null,
+      isFilterable: isFilterable ?? false,
+      isAttribute: isAttribute ?? false,
     });
     const [newFilter] = await db.select().from(filters).where(eq(filters.id, id));
     res.status(201).json(newFilter);
@@ -550,7 +556,7 @@ router.patch('/filters/:id', async (req, res) => {
       data: req.body,
       userId: req.body.adminId || 'system',
       module: 'Filter',
-      allowedFields: ['name', 'type', 'displayOrder', 'isActive', 'labels']
+      allowedFields: ['name', 'type', 'displayOrder', 'isActive', 'labels', 'categoryId', 'isFilterable', 'isAttribute']
     });
     res.json(updated);
   } catch (error: any) {
@@ -1119,6 +1125,15 @@ router.post('/products', async (req, res) => {
     
     console.log('Creating product with data:', { ...data, id, slug });
     await db.insert(products).values({ ...data, id, slug });
+
+    // Sync dynamicFilters JSON → product_filter_values table
+    if (data.dynamicFilters && typeof data.dynamicFilters === 'object') {
+      const pfvRows = Object.entries(data.dynamicFilters as Record<string, string[]>).flatMap(([filterId, valueIds]) =>
+        (valueIds || []).map(valueId => ({ id: uuidv4(), productId: id, filterId, valueId }))
+      );
+      if (pfvRows.length > 0) await db.insert(productFilterValues).values(pfvRows);
+    }
+
     const [newProduct] = await db.select().from(products).where(eq(products.id, id));
     res.status(201).json(newProduct);
   } catch (error) {
@@ -1138,6 +1153,16 @@ router.put('/products/:id', async (req, res) => {
     if (data.dynamicFilters) data.dynamicFilters = parseJsonField(data.dynamicFilters);
 
     await db.update(products).set(data).where(eq(products.id, req.params.id));
+
+    // Sync dynamicFilters JSON → product_filter_values table
+    if (data.dynamicFilters && typeof data.dynamicFilters === 'object') {
+      await db.delete(productFilterValues).where(eq(productFilterValues.productId, req.params.id));
+      const pfvRows = Object.entries(data.dynamicFilters as Record<string, string[]>).flatMap(([filterId, valueIds]) =>
+        (valueIds || []).map(valueId => ({ id: uuidv4(), productId: req.params.id, filterId, valueId }))
+      );
+      if (pfvRows.length > 0) await db.insert(productFilterValues).values(pfvRows);
+    }
+
     const [updated] = await db.select().from(products).where(eq(products.id, req.params.id));
     res.json(updated);
   } catch (error) {
@@ -1153,6 +1178,71 @@ router.delete('/products/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting product:', error);
     res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+router.get('/products/:id/attributes', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.json([]);
+
+    // Accept both UUID and slug — product detail page passes the slug from the URL
+    const [product] = await db.select({ id: products.id, dynamicFilters: products.dynamicFilters })
+      .from(products)
+      .where(or(eq(products.id, req.params.id), eq(products.slug, req.params.id)));
+
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    // Get all attribute filters (is_attribute = true, is_active = true)
+    const attributeFilters = await db.select().from(filters)
+      .where(and(eq(filters.isAttribute, true), eq(filters.isActive, true)))
+      .orderBy(filters.displayOrder);
+
+    if (attributeFilters.length === 0) return res.json([]);
+
+    const attributeFilterIds = attributeFilters.map(f => f.id);
+
+    // Build a map of filterId → valueId[] from product_filter_values
+    const pfvRows = await db.select().from(productFilterValues)
+      .where(and(
+        eq(productFilterValues.productId, product.id),
+        inArray(productFilterValues.filterId, attributeFilterIds)
+      ));
+
+    const selectionMap: Record<string, string[]> = {};
+    pfvRows.forEach(r => {
+      if (!selectionMap[r.filterId]) selectionMap[r.filterId] = [];
+      selectionMap[r.filterId].push(r.valueId);
+    });
+
+    // Fall back to products.dynamicFilters JSON for products saved before the junction table sync
+    if (pfvRows.length === 0) {
+      const jsonFilters: Record<string, string[]> = parseJsonField(product.dynamicFilters) || {};
+      attributeFilterIds.forEach(filterId => {
+        if (jsonFilters[filterId]?.length) selectionMap[filterId] = jsonFilters[filterId];
+      });
+    }
+
+    if (Object.keys(selectionMap).length === 0) return res.json([]);
+
+    const allValueIds = Object.values(selectionMap).flat();
+    const fvRows = await db.select().from(filterValues)
+      .where(inArray(filterValues.id, allValueIds));
+
+    const valueMap = new Map(fvRows.map(fv => [fv.id, fv.value]));
+
+    const result = attributeFilters
+      .map(filter => {
+        const values = (selectionMap[filter.id] || [])
+          .map(vid => valueMap.get(vid))
+          .filter(Boolean) as string[];
+        return values.length > 0 ? { id: filter.id, name: filter.name, values } : null;
+      })
+      .filter(Boolean);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching product attributes:', error);
+    res.status(500).json({ error: 'Failed to fetch product attributes' });
   }
 });
 
@@ -4175,8 +4265,7 @@ const loadCartItems = async (cartId: string) => {
     imageUrl: r.image,
     qty: r.qty,
     variantId: r.variantId || 'default',
-    size: r.variantId?.split('-')[0] || '',
-    color: r.variantId?.split('-')[1] || '',
+    attributes: r.attributes ? (typeof r.attributes === 'string' ? JSON.parse(r.attributes) : r.attributes) : {},
   }));
 };
 
@@ -4199,7 +4288,7 @@ router.get('/cart', async (req, res) => {
 // POST /api/cart/items  — add item to cart (idempotent: merges qty if same variant)
 router.post('/cart/items', async (req, res) => {
   try {
-    const { userId, id: productId, sellerId, name, price, image, imageUrl, qty = 1, variantId = 'default' } = req.body;
+    const { userId, id: productId, sellerId, name, price, image, imageUrl, qty = 1, variantId = 'default', attributes } = req.body;
     if (!userId || !productId || !name || price === undefined) {
       return res.status(400).json({ error: 'userId, id, name, price are required' });
     }
@@ -4239,7 +4328,8 @@ router.post('/cart/items', async (req, res) => {
         price: price.toString(),
         image: finalImage || null,
         qty,
-      });
+        attributes: attributes || null,
+      } as any);
     }
 
     const items = await loadCartItems(cart.id);

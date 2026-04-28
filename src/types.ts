@@ -407,6 +407,9 @@ export interface Filter {
   displayOrder: number;
   isActive: boolean;
   labels?: Record<string, string>;
+  categoryId?: string | null;
+  isFilterable?: boolean;
+  isAttribute?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

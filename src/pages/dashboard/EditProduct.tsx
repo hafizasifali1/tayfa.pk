@@ -61,7 +61,7 @@ const SortableImage = ({ img, index, onRemove }: { img: ProductImage, index: num
       style={style}
       className={`relative aspect-[4/5] rounded-2xl overflow-hidden border border-brand-dark/5 group shadow-sm ${isDragging ? 'opacity-50' : ''}`}
     >
-      <img src={img.url || null} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+      <img src={img.url || undefined} alt={`Preview ${index}`} className="w-full h-full object-cover" />
       
       <div 
         {...attributes} 
@@ -141,6 +141,8 @@ const EditProduct = () => {
   const [imageInput, setImageInput] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [brandsList, setBrandsList] = useState<any[]>([]);
+  // tracks the last parentCategoryId we fetched filters for — used to know if user changed the category
+  const lastFetchedCategoryRef = React.useRef<string>('');
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -252,25 +254,40 @@ const EditProduct = () => {
   }, []);
 
   useEffect(() => {
+    // Wait until product data is loaded before reacting to parentCategoryId
+    if (isFetching) return;
+
+    if (!formData.parentCategoryId) {
+      setDynamicFilters([]);
+      setFilterValuesMap({});
+      return;
+    }
+
     const fetchDynamicFilters = async () => {
       try {
-        const response = await axios.get('/api/filters?isActive=true');
+        const response = await axios.get(`/api/filters?isActive=true&category_id=${formData.parentCategoryId}`);
         if (Array.isArray(response.data)) {
           setDynamicFilters(response.data);
-          const valuesPromises = response.data.map(f => axios.get(`/api/filter-values?filterId=${f.id}`));
+          const valuesPromises = response.data.map((f: Filter) => axios.get(`/api/filter-values?filterId=${f.id}`));
           const valuesResponses = await Promise.all(valuesPromises);
           const newMap: Record<string, FilterValue[]> = {};
-          response.data.forEach((f, idx) => {
+          response.data.forEach((f: Filter, idx: number) => {
             newMap[f.id] = valuesResponses[idx].data;
           });
           setFilterValuesMap(newMap);
+
+          // Clear selections only when the user actively changes to a different category
+          if (lastFetchedCategoryRef.current && lastFetchedCategoryRef.current !== formData.parentCategoryId) {
+            setFormData(prev => ({ ...prev, dynamicFilters: {} }));
+          }
+          lastFetchedCategoryRef.current = formData.parentCategoryId;
         }
       } catch (err) {
         console.error('Error fetching dynamic filters:', err);
       }
     };
     fetchDynamicFilters();
-  }, []);
+  }, [formData.parentCategoryId, isFetching]);
 
   useEffect(() => {
     const fetchBrands = async () => {
@@ -839,10 +856,15 @@ const EditProduct = () => {
                   </div>
                 </div>
 
-                {dynamicFilters.length > 0 && (
-                  <div className="pt-6 border-t border-brand-dark/5 space-y-6">
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Marketplace Filters</h4>
-                    {dynamicFilters.map(filter => (
+                {/* Dynamic Attributes */}
+                <div className="pt-6 border-t border-brand-dark/5 space-y-6">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Product Attributes</h4>
+                  {!formData.parentCategoryId ? (
+                    <p className="text-[10px] text-brand-dark/40 italic">Select a Parent Category above to load available attributes.</p>
+                  ) : dynamicFilters.length === 0 ? (
+                    <p className="text-[10px] text-brand-dark/40 italic">No attributes configured for this category yet.</p>
+                  ) : (
+                    dynamicFilters.map(filter => (
                       <div key={filter.id} className="space-y-3">
                         <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60">{filter.name}</label>
                         <div className="flex flex-wrap gap-2">
@@ -862,9 +884,9 @@ const EditProduct = () => {
                           ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 

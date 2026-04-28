@@ -7,7 +7,7 @@ interface CartContextType {
   cartCount: number;
   cartTotal: number;
   isLoading: boolean;
-  addToCart: (product: any, size?: string, color?: string, qty?: number) => Promise<void>;
+  addToCart: (product: any, attributes?: Record<string, string>, qty?: number) => Promise<void>;
   removeFromCart: (productId: string, variantId: string, cartItemId?: string) => Promise<void>;
   updateQuantity: (productId: string, variantId: string, qty: number, cartItemId?: string) => Promise<void>;
   clearCart: () => void;
@@ -83,7 +83,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('[CartContext] Init error:', err);
         if (!cancelled) {
-          const freshGuest = await attachPromotions(CartService.GuestCart.getAll());
+          const freshGuest = await attachPromotions(CartService.LocalCart.getAll());
           setCart(freshGuest);
         }
       } finally {
@@ -110,24 +110,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user?.id, withLock]);
 
   // ── Add to Cart ──────────────────────────────────────────────────
-  const addToCart = useCallback(async (product: any, size?: string, color?: string, qty: number = 1) => {
+  const addToCart = useCallback(async (product: any, attributes?: Record<string, string>, qty: number = 1) => {
     getOrCreateSessionId();
-    let variantId = buildVariantId(size, color);
-    
-    // Safety check for empty sizes if selected size wasn't passed properly
-    if (variantId === 'default') {
-      const defaultSize = Array.isArray(product.sizes) && product.sizes.length > 0 
-        ? product.sizes[0] 
-        : undefined;
-      if (defaultSize) variantId = buildVariantId(defaultSize, color);
-    }
+    const variantId = buildVariantId(attributes);
 
     let image = '';
     try {
       const imgs = typeof product.images === 'string'
         ? JSON.parse(product.images)
         : product.images;
-      
+
       if (Array.isArray(imgs)) {
         // Find first image that is NOT base64 (URLs only)
         const urlImage = imgs.find(img => typeof img === 'string' && !img.startsWith('data:image'));
@@ -156,8 +148,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       imageUrl: image,
       qty,
       variantId,
-      size,
-      color,
+      attributes: attributes || {},
       applicablePromotions: product.applicablePromotions
     };
 

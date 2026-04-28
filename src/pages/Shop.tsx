@@ -77,27 +77,6 @@ const Shop = () => {
     fetchCategories();
   }, []);
 
-  useEffect(() => {
-    const fetchFilters = async () => {
-      try {
-        const response = await axios.get('/api/filters?isActive=true');
-        if (Array.isArray(response.data)) {
-          setDynamicFilters(response.data);
-          const valuesPromises = response.data.map(f => axios.get(`/api/filter-values?filterId=${f.id}`));
-          const valuesResponses = await Promise.all(valuesPromises);
-          const newMap: Record<string, FilterValue[]> = {};
-          response.data.forEach((f, idx) => {
-            newMap[f.id] = valuesResponses[idx].data;
-          });
-          setFilterValuesMap(newMap);
-        }
-      } catch (error) {
-        console.error('Failed to fetch dynamic filters:', error);
-      }
-    };
-    fetchFilters();
-  }, []);
-
   const currentCategory = searchParams.get('category');
   const currentParentCategoryId = searchParams.get('parentCategoryId');
   const currentCategoryId = searchParams.get('categoryId');
@@ -108,6 +87,30 @@ const Shop = () => {
   const currentType = searchParams.get('type');
   const currentTags = searchParams.getAll('tag');
   const currentColors = searchParams.getAll('color');
+
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const url = currentParentCategoryId
+          ? `/api/filters?isActive=true&isFilterable=true&category_id=${currentParentCategoryId}`
+          : `/api/filters?isActive=true&isFilterable=true`;
+        const response = await axios.get(url);
+        if (Array.isArray(response.data)) {
+          setDynamicFilters(response.data);
+          const valuesPromises = response.data.map((f: Filter) => axios.get(`/api/filter-values?filterId=${f.id}`));
+          const valuesResponses = await Promise.all(valuesPromises);
+          const newMap: Record<string, FilterValue[]> = {};
+          response.data.forEach((f: Filter, idx: number) => {
+            newMap[f.id] = valuesResponses[idx].data;
+          });
+          setFilterValuesMap(newMap);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dynamic filters:', error);
+      }
+    };
+    fetchFilters();
+  }, [currentParentCategoryId]);
   const minPrice = searchParams.get('minPrice');
   const maxPrice = searchParams.get('maxPrice');
 

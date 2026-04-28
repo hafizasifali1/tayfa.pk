@@ -47,6 +47,7 @@ const AdminPromotionManager = () => {
     type: 'percentage' as 'percentage' | 'fixed_amount' | 'free_shipping' | 'buy_x_get_y_free',
     value: '',
     minPurchase: '0',
+    minQuantity: '1',
     buyQuantity: '',
     getQuantity: '',
     applyTo: 'all' as 'all' | 'specific' | 'category',
@@ -54,7 +55,8 @@ const AdminPromotionManager = () => {
     categoryId: '',
     startDate: '',
     endDate: '',
-    isActive: true
+    isActive: true,
+    sellerId: 'admin'
   });
 
   const fetchInitialData = async () => {
@@ -88,7 +90,7 @@ const AdminPromotionManager = () => {
     try {
       setIsSubmitting(true);
       const payload = {
-        sellerId: 'admin',
+        sellerId: formData.sellerId || 'admin',
         name: formData.name,
         description: formData.description,
         type: formData.type,
@@ -96,6 +98,7 @@ const AdminPromotionManager = () => {
         minPurchase: parseFloat(formData.minPurchase) || 0,
         buyQuantity: formData.type === 'buy_x_get_y_free' ? (parseInt(formData.buyQuantity) || 0) : null,
         getQuantity: formData.type === 'buy_x_get_y_free' ? (parseInt(formData.getQuantity) || 0) : null,
+        minQuantity: formData.type !== 'buy_x_get_y_free' ? (parseInt(formData.minQuantity) || 1) : null,
         applyTo: formData.applyTo,
         productIds: formData.applyTo === 'specific' ? formData.productIds : [],
         categoryId: formData.applyTo === 'category' ? formData.categoryId : null,
@@ -143,6 +146,7 @@ const AdminPromotionManager = () => {
       type: promo.type,
       value: promo.value?.toString() || '',
       minPurchase: (promo.minPurchase || 0).toString(),
+      minQuantity: (promo as any).minQuantity?.toString() || '1',
       buyQuantity: promo.buyQuantity?.toString() || '',
       getQuantity: promo.getQuantity?.toString() || '',
       applyTo: promo.applyTo || 'all',
@@ -150,7 +154,8 @@ const AdminPromotionManager = () => {
       categoryId: promo.categoryId || '',
       startDate: promo.startDate ? new Date(promo.startDate).toISOString().split('T')[0] : '',
       endDate: promo.endDate ? new Date(promo.endDate).toISOString().split('T')[0] : '',
-      isActive: promo.isActive
+      isActive: promo.isActive,
+      sellerId: promo.sellerId || 'admin'
     });
     setIsModalOpen(true);
   };
@@ -195,6 +200,7 @@ const AdminPromotionManager = () => {
               type: 'percentage',
               value: '',
               minPurchase: '0',
+              minQuantity: '1',
               buyQuantity: '',
               getQuantity: '',
               applyTo: 'all',
@@ -202,7 +208,8 @@ const AdminPromotionManager = () => {
               categoryId: '',
               startDate: '',
               endDate: '',
-              isActive: true
+              isActive: true,
+              sellerId: 'admin'
             });
             setIsModalOpen(true);
           }}
@@ -332,7 +339,7 @@ const AdminPromotionManager = () => {
 
       {/* Integrated FormModal */}
       <FormModal
-        title={editingId ? 'Edit Promotion' : 'Add New Promotion'}
+        title={editingId ? (formData.sellerId === 'admin' ? 'Edit Global Promotion' : 'Edit Seller Promotion') : 'Create Global Promotion'}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}
@@ -340,6 +347,18 @@ const AdminPromotionManager = () => {
         submitLabel={editingId ? 'Save Changes' : 'Create Promotion'}
       >
         <div className="space-y-6">
+          {formData.sellerId !== 'admin' && (
+            <div className="bg-brand-cream/30 p-4 rounded-2xl border border-brand-dark/5 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold mb-1">Source Seller</p>
+                <p className="text-sm font-serif text-brand-dark">
+                  {promotions.find(p => p.id === editingId)?.sellerName || formData.sellerId}
+                </p>
+              </div>
+              <Store size={18} className="text-brand-gold" />
+            </div>
+          )}
+
           <div className="space-y-2">
             <h4 className="text-[10px] uppercase tracking-widest text-brand-dark/40 font-bold">Campaign Details</h4>
           </div>
@@ -440,6 +459,27 @@ const AdminPromotionManager = () => {
                     placeholder="1"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Min Quantity — for percentage / fixed_amount / free_shipping */}
+            {(formData.type === 'percentage' || formData.type === 'fixed_amount' || formData.type === 'free_shipping') && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-widest text-brand-dark/60 font-bold">Minimum Quantity to Unlock</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.minQuantity}
+                    onChange={(e) => setFormData({ ...formData, minQuantity: e.target.value })}
+                    className="w-full bg-white border border-brand-dark/10 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-brand-gold/20 outline-none transition-all"
+                    placeholder="1"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-dark/40 text-xs font-bold">items</span>
+                </div>
+                <p className="text-[10px] text-brand-dark/40 font-medium">
+                  Customer must buy at least <strong>{formData.minQuantity || 1}</strong> item(s) to unlock this promotion
+                </p>
               </div>
             )}
           </div>

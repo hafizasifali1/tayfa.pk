@@ -51,7 +51,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
           ? (() => { try { const p = JSON.parse(product.sizes as any); return Array.isArray(p) && p.length > 0 ? p[0] : undefined; } catch { return undefined; } })()
           : undefined);
     try {
-      await addToCart(product, defaultSize || undefined);
+      await addToCart(product, defaultSize ? { Size: defaultSize } : undefined);
     } finally {
       setTimeout(() => setIsAdding(false), 1500);
     }

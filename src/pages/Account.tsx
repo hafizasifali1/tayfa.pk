@@ -57,16 +57,16 @@ const Account = () => {
           <p className="text-xs sm:text-base text-brand-dark/60">{user.email}</p>
           <div className="pt-1.5 sm:pt-2">
             <span className="inline-block bg-brand-gold/10 text-brand-gold text-[8px] sm:text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">
-              {user.role === 'admin' ? 'Admin' : user.role === 'seller' ? 'Seller' : 'TAYFA Member'}
+              {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : user.role === 'seller' ? 'Seller' : 'TAYFA Member'}
             </span>
           </div>
         </div>
-        
+
         {/* Dashboard Shortcut */}
-        {(user.role === 'admin' || user.role === 'seller') && (
+        {(user.role === 'super_admin' || user.role === 'admin' || user.role === 'seller') && (
           <div className="mt-6 md:mt-4">
-            <button 
-              onClick={() => navigate(user.role === 'admin' ? '/admin/dashboard' : '/seller/dashboard')}
+            <button
+              onClick={() => navigate(user.role === 'seller' ? '/seller/dashboard' : '/admin/dashboard')}
               className="group flex items-center space-x-3 bg-white border border-brand-gold/30 text-brand-gold px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-gold hover:text-white transition-all shadow-sm hover:shadow-brand/20"
             >
               <LayoutDashboard size={16} className="group-hover:rotate-12 transition-transform" />

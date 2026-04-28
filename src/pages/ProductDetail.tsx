@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ShoppingBag, Heart, Share2, ChevronLeft, ChevronRight, Truck, ShieldCheck, RotateCcw, Star, CheckCircle2, Info, Ruler, Sparkles, ChevronDown, Loader2, Facebook, Twitter, Linkedin } from 'lucide-react';
+import { ShoppingBag, Heart, Share2, ChevronLeft, ChevronRight, Truck, ShieldCheck, RotateCcw, Star, CheckCircle2, Info, Ruler, Sparkles, ChevronDown, Loader2, Facebook, Twitter, Linkedin, Plus, Minus } from 'lucide-react';
 import axios from 'axios';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -28,9 +28,9 @@ const ProductDetail = () => {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const [product, setProduct] = useState<any>(null);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+  const [productAttributes, setProductAttributes] = useState<{ id: string; name: string; values: string[] }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSize, setSelectedSize] = useState('');
-  const [selectedColor, setSelectedColor] = useState('');
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [currentImage, setCurrentImage] = useState(0);
   const [isAdded, setIsAdded] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -67,7 +67,14 @@ const ProductDetail = () => {
         const response = await axios.get(`/api/products/${id}`);
         const currentProduct = response.data;
         setProduct(currentProduct);
-        
+
+        try {
+          const attrResponse = await axios.get(`/api/products/${id}/attributes`);
+          if (Array.isArray(attrResponse.data)) setProductAttributes(attrResponse.data);
+        } catch {
+          // attributes are non-critical, silently ignore
+        }
+
         const allProductsResponse = await axios.get('/api/products');
         const allProducts = allProductsResponse.data;
         
@@ -139,68 +146,67 @@ const ProductDetail = () => {
   }
 
   const handleAddToCart = async () => {
-    const sizes = Array.isArray(product.sizes) ? product.sizes : [];
-    if (!selectedSize && sizes.length > 0 && sizes[0] !== 'Unstitched') {
+    // Require size selection if a Size filter exists
+    const sizeAttr = productAttributes.find(a => a.name.toLowerCase() === 'size');
+    if (sizeAttr && !selectedAttributes[sizeAttr.id]) {
       alert('Please select a size');
       return;
     }
-    const size = selectedSize || (sizes.length > 0 ? sizes[0] : undefined);
-    await addToCart(product, size, selectedColor || undefined, quantity);
+
+    // Build attributes map: filter name → selected value (only include selections made)
+    const attributes: Record<string, string> = {};
+    productAttributes.forEach(attr => {
+      const val = selectedAttributes[attr.id];
+      if (val) attributes[attr.name] = val;
+    });
+
+    await addToCart(product, Object.keys(attributes).length > 0 ? attributes : undefined, quantity);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };
 
-  const renderSelectors = (inline = false) => (
-    <div className={`space-y-4 ${inline ? 'mt-2 border-t border-brand-dark/5 pt-4' : ''}`}>
-      {/* Color Selection */}
-      {Array.isArray(product.colors) && product.colors.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">Color: <span className="text-brand-dark-muted font-black">{selectedColor || 'Select'}</span></h3>
-          <div className="flex flex-wrap gap-2">
-            {product.colors.map((color: string) => (
-              <button
-                key={color}
-                onClick={(e) => { e.stopPropagation(); setSelectedColor(color); }}
-                className={`group relative flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${
-                  selectedColor === color 
-                    ? 'bg-brand-dark text-white border-brand-dark shadow-sm' 
-                    : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
-                }`}
-              >
-                {color}
-                {selectedColor === color && <CheckCircle2 size={10} className="ml-1 text-brand-gold" />}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Size Selection */}
-      {Array.isArray(product.sizes) && product.sizes.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">Size: <span className="text-brand-dark-muted font-black">{selectedSize || 'Select'}</span></h3>
-            <button className="text-[9px] text-brand-gold-dark underline uppercase tracking-widest font-black hover:text-brand-dark transition-colors">Size Guide</button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {product.sizes.map((size: string) => (
-              <button
-                key={size}
-                onClick={(e) => { e.stopPropagation(); setSelectedSize(size); }}
-                className={`min-w-[40px] h-8 px-2 rounded-lg text-[10px] font-black transition-all border flex items-center justify-center ${
-                  selectedSize === size 
-                    ? 'bg-brand-dark text-white border-brand-dark shadow-md' 
-                    : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
-                }`}
-              >
-                {size}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  const renderDynamicSelectors = () => {
+    if (productAttributes.length === 0) return null;
+    return (
+      <div className="space-y-4">
+        {productAttributes.map(attr => {
+          const isSize = attr.name.toLowerCase() === 'size';
+          const selected = selectedAttributes[attr.id];
+          return (
+            <div key={attr.id} className="space-y-2">
+              <div className="flex justify-between items-center">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">
+                  {attr.name}:{' '}
+                  <span className="text-brand-dark-muted font-black">{selected || 'Select'}</span>
+                </h3>
+                {isSize && (
+                  <button className="text-[9px] text-brand-gold-dark underline uppercase tracking-widest font-black hover:text-brand-dark transition-colors">
+                    Size Guide
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {attr.values.map(val => (
+                  <button
+                    key={val}
+                    onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.id]: val }))}
+                    className={`flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${
+                      selected === val
+                        ? 'bg-brand-dark text-white border-brand-dark shadow-sm'
+                        : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
+                    }`}
+                  >
+                    {val}
+                    {selected === val && <CheckCircle2 size={10} className="ml-1 text-brand-gold" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
 
 
@@ -324,8 +330,8 @@ const ProductDetail = () => {
             <p className="text-brand-dark-muted leading-relaxed text-sm font-normal">{product.description}</p>
           </div>
 
-          {/* Selectors */}
-          {renderSelectors()}
+          {/* Dynamic Attribute Selectors */}
+          {renderDynamicSelectors()}
 
           {/* Quantity Selector */}
           <div className="space-y-2 pt-4">

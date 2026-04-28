@@ -42,7 +42,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     );
   }
 
-  if (!user || (user.role !== 'seller' && user.role !== 'admin')) {
+  if (!user || (user.role !== 'seller' && user.role !== 'admin' && user.role !== 'super_admin')) {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
