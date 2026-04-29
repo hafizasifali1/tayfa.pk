@@ -545,7 +545,7 @@ const SellerDetail = () => {
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <p className="text-xs font-bold text-brand-dark truncate">{application.businessData.overviewDocumentName || 'Overview_Document.pdf'}</p>
-                          <p className="text-[10px] text-brand-dark/40 font-mono">UPLOADED: {new Date(application.createdAt).toLocaleDateString()}</p>
+                          <p className="text-[10px] text-brand-dark/40 font-mono">UPLOADED: {application.createdAt ? new Date(application.createdAt).toLocaleDateString() : 'N/A'}</p>
                         </div>
                         <a 
                           href={application.businessData.overviewDocumentUrl} 
@@ -590,39 +590,45 @@ const SellerDetail = () => {
               </div>
               
               <div className="space-y-4 relative z-10">
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="w-2 h-2 rounded-full bg-brand-gold shadow-[0_0_8px_rgba(201,168,76,0.5)]" />
-                    <div className="w-px h-8 bg-white/10 mt-1" />
-                  </div>
-                  <div className="pb-2">
-                    <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Received</p>
-                    <p className="text-[11px] font-semibold text-white">{new Date(application.createdAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
+                {application ? (
+                  <>
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-2 h-2 rounded-full bg-brand-gold shadow-[0_0_8px_rgba(201,168,76,0.5)]" />
+                        <div className="w-px h-8 bg-white/10 mt-1" />
+                      </div>
+                      <div className="pb-2">
+                        <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Received</p>
+                        <p className="text-[11px] font-semibold text-white">{application.createdAt ? new Date(application.createdAt).toLocaleDateString() : 'N/A'}</p>
+                      </div>
+                    </div>
 
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-2 h-2 rounded-full ${application.reviewedAt ? 'bg-brand-gold' : 'bg-white/10'}`} />
-                    <div className="w-px h-8 bg-white/10 mt-1" />
-                  </div>
-                  <div className="pb-2">
-                    <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Processed</p>
-                    <p className="text-[11px] font-semibold text-white">{application.reviewedAt ? new Date(application.reviewedAt).toLocaleDateString() : 'Pending'}</p>
-                  </div>
-                </div>
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-2 h-2 rounded-full ${application.reviewedAt ? 'bg-brand-gold' : 'bg-white/10'}`} />
+                        <div className="w-px h-8 bg-white/10 mt-1" />
+                      </div>
+                      <div className="pb-2">
+                        <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Processed</p>
+                        <p className="text-[11px] font-semibold text-white">{application.reviewedAt ? new Date(application.reviewedAt).toLocaleDateString() : 'Pending'}</p>
+                      </div>
+                    </div>
 
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-2 h-2 rounded-full ${application.status !== 'pending' ? (application.status === 'approved' ? 'bg-emerald-500' : 'bg-rose-500') : 'bg-white/10'}`} />
-                  </div>
-                  <div>
-                    <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Status</p>
-                    <p className="text-[11px] font-semibold text-white uppercase tracking-wider">
-                      {application.status === 'pending' ? 'Decision Pending' : (application.status === 'approved' ? 'Approved' : 'Rejected')}
-                    </p>
-                  </div>
-                </div>
+                    <div className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-2 h-2 rounded-full ${application.status && application.status !== 'pending' ? (application.status === 'approved' ? 'bg-emerald-500' : 'bg-rose-500') : 'bg-white/10'}`} />
+                      </div>
+                      <div>
+                        <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest">Status</p>
+                        <p className="text-[11px] font-semibold text-white uppercase tracking-wider">
+                          {!application.status || application.status === 'pending' ? 'Decision Pending' : (application.status === 'approved' ? 'Approved' : 'Rejected')}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-white/40 italic">No application record on file for this seller.</p>
+                )}
               </div>
             </Card>
           </motion.div>

@@ -2065,69 +2065,12 @@ router.post('/bulk-upload', async (req, res) => {
 });
 
 // --- Roles & RBAC API ---
-router.get('/roles', async (req, res) => {
-  try {
-    const defaultRoles = [
-      {
-        id: 'admin',
-        name: 'Administrator',
-        description: 'Full system access',
-        isSystem: true,
-        permissions: []
-      },
-      {
-        id: 'seller',
-        name: 'Seller',
-        description: 'Manage products and orders',
-        isSystem: true,
-        permissions: [
-          { module: 'overview', actions: ['view'] },
-          { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'bulk_upload', actions: ['view', 'create'] },
-          { module: 'orders', actions: ['view', 'edit'] },
-          { module: 'analytics', actions: ['view'] },
-          { module: 'pricelist', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'promotions', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'coupons', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'discounts', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'shipping', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'payments', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'invoices', actions: ['view', 'create', 'edit', 'delete'] },
-          { module: 'ledger', actions: ['view'] },
-          { module: 'system', actions: ['view'] },
-          { module: 'settings', actions: ['view', 'edit'] }
-        ]
-      },
-      {
-        id: 'user',
-        name: 'Customer',
-        description: 'Standard customer access',
-        isSystem: true,
-        permissions: [
-          { module: 'overview', actions: ['view'] }
-        ]
-      }
-    ];
-
-    if (!process.env.DATABASE_URL) return res.json(defaultRoles);
-
-    // Fetch from DB
-    const dbRoles = await db.select().from(roles);
-
-    // If empty, seed default roles
-    if (dbRoles.length === 0) {
-      for (const role of defaultRoles) {
-        await db.insert(roles).values(role);
-      }
-      return res.json(defaultRoles);
-    }
-
-    res.json(dbRoles);
-  } catch (error) {
-    console.error('Error fetching roles:', error);
-    res.status(500).json({ error: 'Failed to fetch roles' });
-  }
-});
+// NOTE: a single canonical GET /roles handler is defined further below
+// (search for "router.get('/roles'"). The earlier duplicate handler that
+// previously lived here has been removed because Express only runs the first
+// match — the duplicate was masking the more complete handler and seeded
+// the Administrator role with no permissions, which contributed to admin
+// permissions appearing empty after refresh.
 
 // --- Seller Analytics API ---
 router.get('/seller/analytics', async (req, res) => {
@@ -3382,7 +3325,10 @@ router.get('/roles', async (req, res) => {
       
       for (const role of defaultRoles) {
         try {
-          await db.insert(roles).values(role);
+          await db.insert(roles).values({
+            ...role,
+            permissions: JSON.stringify(role.permissions)
+          } as any);
         } catch (e) {
           console.error(`Failed to seed role ${role.id}:`, e);
         }
@@ -3409,12 +3355,16 @@ router.post('/roles', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const id = uuidv4();
     const data = { ...req.body, id };
-    
-    // Ensure permissions is a clean object
-    if (data.permissions) {
-      data.permissions = parseJsonField(data.permissions);
+
+    // Stringify permissions before insert (drizzle-mysql2 doesn't reliably
+    // auto-serialize JSON columns on writes for this codebase's setup).
+    if (data.permissions !== undefined) {
+      const parsed = parseJsonField(data.permissions);
+      data.permissions = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
+    } else {
+      data.permissions = '[]';
     }
-    
+
     await db.insert(roles).values(data);
     const [newRole] = await db.select().from(roles).where(eq(roles.id, id));
     res.status(201).json({
@@ -3462,8 +3412,12 @@ router.patch('/roles/:id', async (req, res) => {
     }
 
     const updateData = { ...req.body };
-    if (updateData.permissions) {
-      updateData.permissions = parseJsonField(updateData.permissions);
+    if (updateData.permissions !== undefined) {
+      // drizzle-mysql2 does not always auto-serialize JSON columns on
+      // .set(), so we stringify explicitly here. Mirrors the pattern used
+      // elsewhere in this file for json columns (see settings.value writes).
+      const parsed = parseJsonField(updateData.permissions);
+      updateData.permissions = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
     }
 
     const updated = await handlePatchUpdate({
@@ -3474,7 +3428,7 @@ router.patch('/roles/:id', async (req, res) => {
       module: 'Role',
       allowedFields: ['name', 'description', 'permissions', 'isSystem']
     });
-    
+
     res.json({
       ...updated,
       permissions: parseJsonField(updated.permissions)
@@ -3528,6 +3482,52 @@ router.get('/admin/users', async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+router.post('/admin/users', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
+    const { email, password, fullName, phone, role, status, adminId } = req.body;
+
+    if (!email || !password || !fullName || !role) {
+      return res.status(400).json({ error: 'fullName, email, password, and role are required' });
+    }
+
+    const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const id = uuidv4();
+    const finalStatus = status || (role === 'seller' ? 'pending' : 'active');
+
+    await db.insert(users).values({
+      id,
+      email,
+      password: hashedPassword,
+      fullName,
+      phone: phone || null,
+      role,
+      status: finalStatus
+    });
+
+    await db.insert(auditLogs).values({
+      id: uuidv4(),
+      userId: adminId || 'system',
+      action: 'create_user',
+      module: 'users',
+      details: { targetUserId: id, role, status: finalStatus },
+      createdAt: sql`CURRENT_TIMESTAMP`
+    });
+
+    const [newUser] = await db.select().from(users).where(eq(users.id, id));
+    const { password: _pw, ...userWithoutPassword } = newUser as any;
+    res.status(201).json(userWithoutPassword);
+  } catch (error: any) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: error.message || 'Failed to create user' });
   }
 });
 

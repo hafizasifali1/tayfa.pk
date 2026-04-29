@@ -71,7 +71,12 @@ const Navbar = () => {
           .map(child => ({
             name: child.name,
             path: `/shop?categoryId=${child.id}`,
-            items: [] // Could add sub-sub categories here if needed
+            items: categories
+              .filter(c => c.parentId === child.id)
+              .map(sub => ({
+                name: sub.name,
+                path: `/shop?categoryId=${sub.id}`,
+              })),
           }))
       })),
     { name: 'Journal', path: '/blogs' },
@@ -255,7 +260,7 @@ const Navbar = () => {
                     {sub.icon && <sub.icon size={18} className="text-brand-gold" />}
                     <span>{sub.name}</span>
                   </Link>
-                  {sub.items && (
+                  {sub.items && sub.items.length > 0 && (
                     <ul className="space-y-3 border-l border-brand-dark/5 pl-4">
                       {sub.items.map(item => (
                         <li key={item.name}>
@@ -269,7 +274,7 @@ const Navbar = () => {
                       ))}
                     </ul>
                   )}
-                  {!sub.items && (
+                  {(!sub.items || sub.items.length === 0) && (
                     <p className="text-xs text-brand-dark/40 italic">Explore our curated {sub.name.toLowerCase()} collection.</p>
                   )}
                 </div>
@@ -348,7 +353,7 @@ const Navbar = () => {
                                 {sub.icon && <sub.icon size={14} className="text-brand-gold" />}
                                 <span>{sub.name}</span>
                               </Link>
-                              {sub.items && (
+                              {sub.items && sub.items.length > 0 && (
                                 <div className="grid grid-cols-2 gap-2 pl-6">
                                   {sub.items.map(subItem => (
                                     <Link key={subItem.name} to={subItem.path} className="text-sm text-brand-dark/60 py-1">

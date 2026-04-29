@@ -15,11 +15,14 @@ const CategoryManager = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<Partial<Category> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [childOptions, setChildOptions] = useState<Category[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState<string>('');
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
+  useEffect
   const fetchCategories = async () => {
     try {
       const response = await axios.get('/api/categories');
@@ -38,11 +41,25 @@ const CategoryManager = () => {
   };
 
   const handleEdit = (category: Category) => {
-    setCurrentCategory({ ...category });
+    // Resolve the top-level parent so the Parent dropdown stays populated even when
+    // this category's immediate parent is itself a child (i.e. we're a sub-sub-category).
+    const immediateParent = category.parentId
+      ? categories.find(c => c.id === category.parentId)
+      : null;
+    const topParentId = immediateParent?.parentId
+      ? immediateParent.parentId   // immediate parent is a child -> grandparent is the top
+      : (category.parentId || ''); // immediate parent is top-level (or none)
+    const childId = immediateParent?.parentId ? category.parentId! : '';
+
+    setSelectedParentId(topParentId);
+    setChildOptions(topParentId ? categories.filter(c => c.parentId === topParentId) : []);
+    setCurrentCategory({ ...category, ...(childId ? { childId } as any : {}) });
     setIsEditing(true);
   };
 
   const handleAddNew = () => {
+    setSelectedParentId('');
+    setChildOptions([]);
     setCurrentCategory({
       name: '',
       slug: '',
@@ -67,10 +84,11 @@ const CategoryManager = () => {
     if (!currentCategory?.name || !currentCategory?.slug) return;
 
     try {
+      const { childId, ...payload } = currentCategory as any;
       if (currentCategory.id) {
-        await axios.patch(`/api/categories/${currentCategory.id}`, currentCategory);
+        await axios.patch(`/api/categories/${currentCategory.id}`, payload);
       } else {
-        await axios.post('/api/categories', currentCategory);
+        await axios.post('/api/categories', payload);
       }
       setIsEditing(false);
       fetchCategories();
@@ -313,23 +331,62 @@ const CategoryManager = () => {
                   </div>
 
                   <div className="space-y-6">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Parent Category</label>
-                      <select
-                        name="parentId"
-                        value={currentCategory.parentId || ''}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm bg-white"
-                      >
-                        <option value="">None (Top Level)</option>
-                        {categories
-                          .filter(c => c.id !== currentCategory.id && !c.parentId) // Only top level categories as parents
-                          .map(cat => (
-                            <option key={cat.id} value={cat.id}>{cat.name}</option>
-                          ))
-                        }
-                      </select>
-                    </div>
+                   <div>
+  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Parent Category</label>
+  <select
+    name="topParentId"
+    value={selectedParentId}
+    onChange={(e) => {
+      const newTopId = e.target.value;
+      setSelectedParentId(newTopId);
+      const children = newTopId ? categories.filter(c => c.parentId === newTopId) : [];
+      setChildOptions(children);
+      // Reset child selection; effective parentId becomes the chosen top (or '' for top-level)
+      setCurrentCategory(prev => prev ? { ...prev, parentId: newTopId, childId: '' } as any : null);
+    }}
+    className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm bg-white"
+  >
+    <option value="">None (Top Level)</option>
+    {categories
+      .filter(c => c.id !== currentCategory.id && !c.parentId)
+      .map(cat => (
+        <option key={cat.id} value={cat.id}>{cat.name}</option>
+      ))
+    }
+  </select>
+</div>
+
+{/* Child Category Dropdown - sirf tab show ho jab parent select ho AUR children hon */}
+{childOptions.length > 0 && (
+  <div>
+    <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">
+      Child Category <span className="text-brand-dark/30">(Optional)</span>
+    </label>
+    <select
+      name="childId"
+      value={(currentCategory as any).childId || ''}
+      onChange={(e) => {
+        const selectedChildId = e.target.value;
+        setCurrentCategory(prev => prev ? {
+          ...prev,
+          // If child selected, that child becomes the immediate parent.
+          // Otherwise this category sits directly under the top-level parent.
+          parentId: selectedChildId || selectedParentId,
+          childId: selectedChildId
+        } as any : null);
+      }}
+      className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm bg-white"
+    >
+      <option value="">-- Select Child (Optional) --</option>
+      {childOptions.map(cat => (
+        <option key={cat.id} value={cat.id}>{cat.name}</option>
+      ))}
+    </select>
+    <p className="text-[10px] text-brand-dark/40 mt-1 uppercase tracking-wider">
+      ✅ Child select kiya = Sub-Category banega | Khali rakha = Direct Child banega
+    </p>
+  </div>
+)}
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Display Order</label>
                       <input

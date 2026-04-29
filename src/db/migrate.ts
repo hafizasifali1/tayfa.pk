@@ -552,7 +552,36 @@ export async function migrate() {
           name: 'Administrator',
           description: 'Full system access',
           isSystem: true,
-          permissions: [] 
+          permissions: [
+            { module: 'overview', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'orders', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'categories', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'brands', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'rbac', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'settings', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'analytics', actions: ['view'] },
+            { module: 'system', actions: ['view'] }
+          ] 
+        },
+        {
+          id: 'super_admin',
+          name: 'Super Administrator',
+          description: 'Highest level system access',
+          isSystem: true,
+          permissions: [
+            { module: 'overview', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'orders', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'categories', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'brands', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'rbac', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'settings', actions: ['view', 'create', 'edit', 'delete'] },
+            { module: 'analytics', actions: ['view'] },
+            { module: 'system', actions: ['view'] }
+          ] 
         },
         {
           id: 'seller',
@@ -598,8 +627,9 @@ export async function migrate() {
             createdAt: new Date(),
             updatedAt: new Date()
           });
-        } else if (role.isSystem) {
-          // Force update system roles to ensure latest permissions
+        } else if (role.isSystem && role.id !== 'admin' && role.id !== 'super_admin') {
+          // Force update other system roles to ensure latest permissions, 
+          // but skip admin/super_admin to allow manual customization in dashboard
           console.log(`Syncing system role: ${role.id}`);
           await db.update(roles)
             .set({ 
@@ -628,7 +658,7 @@ export async function migrate() {
         console.log('Updating existing user to admin...');
         await db.update(users)
           .set({ 
-            role: 'admin', 
+            role: 'super_admin', 
             status: 'active',
             password: hashedPassword,
             updatedAt: new Date()
@@ -641,7 +671,7 @@ export async function migrate() {
           fullName: 'Tayyab Admin',
           email: adminEmail,
           password: hashedPassword,
-          role: 'admin',
+          role: 'super_admin',
           status: 'active'
         });
       }

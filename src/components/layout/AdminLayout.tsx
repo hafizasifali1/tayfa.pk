@@ -90,8 +90,11 @@ const AdminLayout = () => {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  // Show Access Denied if logged in but not admin or super_admin
-  if (user.role !== 'admin' && user.role !== 'super_admin') {
+  // Customers and sellers should not access the admin layout. Any other role
+  // (admin, super_admin, or a custom role like "Distributor") is allowed in
+  // and gets a sidebar filtered down to only the modules they have permission
+  // for via hasPermission().
+  if (user.role === 'user' || user.role === 'seller') {
     return (
       <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
         <AccessDenied requiredRole="admin" />
@@ -111,6 +114,16 @@ const AdminLayout = () => {
     ...mod,
     items: mod.items.filter(item => hasPermission(item.module as any, 'view'))
   })).filter(mod => mod.items.length > 0);
+
+  // If a custom role has no permissions configured at all, show Access Denied
+  // rather than an empty admin shell.
+  if (filteredModules.length === 0 && user.role !== 'super_admin') {
+    return (
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
+        <AccessDenied requiredRole="admin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-brand-cream flex">

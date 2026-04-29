@@ -7,7 +7,7 @@ import { useAuthModal } from '../context/AuthModalContext';
 
 const Account = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, roles } = useAuth();
   const { openModal } = useAuthModal();
 
   const menuItems = [
@@ -57,23 +57,38 @@ const Account = () => {
           <p className="text-xs sm:text-base text-brand-dark/60">{user.email}</p>
           <div className="pt-1.5 sm:pt-2">
             <span className="inline-block bg-brand-gold/10 text-brand-gold text-[8px] sm:text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">
-              {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : user.role === 'seller' ? 'Seller' : 'TAYFA Member'}
+              {(() => {
+                if (user.role === 'super_admin') return 'Super Admin';
+                if (user.role === 'admin') return 'Admin';
+                if (user.role === 'seller') return 'Seller';
+                if (user.role === 'user') return 'TAYFA Member';
+                const matched = (roles || []).find(r => r.id === user.role);
+                return matched?.name || 'TAYFA Member';
+              })()}
             </span>
           </div>
         </div>
 
-        {/* Dashboard Shortcut */}
-        {(user.role === 'super_admin' || user.role === 'admin' || user.role === 'seller') && (
-          <div className="mt-6 md:mt-4">
-            <button
-              onClick={() => navigate(user.role === 'seller' ? '/seller/dashboard' : '/admin/dashboard')}
-              className="group flex items-center space-x-3 bg-white border border-brand-gold/30 text-brand-gold px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-gold hover:text-white transition-all shadow-sm hover:shadow-brand/20"
-            >
-              <LayoutDashboard size={16} className="group-hover:rotate-12 transition-transform" />
-              <span>Go to Dashboard</span>
-            </button>
-          </div>
-        )}
+        {/* Dashboard Shortcut — visible for any role that has dashboard access (i.e. anything other than the customer 'user' role) */}
+        {(() => {
+          if (user.role === 'user') return null;
+          const isSeller = user.role === 'seller';
+          const isAdminLike = user.role === 'admin' || user.role === 'super_admin';
+          const matchedRole = (roles || []).find(r => r.id === user.role);
+          const hasAnyPermission = Array.isArray(matchedRole?.permissions) && matchedRole.permissions.length > 0;
+          if (!isSeller && !isAdminLike && !hasAnyPermission) return null;
+          return (
+            <div className="mt-6 md:mt-4">
+              <button
+                onClick={() => navigate(isSeller ? '/seller/dashboard' : '/admin/dashboard')}
+                className="group flex items-center space-x-3 bg-white border border-brand-gold/30 text-brand-gold px-6 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-gold hover:text-white transition-all shadow-sm hover:shadow-brand/20"
+              >
+                <LayoutDashboard size={16} className="group-hover:rotate-12 transition-transform" />
+                <span>Go to Dashboard</span>
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">

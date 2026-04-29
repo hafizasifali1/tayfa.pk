@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+// @ts-ignore - react-dom types not installed but module exists
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -29,6 +31,7 @@ const UserManagement = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [roleOptions, setRoleOptions] = useState<{ label: string; value: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -55,9 +58,28 @@ const UserManagement = () => {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Add User Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const emptyAddForm = { fullName: '', email: '', phone: '', password: '', role: '', status: 'active' };
+  const [addForm, setAddForm] = useState(emptyAddForm);
+  const [addError, setAddError] = useState('');
+
   useEffect(() => {
     fetchUsers();
+    fetchRoles();
   }, []);
+
+  const fetchRoles = async () => {
+    try {
+      const response = await axios.get('/api/roles');
+      const list = Array.isArray(response.data) ? response.data : [];
+      setRoleOptions(list.map((r: any) => ({ label: r.name, value: r.id })));
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      setRoleOptions([]);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -119,6 +141,29 @@ const UserManagement = () => {
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError('');
+    if (!addForm.fullName || !addForm.email || !addForm.password || !addForm.role) {
+      setAddError('Full name, email, password, and role are required.');
+      return;
+    }
+    try {
+      setIsCreating(true);
+      const response = await axios.post('/api/admin/users', {
+        ...addForm,
+        adminId: currentUser?.id
+      });
+      setUsers([response.data, ...users]);
+      setIsAddModalOpen(false);
+      setAddForm(emptyAddForm);
+    } catch (error: any) {
+      setAddError(error.response?.data?.error || 'Failed to create user');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user);
     setIsDeleteModalOpen(true);
@@ -154,11 +199,25 @@ const UserManagement = () => {
   });
 
   const getRoleBadge = (role: string) => {
+    // Built-in roles get fixed colors; any custom role from the roles table
+    // is rendered with a neutral indigo badge using its display name from
+    // the dynamic role options so labels match what's stored in the DB.
     switch (role) {
-      case 'admin': return <Badge variant="danger" className="bg-rose-500/10 text-rose-600 border-rose-200">Admin</Badge>;
-      case 'seller': return <Badge variant="warning" className="bg-amber-500/10 text-amber-600 border-amber-200">Seller</Badge>;
-      case 'delivery_agent': return <Badge variant="info" className="bg-blue-500/10 text-blue-600 border-blue-200">Delivery</Badge>;
-      default: return <Badge variant="default" className="bg-slate-500/10 text-slate-600 border-slate-200">Customer</Badge>;
+      case 'super_admin':
+        return <Badge variant="danger" className="bg-purple-500/10 text-purple-600 border-purple-200">Super Admin</Badge>;
+      case 'admin':
+        return <Badge variant="danger" className="bg-rose-500/10 text-rose-600 border-rose-200">Admin</Badge>;
+      case 'seller':
+        return <Badge variant="warning" className="bg-amber-500/10 text-amber-600 border-amber-200">Seller</Badge>;
+      case 'delivery_agent':
+        return <Badge variant="info" className="bg-blue-500/10 text-blue-600 border-blue-200">Delivery</Badge>;
+      case 'user':
+        return <Badge variant="default" className="bg-slate-500/10 text-slate-600 border-slate-200">Customer</Badge>;
+      default: {
+        const matched = roleOptions.find(r => r.value === role);
+        const label = matched?.label || role || 'Unknown';
+        return <Badge variant="default" className="bg-indigo-500/10 text-indigo-600 border-indigo-200">{label}</Badge>;
+      }
     }
   };
 
@@ -181,7 +240,7 @@ const UserManagement = () => {
           <h1 className="text-5xl font-serif mb-4">User Management</h1>
           <p className="text-brand-dark/60 font-sans">Manage platform users, roles, and access permissions.</p>
         </div>
-        <Button variant="primary" icon={UserPlus}>
+        <Button variant="primary" icon={UserPlus} onClick={() => { setAddError(''); setAddForm(emptyAddForm); setIsAddModalOpen(true); }}>
           Add New User
         </Button>
       </div>
@@ -199,20 +258,23 @@ const UserManagement = () => {
             />
           </div>
           <div className="flex gap-4">
-            <select 
+            <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="bg-white border border-brand-dark/5 rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all outline-none min-w-[160px]"
+              className="bg-white border border-brand-dark/10 rounded-2xl px-6 py-4 text-sm font-medium text-brand-dark focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/30 transition-all outline-none min-w-[180px]"
             >
               <option value="all">All Roles</option>
-              <option value="admin">Admins</option>
-              <option value="seller">Sellers</option>
-              <option value="user">Customers</option>
-              <option value="delivery_agent">Delivery Agents</option>
+              {roleOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
-            <Button variant="outline" icon={Filter}>
+            {/* <button
+              type="button"
+              className="inline-flex items-center gap-2 bg-brand-dark text-white border border-brand-dark rounded-2xl px-6 py-4 text-xs font-bold uppercase tracking-widest hover:bg-brand-gold hover:border-brand-gold transition-all shadow-sm"
+            >
+              <Filter size={16} />
               More Filters
-            </Button>
+            </button> */}
           </div>
         </div>
 
@@ -220,11 +282,11 @@ const UserManagement = () => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-brand-dark/5">
-                <th className="text-left px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">User Info</th>
-                <th className="text-left px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Role</th>
-                <th className="text-left px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Status</th>
-                <th className="text-left px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Joined Date</th>
-                <th className="text-right px-8 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 font-serif italic">Actions</th>
+                <th className="text-left px-8 py-6 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-dark">User Info</th>
+                <th className="text-left px-8 py-6 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-dark">Role</th>
+                <th className="text-left px-8 py-6 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-dark">Status</th>
+                <th className="text-left px-8 py-6 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-dark">Joined Date</th>
+                <th className="text-right px-8 py-6 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-dark">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-dark/5">
@@ -282,34 +344,33 @@ const UserManagement = () => {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
+                      <div className="flex justify-end gap-2">
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (user.role === 'seller') {
-                              navigate(`/admin/users/seller/${user.id}`);
-                            } else {
-                              handleEditClick(user);
-                            }
+                            handleEditClick(user);
                           }}
-                          className="p-3 text-brand-dark/40 hover:text-brand-gold hover:bg-brand-gold/10 rounded-xl transition-all"
+                          title="Edit"
+                          className="p-2.5 text-brand-gold bg-brand-gold/10 border border-brand-gold/20 hover:bg-brand-gold hover:text-white hover:border-brand-gold rounded-xl transition-all shadow-sm"
                         >
-                          <Edit2 size={16} />
+                          <Edit2 size={15} />
                         </button>
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteClick(user);
                           }}
-                          className="p-3 text-brand-dark/40 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                          title="Delete"
+                          className="p-2.5 text-rose-500 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500 hover:text-white hover:border-rose-500 rounded-xl transition-all shadow-sm"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
-                        <button 
+                        <button
                           onClick={(e) => e.stopPropagation()}
-                          className="p-3 text-brand-dark/40 hover:text-brand-dark hover:bg-brand-dark/5 rounded-xl transition-all"
+                          title="More"
+                          className="p-2.5 text-brand-dark bg-brand-dark/5 border border-brand-dark/10 hover:bg-brand-dark hover:text-white hover:border-brand-dark rounded-xl transition-all shadow-sm"
                         >
-                          <MoreVertical size={16} />
+                          <MoreVertical size={15} />
                         </button>
                       </div>
                     </td>
@@ -338,16 +399,11 @@ const UserManagement = () => {
             { name: 'fullName', label: 'Full Name', type: 'text', required: true },
             { name: 'email', label: 'Email Address', type: 'email', required: true },
             { name: 'phone', label: 'Phone Number', type: 'text' },
-            { 
-              name: 'role', 
-              label: 'User Role', 
-              type: 'select', 
-              options: [
-                { label: 'Customer', value: 'user' },
-                { label: 'Seller', value: 'seller' },
-                { label: 'Administrator', value: 'admin' },
-                { label: 'Delivery Agent', value: 'delivery_agent' }
-              ] 
+            {
+              name: 'role',
+              label: 'User Role',
+              type: 'select',
+              options: roleOptions
             },
             { 
               name: 'status', 
@@ -361,6 +417,142 @@ const UserManagement = () => {
             }
           ]}
         />
+      )}
+
+      {/* Add User Modal */}
+      {createPortal(
+        <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-brand-dark/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+            >
+              <div className="px-6 py-5 bg-brand-gold text-white flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                    <UserPlus size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-serif leading-tight">Add New User</h2>
+                    <p className="text-white/80 text-[11px]">Create a user account and assign a role.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="text-white/80 hover:text-white p-2 shrink-0"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="p-8 space-y-5">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={addForm.fullName}
+                    onChange={(e) => setAddForm({ ...addForm, fullName: e.target.value })}
+                    className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={addForm.email}
+                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                    className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Phone</label>
+                  <input
+                    type="text"
+                    value={addForm.phone}
+                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Password *</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={addForm.password}
+                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                    className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Role *</label>
+                    <select
+                      required
+                      value={addForm.role}
+                      onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
+                      className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-2xl px-4 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all outline-none"
+                    >
+                      <option value="">Select Role</option>
+                      {roleOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Status</label>
+                    <select
+                      value={addForm.status}
+                      onChange={(e) => setAddForm({ ...addForm, status: e.target.value })}
+                      className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-2xl px-4 py-4 text-sm focus:ring-2 focus:ring-brand-gold/10 focus:border-brand-gold/20 transition-all outline-none"
+                    >
+                      <option value="active">Active</option>
+                      <option value="pending">Pending</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+
+                {addError && (
+                  <div className="flex items-start gap-2 px-4 py-3 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-600">
+                    <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                    <span>{addError}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="flex-1 py-4 border border-brand-dark/10 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-brand-dark hover:bg-brand-cream/30 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreating}
+                    className="flex-[2] py-4 bg-brand-gold text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:shadow-xl hover:shadow-brand-gold/30 transition-all disabled:opacity-50"
+                  >
+                    {isCreating ? 'Creating...' : 'Create User'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>,
+        document.body
       )}
 
       {/* Password Reset Modal */}

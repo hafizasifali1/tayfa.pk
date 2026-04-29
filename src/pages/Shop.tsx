@@ -524,28 +524,50 @@ const Shop = () => {
               </button>
               {categories
                 .filter(c => currentParentCategoryId ? c.parentId === currentParentCategoryId : c.parentId)
-                .map(cat => (
-                  <button 
-                    key={cat.id}
-                    onClick={() => {
-                      const params = new URLSearchParams(searchParams);
-                      params.set('categoryId', cat.id);
-                      setSearchParams(params);
-                    }}
-                    className={`group flex items-center justify-between w-full text-xs tracking-wider transition-all capitalize ${currentCategoryId === cat.id ? 'text-brand-gold-dark font-bold' : 'text-brand-dark-muted hover:text-brand-dark hover:translate-x-1'}`}
-                  >
-                    <span className="relative">
-                      {cat.name}
-                      {currentCategoryId === cat.id && (
-                        <motion.span 
-                          layoutId="activeCategory"
-                          className="absolute -bottom-1 left-0 w-full h-0.5 bg-brand-gold rounded-full"
-                        />
+                .map(cat => {
+                  const subChildren = categories.filter(c => c.parentId === cat.id);
+                  return (
+                    <div key={cat.id} className="space-y-3">
+                      <button
+                        onClick={() => {
+                          const params = new URLSearchParams(searchParams);
+                          params.set('categoryId', cat.id);
+                          setSearchParams(params);
+                        }}
+                        className={`group flex items-center justify-between w-full text-xs tracking-wider transition-all capitalize ${currentCategoryId === cat.id ? 'text-brand-gold-dark font-bold' : 'text-brand-dark-muted hover:text-brand-dark hover:translate-x-1'}`}
+                      >
+                        <span className="relative">
+                          {cat.name}
+                          {currentCategoryId === cat.id && (
+                            <motion.span
+                              layoutId="activeCategory"
+                              className="absolute -bottom-1 left-0 w-full h-0.5 bg-brand-gold rounded-full"
+                            />
+                          )}
+                        </span>
+                        {currentCategoryId === cat.id && <Check size={12} className="text-brand-gold-dark" />}
+                      </button>
+                      {subChildren.length > 0 && (
+                        <div className="pl-4 border-l border-brand-dark/5 space-y-3">
+                          {subChildren.map(sub => (
+                            <button
+                              key={sub.id}
+                              onClick={() => {
+                                const params = new URLSearchParams(searchParams);
+                                params.set('categoryId', sub.id);
+                                setSearchParams(params);
+                              }}
+                              className={`group flex items-center justify-between w-full text-[11px] tracking-wider transition-all capitalize ${currentCategoryId === sub.id ? 'text-brand-gold-dark font-bold' : 'text-brand-dark/50 hover:text-brand-dark hover:translate-x-1'}`}
+                            >
+                              <span>{sub.name}</span>
+                              {currentCategoryId === sub.id && <Check size={11} className="text-brand-gold-dark" />}
+                            </button>
+                          ))}
+                        </div>
                       )}
-                    </span>
-                    {currentCategoryId === cat.id && <Check size={12} className="text-brand-gold-dark" />}
-                  </button>
-                ))}
+                    </div>
+                  );
+                })}
             </div>
           </div>
         </aside>
@@ -1186,20 +1208,37 @@ const Shop = () => {
                     </button>
                     {categories
                       .filter(c => currentParentCategoryId ? c.parentId === currentParentCategoryId : c.parentId)
-                      .map(cat => (
-                        <button 
-                          key={cat.id}
-                          onClick={() => {
-                            const params = new URLSearchParams(searchParams);
-                            params.set('categoryId', cat.id);
-                            setSearchParams(params);
-                          }}
-                          className={`flex justify-between items-center p-5 rounded-2xl border transition-all active:scale-95 ${currentCategoryId === cat.id ? 'bg-brand-gold/5 border-brand-gold text-brand-gold' : 'bg-brand-cream/40 border-transparent text-brand-dark/60'}`}
-                        >
-                          <span className="text-[10px] font-bold uppercase tracking-widest">{cat.name}</span>
-                          {currentCategoryId === cat.id && <Check size={14} />}
-                        </button>
-                      ))}
+                      .flatMap(cat => {
+                        const subChildren = categories.filter(c => c.parentId === cat.id);
+                        return [
+                          <button
+                            key={cat.id}
+                            onClick={() => {
+                              const params = new URLSearchParams(searchParams);
+                              params.set('categoryId', cat.id);
+                              setSearchParams(params);
+                            }}
+                            className={`col-span-2 flex justify-between items-center p-5 rounded-2xl border transition-all active:scale-95 ${currentCategoryId === cat.id ? 'bg-brand-gold/5 border-brand-gold text-brand-gold' : 'bg-brand-cream/40 border-transparent text-brand-dark/60'}`}
+                          >
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{cat.name}</span>
+                            {currentCategoryId === cat.id && <Check size={14} />}
+                          </button>,
+                          ...subChildren.map(sub => (
+                            <button
+                              key={sub.id}
+                              onClick={() => {
+                                const params = new URLSearchParams(searchParams);
+                                params.set('categoryId', sub.id);
+                                setSearchParams(params);
+                              }}
+                              className={`flex justify-between items-center p-4 ml-4 rounded-2xl border transition-all active:scale-95 ${currentCategoryId === sub.id ? 'bg-brand-gold/5 border-brand-gold text-brand-gold' : 'bg-brand-cream/20 border-transparent text-brand-dark/50'}`}
+                            >
+                              <span className="text-[9px] font-bold uppercase tracking-widest">↳ {sub.name}</span>
+                              {currentCategoryId === sub.id && <Check size={12} />}
+                            </button>
+                          )),
+                        ];
+                      })}
                   </div>
                 </section>
 
