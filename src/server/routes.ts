@@ -62,6 +62,7 @@ import { SEOEntityType } from '../types';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import searchRoutes from './routes/searchRoutes';
 
 const router = express.Router();
 const isMysql = process.env.DATABASE_URL?.startsWith('mysql');
@@ -100,6 +101,9 @@ router.post('/upload', upload.single('image'), (req, res) => {
     res.status(500).json({ error: 'Failed to upload image' });
   }
 });
+
+// --- Advanced Search Routes ---
+router.use('/search', searchRoutes);
 
 // --- Database Migration Helper ---
 const runMigrations = async () => {

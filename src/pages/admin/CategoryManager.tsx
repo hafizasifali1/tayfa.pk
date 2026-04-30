@@ -119,6 +119,23 @@ const CategoryManager = () => {
     }
   }) : [];
 
+  const generateUniqueSlug = (name: string, pId?: string | null, currentId?: string) => {
+    const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    if (!baseSlug) return '';
+
+    // Check if base slug is already taken by another category
+    const isTaken = categories.some(c => c.slug === baseSlug && c.id !== currentId);
+    
+    if (isTaken && pId) {
+      const parent = categories.find(c => c.id === pId);
+      if (parent) {
+        return `${parent.slug}-${baseSlug}`;
+      }
+    }
+    
+    return baseSlug;
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target as any;
     const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
@@ -128,8 +145,11 @@ const CategoryManager = () => {
       const newData = { ...prev, [name]: val };
       
       // Auto-generate slug if name changes and slug is empty or matches previous name slug
-      if (name === 'name' && (!prev.slug || prev.slug === prev.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))) {
-        newData.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const oldAutoSlug = prev.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const isAutoSlug = !prev.slug || prev.slug === oldAutoSlug || prev.slug === (prev.parentId ? `${categories.find(c => c.id === prev.parentId)?.slug}-${oldAutoSlug}` : '');
+      
+      if (name === 'name' && isAutoSlug) {
+        newData.slug = generateUniqueSlug(value, prev.parentId, prev.id);
       }
       
       return newData;
@@ -341,8 +361,16 @@ const CategoryManager = () => {
       setSelectedParentId(newTopId);
       const children = newTopId ? categories.filter(c => c.parentId === newTopId) : [];
       setChildOptions(children);
-      // Reset child selection; effective parentId becomes the chosen top (or '' for top-level)
-      setCurrentCategory(prev => prev ? { ...prev, parentId: newTopId, childId: '' } as any : null);
+      
+      setCurrentCategory(prev => {
+        if (!prev) return null;
+        const name = prev.name || '';
+        const oldAutoSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const isAutoSlug = !prev.slug || prev.slug === oldAutoSlug || prev.slug === (prev.parentId ? `${categories.find(c => c.id === prev.parentId)?.slug}-${oldAutoSlug}` : '');
+        
+        const nextSlug = isAutoSlug ? generateUniqueSlug(name, newTopId, prev.id) : prev.slug;
+        return { ...prev, parentId: newTopId, childId: '', slug: nextSlug } as any;
+      });
     }}
     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm bg-white"
   >
@@ -367,13 +395,22 @@ const CategoryManager = () => {
       value={(currentCategory as any).childId || ''}
       onChange={(e) => {
         const selectedChildId = e.target.value;
-        setCurrentCategory(prev => prev ? {
-          ...prev,
-          // If child selected, that child becomes the immediate parent.
-          // Otherwise this category sits directly under the top-level parent.
-          parentId: selectedChildId || selectedParentId,
-          childId: selectedChildId
-        } as any : null);
+        const effectiveParentId = selectedChildId || selectedParentId;
+        
+        setCurrentCategory(prev => {
+          if (!prev) return null;
+          const name = prev.name || '';
+          const oldAutoSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+          const isAutoSlug = !prev.slug || prev.slug === oldAutoSlug || prev.slug === (prev.parentId ? `${categories.find(c => c.id === prev.parentId)?.slug}-${oldAutoSlug}` : '');
+          
+          const nextSlug = isAutoSlug ? generateUniqueSlug(name, effectiveParentId, prev.id) : prev.slug;
+          return {
+            ...prev,
+            parentId: effectiveParentId,
+            childId: selectedChildId,
+            slug: nextSlug
+          } as any;
+        });
       }}
       className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm bg-white"
     >

@@ -448,3 +448,66 @@ export interface CurrencyRate {
   effectiveDate: string;
   createdAt?: string;
 }
+
+// --- Search System ---
+export interface SearchFilters {
+  q?: string;
+  category?: string;
+  brand?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sizes?: string[];
+  colors?: string[];
+  tags?: string[];
+  gender?: string;
+  rating?: number;
+  inStock?: boolean;
+  isNew?: boolean;
+  isFeatured?: boolean;
+  sortBy?: 'relevance' | 'price_low' | 'price_high' | 'rating' | 'newest' | 'popular';
+  page?: number;
+  limit?: number;
+}
+
+export interface SearchResponse {
+  success: boolean;
+  data: Product[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export interface SuggestionData {
+  success: boolean;
+  data: {
+    products: {
+      id: string;
+      name: string;
+      price: number;
+      images: string;
+      slug: string;
+    }[];
+    categories: {
+      id: string;
+      name: string;
+      slug: string;
+    }[];
+  };
+}
+
+export interface FilterOptions {
+  success: boolean;
+  data: {
+    brands: Brand[];
+    categories: Category[];
+    priceRange: {
+      min: number;
+      max: number;
+    };
+    sizes: string[];
+    colors: string[];
+  };
+}

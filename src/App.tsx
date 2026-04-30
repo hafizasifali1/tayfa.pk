@@ -23,6 +23,7 @@ import AuthModal from './components/auth/AuthModal';
 const Home = lazy(() => import('./pages/Home'));
 const Shop = lazy(() => import('./pages/Shop'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const SearchResults = lazy(() => import('./pages/SearchResults'));
 const ShoppingBag = lazy(() => import('./pages/ShoppingBag'));
 const Wishlist = lazy(() => import('./pages/Wishlist'));
 const Account = lazy(() => import('./pages/Account'));
@@ -121,6 +122,7 @@ export default function App() {
                     <Route path="/" element={<Layout />}>
                       <Route index element={<Home />} />
                       <Route path="shop" element={<Shop />} />
+                      <Route path="search" element={<SearchResults />} />
                       <Route path="product/:id" element={<ProductDetail />} />
                       <Route path="blogs" element={<BlogList />} />
                       <Route path="blog/:slug" element={<BlogDetail />} />
