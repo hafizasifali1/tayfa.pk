@@ -41,7 +41,7 @@ import {
 
 
 const SellerDashboard = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'archived'>('all');
   const [timePeriod, setTimePeriod] = useState('30d');
   const [stats, setStats] = useState<any>(null);
@@ -51,6 +51,40 @@ const SellerDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const recentOrders = React.useMemo(() => {
+    const raw = Array.isArray(stats?.recentOrders) ? stats.recentOrders : [];
+    return [...new Map(raw.map((o: any) => [o.id, o])).values()];
+  }, [stats?.recentOrders]);
+
+  const topProducts = React.useMemo(() => {
+    const raw = Array.isArray(stats?.topProducts) ? stats.topProducts : [];
+    return [...new Map(raw.map((p: any) => [p.id, p])).values()];
+  }, [stats?.topProducts]);
+
+  const deduplicatedProducts = React.useMemo(() => {
+    if (!Array.isArray(products)) return [];
+    let filtered = products;
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(p => p.status === statusFilter);
+    }
+    return [...new Map(filtered.map(p => [p.id, p])).values()];
+  }, [products, statusFilter]);
+
+  const deleteProduct = async (id: string) => {
+    try {
+      setIsDeleting(true);
+      await axios.delete(`/api/products/${id}`);
+      setProducts(prev => Array.isArray(prev) ? prev.filter(p => p.id !== id) : []);
+      setNotification({ type: 'success', message: 'Product deleted successfully' });
+      setConfirmDelete(null);
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      setNotification({ type: 'error', message: 'Failed to delete product' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   
   useEffect(() => {
     if (notification) {
@@ -88,14 +122,7 @@ const SellerDashboard = () => {
     fetchDashboardData();
   }, [user?.id]);
 
-  const sellerProducts = useMemo(() => {
-    if (!Array.isArray(products)) return [];
-    let filtered = products;
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(p => p.status === statusFilter);
-    }
-    return filtered;
-  }, [products, statusFilter]);
+
 
   if (loading) {
     return (
@@ -128,6 +155,13 @@ const SellerDashboard = () => {
     );
   }
 
+  const quickActions = [
+    { name: 'Add Product',     icon: PlusCircle, path: '/seller/add-product', variant: 'primary'  as const, module: 'products'    as const, action: 'create' as const },
+    { name: 'Bulk Upload',     icon: FileUp,     path: '/seller/bulk-upload', variant: 'outline'  as const, module: 'bulk_upload' as const, action: 'create' as const },
+    { name: 'Create Coupon',   icon: Ticket,     path: '/seller/coupons',     variant: 'outline'  as const, module: 'coupons'     as const, action: 'create' as const },
+    { name: 'Manage Pricelist',icon: FileText,   path: '/seller/pricelists',  variant: 'outline'  as const, module: 'pricelist'   as const, action: 'view'   as const },
+  ].filter(a => hasPermission(a.module, a.action));
+
   const statCards = [
     { 
       name: 'Total Revenue', 
@@ -141,7 +175,7 @@ const SellerDashboard = () => {
     },
     { 
       name: 'Active Products', 
-      value: products.filter(p => p.status === 'published').length, 
+      value: (products || []).filter(p => p?.status === 'published').length, 
       icon: Package, 
       change: '+3',
       isPositive: true,
@@ -167,30 +201,6 @@ const SellerDashboard = () => {
       trend: [18, 20, 19, 22, 23, 24, 25]
     },
   ];
-
-  const quickActions = [
-    { name: 'Add Product', icon: PlusCircle, path: '/seller/add-product', variant: 'primary' as const },
-    { name: 'Bulk Upload', icon: FileUp, path: '/seller/bulk-upload', variant: 'outline' as const },
-    { name: 'Create Coupon', icon: Ticket, path: '/seller/coupons', variant: 'outline' as const },
-    { name: 'Manage Pricelist', icon: FileText, path: '/seller/pricelists', variant: 'outline' as const },
-  ];
-
-  const recentOrders = Array.isArray(stats?.recentOrders) ? stats.recentOrders : [];
-
-  const deleteProduct = async (id: string) => {
-    try {
-      setIsDeleting(true);
-      await axios.delete(`/api/products/${id}`);
-      setProducts(prev => Array.isArray(prev) ? prev.filter(p => p.id !== id) : []);
-      setNotification({ type: 'success', message: 'Product deleted successfully' });
-      setConfirmDelete(null);
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      setNotification({ type: 'error', message: 'Failed to delete product' });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   const toggleStatus = async (product: any) => {
     const newStatus = product.status === 'published' ? 'archived' : 'published';
@@ -327,7 +337,7 @@ const SellerDashboard = () => {
 
                 {/* Sparkline */}
                 <div className="absolute bottom-0 left-0 right-0 h-16 opacity-20 group-hover:opacity-40 transition-opacity">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={64}>
                     <AreaChart data={stat.trend.map((val, i) => ({ val, i }))}>
                       <Area 
                         type="monotone" 
@@ -353,8 +363,8 @@ const SellerDashboard = () => {
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-xl font-serif text-brand-dark">Orders by Status</h3>
             </div>
-            <div className="h-64 relative">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-64 relative" style={{ width: '100%', minHeight: 256 }}>
+              <ResponsiveContainer width="100%" height={256}>
                 <PieChart>
                   <Pie
                     data={stats?.ordersByStatus || []}
@@ -468,8 +478,8 @@ const SellerDashboard = () => {
               </div>
             </div>
             
-            <div className="h-[400px] w-full p-8">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[400px] w-full p-8" style={{ width: '100%', minHeight: 400 }}>
+              <ResponsiveContainer width="100%" height={400}>
                 <AreaChart data={stats?.salesOverTime || []}>
                   <defs>
                     <linearGradient id="colorRevenueSeller" x1="0" y1="0" x2="0" y2="1">
@@ -551,7 +561,7 @@ const SellerDashboard = () => {
               <h2 className="text-xl sm:text-2xl font-serif text-brand-dark">Recent Orders</h2>
             </div>
             <div className="flex-grow overflow-y-auto">
-              {(stats?.recentOrders || []).map((order: any, idx: number) => (
+              {recentOrders.map((order: any, idx: number) => (
                 <motion.div 
                   key={order.id}
                   initial={{ opacity: 0, x: 20 }}
@@ -594,7 +604,7 @@ const SellerDashboard = () => {
               <h3 className="text-xl font-serif text-brand-dark">Top Performing Products</h3>
             </div>
             <div className="space-y-8">
-              {(stats?.topProducts || []).map((product: any, idx: number) => {
+              {topProducts.map((product: any, idx: number) => {
                 const revenuePercent = 100 - (idx * 15);
                 return (
                   <motion.div 
@@ -676,8 +686,8 @@ const SellerDashboard = () => {
           </div>
           
           <Table headers={['Product Details', 'Category', 'Price', 'Inventory', 'Status', 'Actions']}>
-            {sellerProducts.length > 0 ? (
-              sellerProducts.map((product) => (
+            {deduplicatedProducts.length > 0 ? (
+              deduplicatedProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-brand-cream/5 transition-colors group">
                   <td className="px-6 py-6 sm:px-10 sm:py-8">
                     <div className="flex items-center space-x-4 sm:space-x-6">
@@ -718,25 +728,34 @@ const SellerDashboard = () => {
                   </td>
                   <td className="px-6 py-6 sm:px-10 sm:py-8 text-right">
                     <div className="flex items-center justify-end space-x-2 sm:space-x-4">
-                      <Link to={`/seller/edit-product/${product.id}`}>
-                        <Button variant="ghost" size="icon" icon={FileText} title="Edit Product" className="w-10 h-10" />
-                      </Link>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        icon={AlertCircle} 
-                        onClick={() => toggleStatus(product)}
-                        className={`w-10 h-10 ${product.status === 'published' ? 'text-rose-400 hover:text-rose-600' : 'text-emerald-400 hover:text-emerald-600'}`}
-                        title={product.status === 'published' ? 'Archive Product' : 'Publish Product'}
-                      />
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        icon={PlusCircle} 
-                        onClick={() => setConfirmDelete(product.id)}
-                        className="w-10 h-10 text-rose-400 hover:text-rose-600 rotate-45"
-                        title="Delete Product"
-                      />
+                      {hasPermission('products', 'edit') && (
+                        <Link to={`/seller/edit-product/${product.id}`}>
+                          <Button variant="ghost" size="icon" icon={FileText} title="Edit Product" className="w-10 h-10" />
+                        </Link>
+                      )}
+                      {hasPermission('products', 'edit') && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          icon={AlertCircle} 
+                          onClick={() => toggleStatus(product)}
+                          className={`w-10 h-10 ${product.status === 'published' ? 'text-rose-400 hover:text-rose-600' : 'text-emerald-400 hover:text-emerald-600'}`}
+                          title={product.status === 'published' ? 'Archive Product' : 'Publish Product'}
+                        />
+                      )}
+                      {hasPermission('products', 'delete') && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          icon={PlusCircle} 
+                          onClick={() => setConfirmDelete(product.id)}
+                          className="w-10 h-10 text-rose-400 hover:text-rose-600 rotate-45"
+                          title="Delete Product"
+                        />
+                      )}
+                      {!hasPermission('products', 'edit') && !hasPermission('products', 'delete') && (
+                        <span className="text-[9px] font-bold text-brand-dark/20 uppercase tracking-widest">View Only</span>
+                      )}
                     </div>
                   </td>
                 </tr>

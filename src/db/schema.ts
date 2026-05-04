@@ -168,6 +168,7 @@ export const products = table('products', {
   colors: json('colors'),
   tags: json('tags'),
   dynamicFilters: json('dynamic_filters'),
+  attributes: json('attributes'), // { "attributeId": ["valueId1", "valueId2"] }
   stock: integer('stock').default(0),
   status: varchar('status', { length: 50 }).default('published'),
   isFeatured: boolean('is_featured').default(false),
@@ -210,6 +211,35 @@ export const productFilterValues = table('product_filter_values', {
   id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
   productId: isMysql ? char('product_id', { length: 36 }).notNull() : char('product_id').notNull(),
   filterId: isMysql ? char('filter_id', { length: 36 }).notNull() : char('filter_id').notNull(),
+  valueId: isMysql ? char('value_id', { length: 36 }).notNull() : char('value_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// --- PDP Attributes Module ---
+export const attributes = table('attributes', {
+  id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  displayType: varchar('display_type', { length: 50 }).default('default'), // color_swatch, dropdown, default
+  displayOrder: integer('display_order').default(0),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const attributeValues = table('attribute_values', {
+  id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+  attributeId: isMysql ? char('attribute_id', { length: 36 }).notNull() : char('attribute_id').notNull(),
+  value: varchar('value', { length: 255 }).notNull(),
+  colorCode: varchar('color_code', { length: 50 }), // For color_swatch display
+  displayOrder: integer('display_order').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const productAttributes = table('product_attributes', {
+  id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
+  productId: isMysql ? char('product_id', { length: 36 }).notNull() : char('product_id').notNull(),
+  attributeId: isMysql ? char('attribute_id', { length: 36 }).notNull() : char('attribute_id').notNull(),
   valueId: isMysql ? char('value_id', { length: 36 }).notNull() : char('value_id').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 });

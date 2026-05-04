@@ -48,9 +48,9 @@ const SellerLedger = () => {
     }, 1000);
   };
 
-  const filteredEntries = ledgerEntries.filter(entry => 
+  const filteredEntries = (ledgerEntries || []).filter(entry => 
     entry.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    entry.id.toLowerCase().includes(searchTerm.toLowerCase())
+    entry.reference.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

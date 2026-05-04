@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -19,6 +19,7 @@ import {
   Tag,
   Sparkles,
   History,
+  BarChart3,
   Truck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -29,10 +30,17 @@ interface DashboardLayoutProps {
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { user, logout, hasPermission, isAuthReady } = useAuth();
+  const { user, logout, hasPermission, canView, isAuthReady, refreshRoles } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+
+  // Sync permissions on mount
+  useEffect(() => {
+    if (isAuthReady) {
+      refreshRoles();
+    }
+  }, [isAuthReady]);
 
   if (!isAuthReady) {
     return (
@@ -42,27 +50,61 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     );
   }
 
-  if (!user || (user.role !== 'seller' && user.role !== 'admin' && user.role !== 'super_admin')) {
+  // Access Control: Allow sellers, admins, and custom roles with overview access.
+  const isAuthorized = user.role === 'seller' || user.role === 'admin' || user.role === 'super_admin' || hasPermission('overview', 'view');
+  
+  if (!isAuthorized) {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  const menuItems = [
-    { name: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', module: 'overview' },
-    { name: 'Add Product', icon: PlusCircle, path: '/seller/add-product', module: 'products', action: 'create' },
-    { name: 'Bulk Upload', icon: Package, path: '/seller/bulk-upload', module: 'bulk_upload' },
-    { name: 'My Products', icon: Package, path: '/seller/products', module: 'products' },
-    { name: 'Pricelists', icon: FileText, path: '/seller/pricelists', module: 'pricelist' },
-    { name: 'Promotions', icon: Sparkles, path: '/seller/promotions', module: 'promotions' },
-    { name: 'Coupons', icon: Ticket, path: '/seller/coupons', module: 'coupons' },
-    { name: 'Discounts', icon: Tag, path: '/seller/discounts', module: 'discounts' },
-    { name: 'Orders', icon: ShoppingBag, path: '/seller/orders', module: 'orders' },
-    { name: 'Shipping', icon: Truck, path: '/seller/shipping', module: 'shipping' },
-    { name: 'Payments', icon: CreditCard, path: '/seller/payments', module: 'payments' },
-    { name: 'Invoices', icon: FileText, path: '/seller/invoices', module: 'invoices' },
-    { name: 'Ledger', icon: BookOpen, path: '/seller/ledger', module: 'ledger' },
-    { name: 'Activity Logs', icon: History, path: '/seller/logs', module: 'system' },
-    { name: 'Settings', icon: Settings, path: '/seller/settings', module: 'settings' },
-  ].filter(item => hasPermission(item.module as Module, (item.action as any) || 'view'));
+  // 1. Define the Master Metadata Registry for all supported modules.
+  // This registry provides the Icon, Label, and Path for each module key.
+  const MODULE_METADATA: Record<string, { name: string; icon: any; path: string }> = {
+    overview:     { name: 'Overview',        icon: LayoutDashboard, path: '/seller/dashboard' },
+    products:     { name: 'My Products',     icon: Package,         path: '/seller/products' },
+    orders:       { name: 'Orders',          icon: ShoppingBag,     path: '/seller/orders' },
+    pricelist:    { name: 'Pricelists',      icon: FileText,        path: '/seller/pricelists' },
+    promotions:   { name: 'Promotions',      icon: Sparkles,        path: '/seller/promotions' },
+    coupons:      { name: 'Coupons',         icon: Ticket,          path: '/seller/coupons' },
+    discounts:    { name: 'Discounts',       icon: Tag,             path: '/seller/discounts' },
+    payments:     { name: 'Payments',        icon: CreditCard,      path: '/seller/payments' },
+    invoices:     { name: 'Invoices',        icon: FileText,        path: '/seller/invoices' },
+    ledger:       { name: 'Ledger',          icon: BookOpen,        path: '/seller/ledger' },
+    bulk_upload:  { name: 'Bulk Upload',     icon: Package,         path: '/seller/bulk-upload' },
+    analytics:    { name: 'Sales Analytics', icon: BarChart3,       path: '/seller/analytics' },
+    shipping:     { name: 'Shipping',        icon: Truck,           path: '/seller/shipping' },
+    system:       { name: 'Activity Logs',   icon: History,         path: '/seller/logs' },
+    settings:     { name: 'Settings',        icon: Settings,        path: '/seller/settings' },
+    attributes:   { name: 'Attributes',      icon: ListOrdered,     path: '/seller/attributes' },
+    tax_rules:    { name: 'Tax Rules',       icon: FileText,        path: '/seller/taxes' },
+    blogs:        { name: 'Blogs',           icon: BookOpen,        path: '/seller/blogs' },
+    seo:          { name: 'SEO Manager',     icon: Globe,           path: '/seller/seo' },
+  };
+
+  // 2. Dynamically compute the menu items based on the user's active permissions.
+  const menuItems = React.useMemo(() => {
+    // Get the current user's role configuration from AuthContext
+    const userRole = roles.find(r => r.id === user?.role);
+    const activePermissions = userRole?.permissions || [];
+
+    // Filter and map metadata to create the final menu list
+    const dynamicItems = activePermissions
+      .filter(p => MODULE_METADATA[p.module] && canView(p.module as Module))
+      .map(p => ({
+        ...MODULE_METADATA[p.module],
+        module: p.module
+      }));
+
+    // Ensure 'Overview' is included if they have general dashboard access
+    if (canView('overview') && !dynamicItems.some(i => i.module === 'overview')) {
+      dynamicItems.unshift({ ...MODULE_METADATA.overview, module: 'overview' });
+    }
+
+    // Deduplicate items (in case multiple permission actions exist for the same module)
+    return Array.from(new Map(dynamicItems.map(item => [item.module, item])).values());
+  }, [user?.role, roles, canView]);
+
+  console.log('[Dynamic Menu] Role:', user?.role, 'Modules:', menuItems.length);
 
   const handleLogout = () => {
     logout();

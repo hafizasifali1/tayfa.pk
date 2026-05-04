@@ -95,6 +95,7 @@ const FilterManager = lazy(() => import('./pages/admin/FilterManager'));
 const CountryManager = lazy(() => import('./pages/admin/CountryManager'));
 const TaxManager = lazy(() => import('./pages/admin/TaxManager'));
 const EmailSettings = lazy(() => import('./pages/admin/EmailSettings'));
+const AttributesManager = lazy(() => import('./pages/admin/AttributesManager'));
 
 // --- Loading Fallback ---
 const PageLoader = () => (
@@ -160,6 +161,7 @@ export default function App() {
                       <Route path="shipping" element={<ProtectedRoute module="shipping"><ShippingManagement /></ProtectedRoute>} />
                       <Route path="logs" element={<ProtectedRoute module="system"><SellerLogs /></ProtectedRoute>} />
                       <Route path="analytics" element={<ProtectedRoute module="analytics"><SellerAnalytics /></ProtectedRoute>} />
+                      <Route path="settings" element={<ProtectedRoute module="settings"><AccountSettings /></ProtectedRoute>} />
                       <Route path="*" element={<PortalNotFound />} />
                     </Route>
 
@@ -194,6 +196,7 @@ export default function App() {
                       <Route path="notifications" element={<ProtectedRoute module="settings"><NotificationManager /></ProtectedRoute>} />
                       <Route path="localizations" element={<ProtectedRoute module="settings"><LocalizationManager /></ProtectedRoute>} />
                       <Route path="filters" element={<ProtectedRoute module="products"><FilterManager /></ProtectedRoute>} />
+                      <Route path="attributes" element={<ProtectedRoute module="attributes"><AttributesManager /></ProtectedRoute>} />
                       <Route path="countries" element={<ProtectedRoute module="settings"><CountryManager /></ProtectedRoute>} />
                       <Route path="taxes" element={<ProtectedRoute module="tax_rules"><TaxManager /></ProtectedRoute>} />
                       <Route path="email-settings" element={<ProtectedRoute module="settings"><EmailSettings /></ProtectedRoute>} />

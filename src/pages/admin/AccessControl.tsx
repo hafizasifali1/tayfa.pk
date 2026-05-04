@@ -28,6 +28,7 @@ const MODULES = [
   { id: 'system', label: 'System Logs' },
   // Configurations
   { id: 'seo', label: 'SEO Manager' },
+  { id: 'attributes', label: 'Attributes Manager' },
   { id: 'tax_rules', label: 'Tax Management' },
   { id: 'shipping', label: 'Shipping' },
   // Settings

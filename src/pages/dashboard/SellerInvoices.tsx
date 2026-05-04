@@ -44,10 +44,10 @@ const SellerInvoices = () => {
     setIsPreviewOpen(true);
   };
 
-  const filteredInvoices = invoices.filter(inv => 
+  const filteredInvoices = (invoices || []).filter(inv => 
     (inv.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (inv.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (inv.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (inv.id?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (inv.orderId?.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (inv.customerName?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 

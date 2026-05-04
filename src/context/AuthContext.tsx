@@ -13,6 +13,8 @@ interface AuthContextType {
   logout: () => void;
   isAuthReady: boolean;
   hasPermission: (module: Module, action?: Action) => boolean;
+  canView: (module: Module) => boolean;
+  canDo: (module: Module, action: Action) => boolean;
   roles: RoleConfig[];
   refreshRoles: () => Promise<void>;
 }
@@ -56,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRoles(processedRoles);
     } catch (error) {
       console.error('Failed to fetch roles:', error);
-      setRoles([]); // Fallback to empty array on error
+      setRoles([]);
     }
   };
 
@@ -82,28 +84,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const hasPermission = (module: Module, action: Action = 'view'): boolean => {
+  // Memoize current user's permissions to prevent excessive re-renders
+  const currentRolePermissions = React.useMemo(() => {
+    if (!user || !Array.isArray(roles) || roles.length === 0) return [];
+    
+    // Super admin bypass
+    if (user.role === 'super_admin') return [];
+
+    let roleConfig = roles.find(r => r.id === user.role);
+    if (!roleConfig) {
+      const normalizedRole = user.role.toLowerCase().replace(/[_-]/g, ' ');
+      roleConfig = roles.find(r => r.name.toLowerCase().replace(/[_-]/g, ' ') === normalizedRole);
+    }
+
+    return Array.isArray(roleConfig?.permissions) ? roleConfig.permissions : [];
+  }, [user?.role, roles]);
+
+  const canDo = React.useCallback((module: Module, action: Action = 'view'): boolean => {
     if (!user) return false;
     if (user.role === 'super_admin') return true;
-
-    const rolesArray = Array.isArray(roles) ? roles : [];
-    const roleConfig = rolesArray.find(r => r.id === user.role);
-    if (!roleConfig) return false;
-
-    let permissions = roleConfig.permissions;
-    if (typeof permissions === 'string') {
-      try {
-        permissions = JSON.parse(permissions);
-      } catch (e) {
-        permissions = [];
-      }
-    }
     
-    if (!Array.isArray(permissions)) permissions = [];
-    
-    const modulePermission = (permissions as any[]).find(p => p.module === module);
+    const modulePermission = (currentRolePermissions as any[]).find(p => p.module === module);
     return modulePermission?.actions.includes(action) || false;
-  };
+  }, [user, currentRolePermissions]);
+
+  const canView = React.useCallback((module: Module) => canDo(module, 'view'), [canDo]);
+
+  // Alias for backward compatibility
+  const hasPermission = canDo;
 
   const login = async (email: string, password: string, role?: string) => {
     try {
@@ -291,7 +299,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, socialLogin, googleLogin, registerUser, registerSeller, updateProfile, logout, isAuthReady, hasPermission, roles, refreshRoles }}>
+    <AuthContext.Provider value={{ user, login, socialLogin, googleLogin, registerUser, registerSeller, updateProfile, logout, isAuthReady, hasPermission, canView, canDo, roles, refreshRoles }}>
       {children}
     </AuthContext.Provider>
   );

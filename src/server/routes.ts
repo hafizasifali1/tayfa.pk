@@ -29,6 +29,9 @@ import {
   filters,
   filterValues,
   productFilterValues,
+  attributes,
+  attributeValues,
+  productAttributes,
   countries,
   currencyRates,
   alias,
@@ -395,8 +398,20 @@ const runMigrations = async () => {
             ('welcome_email', 'Welcome to TAYFA, {{customer_name}}!', '<h2>Welcome {{customer_name}}!</h2><p>Thank you for joining TAYFA.</p>', '{{customer_name}},{{email}}'),
             ('password_reset', 'Reset Your Password', '<p>Click <a href="{{reset_link}}">here</a> to reset your password.</p>', '{{customer_name}},{{reset_link}}'),
             ('seller_approved', 'Your Seller Account is Approved!', '<h2>Congratulations {{seller_name}}!</h2><p>Your seller account has been approved.</p>', '{{seller_name}},{{dashboard_link}}'),
-            ('order_shipped', 'Your Order #{{order_id}} Has Been Shipped', '<p>Your order is on the way! Tracking: {{tracking_number}}</p>', '{{customer_name}},{{order_id}},{{tracking_number}}')
+            ('order_shipped', 'Your Order #{{order_id}} Has Been Shipped', '<p>Your order is on the way! Tracking: {{tracking_number}}</p>', '{{customer_name}},{{order_id}},{{tracking_number}}'),
+            ('seller_new_order', 'New Order Received - #{{order_id}}', '<h2>Hi {{seller_name}},</h2><p>A new order <strong>#{{order_id}}</strong> has been placed that contains your products.</p><p><strong>Items:</strong></p><div>{{items_html}}</div><p><strong>Seller Total:</strong> {{seller_total}} {{currency}}</p><p>Please log in to your dashboard to fulfill the order.</p>', '{{seller_name}},{{order_id}},{{items_html}},{{seller_total}},{{currency}}')
           `);
+        }
+
+        // Idempotent: ensure seller_new_order template exists and is active even on already-seeded DBs
+        const [sellerTpl] = await db.select().from(emailTemplates).where(eq(emailTemplates.name, 'seller_new_order')).limit(1);
+        if (!sellerTpl) {
+          await db.execute(sql`
+            INSERT INTO email_templates (name, subject, body, variables, is_active) VALUES
+            ('seller_new_order', 'New Order Received - #{{order_id}}', '<h2>Hi {{seller_name}},</h2><p>A new order <strong>#{{order_id}}</strong> has been placed that contains your products.</p><p><strong>Items:</strong></p><div>{{items_html}}</div><p><strong>Seller Total:</strong> {{seller_total}} {{currency}}</p><p>Please log in to your dashboard to fulfill the order.</p>', '{{seller_name}},{{order_id}},{{items_html}},{{seller_total}},{{currency}}', true)
+          `);
+        } else if (!sellerTpl.isActive) {
+          await db.update(emailTemplates).set({ isActive: true }).where(eq(emailTemplates.id, sellerTpl.id));
         }
       }
     } catch (e) {
@@ -1138,6 +1153,14 @@ router.post('/products', async (req, res) => {
       if (pfvRows.length > 0) await db.insert(productFilterValues).values(pfvRows);
     }
 
+    // Sync attributes JSON → product_attributes table
+    if (data.attributes && typeof data.attributes === 'object') {
+      const attrRows = Object.entries(data.attributes as Record<string, string[]>).flatMap(([attributeId, valueIds]) =>
+        (valueIds || []).map(valueId => ({ id: uuidv4(), productId: id, attributeId, valueId }))
+      );
+      if (attrRows.length > 0) await db.insert(productAttributes).values(attrRows);
+    }
+
     const [newProduct] = await db.select().from(products).where(eq(products.id, id));
     res.status(201).json(newProduct);
   } catch (error) {
@@ -1165,6 +1188,15 @@ router.put('/products/:id', async (req, res) => {
         (valueIds || []).map(valueId => ({ id: uuidv4(), productId: req.params.id, filterId, valueId }))
       );
       if (pfvRows.length > 0) await db.insert(productFilterValues).values(pfvRows);
+    }
+
+    // Sync attributes JSON → product_attributes table
+    if (data.attributes && typeof data.attributes === 'object') {
+      await db.delete(productAttributes).where(eq(productAttributes.productId, req.params.id));
+      const attrRows = Object.entries(data.attributes as Record<string, string[]>).flatMap(([attributeId, valueIds]) =>
+        (valueIds || []).map(valueId => ({ id: uuidv4(), productId: req.params.id, attributeId, valueId }))
+      );
+      if (attrRows.length > 0) await db.insert(productAttributes).values(attrRows);
     }
 
     const [updated] = await db.select().from(products).where(eq(products.id, req.params.id));
@@ -2785,7 +2817,7 @@ router.put('/admin/email-templates/:id', async (req, res) => {
   }
 });
 
-async function sendEmail({ to, templateName, data }: { to: string, templateName: string, data: Record<string, any> }) {
+export async function sendEmail({ to, templateName, data }: { to: string, templateName: string, data: Record<string, any> }) {
   try {
     const [config] = await db.select().from(emailSettings).where(eq(emailSettings.isActive, true)).limit(1);
     if (!config) {

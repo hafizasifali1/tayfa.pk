@@ -11,6 +11,7 @@ import paymentRoutes from './src/server/paymentRoutes';
 import orderRoutes from './src/server/orderRoutes';
 import omsRoutes from './src/server/omsRoutes';
 import dashboardRoutes from './src/server/dashboardRoutes';
+import attributeRoutes from './src/server/routes/attributes';
 import { migrate } from './src/db/migrate';
 import { db } from './src/db';
 import { sql } from 'drizzle-orm';
@@ -74,6 +75,7 @@ async function startServer() {
   app.use('/api', orderRoutes);
   app.use('/api/oms', omsRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/attributes', attributeRoutes);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {

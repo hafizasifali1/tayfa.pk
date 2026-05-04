@@ -574,8 +574,10 @@ const Checkout = () => {
                         <CreditCard size={14} className="text-white sm:w-4 sm:h-4" />
                       </div>
                       <div className="text-xs sm:text-sm">
-                        <p className="font-bold">Payment Initiated</p>
-                        <p className="text-brand-dark/60 truncate max-w-[120px] sm:max-w-none">ID: {paymentResult?.transactionId}</p>
+                        <p className="font-bold">{paymentResult?.gatewayName || 'Payment Initiated'}</p>
+                        <p className="text-brand-dark/60 truncate max-w-[120px] sm:max-w-none">
+                          {paymentResult?.gatewayType === 'cod' ? 'Pay on Delivery' : 'Instant Payment'}
+                        </p>
                       </div>
                     </div>
                   </Card>

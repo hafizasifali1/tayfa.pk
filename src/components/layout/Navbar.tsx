@@ -134,6 +134,36 @@ const Navbar = () => {
                 Journal
               </Link>
             </div>
+
+            {/* Main Category Navigation moved here */}
+            <div className="hidden lg:flex items-center space-x-8 h-full">
+              {tree.map(category => (
+                <div
+                  key={category.id}
+                  className="h-full relative group flex items-center"
+                  onMouseEnter={() => handleMouseEnter(category)}
+                >
+                  <Link
+                    to={`/shop?categoryId=${category.id}`}
+                    className={`flex items-center text-[10px] font-bold tracking-[0.2em] uppercase transition-all duration-300 ${
+                      hoveredCategory?.id === category.id ? 'text-[#C9A84C]' : 'text-brand-dark/70 hover:text-brand-dark'
+                    }`}
+                  >
+                    {category.name}
+                    {category.children.length > 0 && <ChevronDown size={10} className="ml-1 opacity-50" />}
+                  </Link>
+                  {/* Underline */}
+                  <div className="absolute bottom-[-1px] left-0 right-0 h-0.5 overflow-hidden">
+                    <motion.div
+                      className="w-full h-full bg-[#C9A84C]"
+                      initial={false}
+                      animate={{ scaleX: hoveredCategory?.id === category.id ? 1 : 0 }}
+                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
 
@@ -166,7 +196,7 @@ const Navbar = () => {
               <SearchBar />
             </div>
 
-            <div className="flex items-center space-x-5">
+            <div className="flex items-center space-x-3">
               
               <Link to="/wishlist" className="w-[42px] h-[42px] rounded-full border border-[#C9A84C] bg-transparent flex items-center justify-center text-[#C9A84C] hover:bg-[#C9A84C] hover:text-white transition-all duration-300 relative shadow-sm group">
                 <Heart size={20} strokeWidth={1.5} />
@@ -322,38 +352,6 @@ const Navbar = () => {
                 </AnimatePresence>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Category Row */}
-        <div className="hidden lg:flex items-center justify-center h-12 relative">
-          <div className="flex items-center space-x-12 h-full overflow-x-auto no-scrollbar scroll-smooth px-4">
-            {tree.map(category => (
-              <div
-                key={category.id}
-                className="h-full relative group"
-                onMouseEnter={() => handleMouseEnter(category)}
-              >
-                <Link
-                  to={`/shop?categoryId=${category.id}`}
-                  className={`flex items-center h-full text-[10px] font-bold tracking-[0.2em] uppercase transition-all duration-300 ${
-                    hoveredCategory?.id === category.id ? 'text-[#C9A84C]' : 'text-brand-dark/70 hover:text-brand-dark'
-                  }`}
-                >
-                  {category.name}
-                  {category.children.length > 0 && <ChevronDown size={10} className="ml-1 opacity-50" />}
-                </Link>
-                {/* Underline */}
-                <div className="absolute bottom-2 left-0 right-0 h-0.5 overflow-hidden">
-                  <motion.div
-                    className="w-full h-full bg-[#C9A84C]"
-                    initial={false}
-                    animate={{ scaleX: hoveredCategory?.id === category.id ? 1 : 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                  />
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>

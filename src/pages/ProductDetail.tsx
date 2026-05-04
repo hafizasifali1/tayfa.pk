@@ -28,7 +28,7 @@ const ProductDetail = () => {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const [product, setProduct] = useState<any>(null);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
-  const [productAttributes, setProductAttributes] = useState<{ id: string; name: string; values: string[] }[]>([]);
+  const [productAttributes, setProductAttributes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [currentImage, setCurrentImage] = useState(0);
@@ -69,10 +69,27 @@ const ProductDetail = () => {
         setProduct(currentProduct);
 
         try {
-          const attrResponse = await axios.get(`/api/products/${id}/attributes`);
-          if (Array.isArray(attrResponse.data)) setProductAttributes(attrResponse.data);
-        } catch {
-          // attributes are non-critical, silently ignore
+          const attrResponse = await axios.get(`/api/attributes/products/${id}`);
+          if (attrResponse.data.success) {
+            // Group by attribute name/type
+            const grouped: any[] = [];
+            attrResponse.data.data.forEach((item: any) => {
+              let existing = grouped.find(g => g.attributeId === item.attributeId);
+              if (!existing) {
+                existing = { 
+                  attributeId: item.attributeId, 
+                  name: item.attributeName, 
+                  displayType: item.displayType, 
+                  values: [] 
+                };
+                grouped.push(existing);
+              }
+              existing.values.push(item);
+            });
+            setProductAttributes(grouped);
+          }
+        } catch (err) {
+          console.error('Error fetching attributes:', err);
         }
 
         const allProductsResponse = await axios.get('/api/products');
@@ -153,11 +170,14 @@ const ProductDetail = () => {
       return;
     }
 
-    // Build attributes map: filter name → selected value (only include selections made)
+    // Build attributes map: attribute name → selected value
     const attributes: Record<string, string> = {};
     productAttributes.forEach(attr => {
-      const val = selectedAttributes[attr.id];
-      if (val) attributes[attr.name] = val;
+      const valId = selectedAttributes[attr.attributeId];
+      if (valId) {
+        const valObj = attr.values.find((v: any) => v.valueId === valId);
+        if (valObj) attributes[attr.name] = valObj.value;
+      }
     });
 
     await addToCart(product, Object.keys(attributes).length > 0 ? attributes : undefined, quantity);
@@ -168,39 +188,88 @@ const ProductDetail = () => {
   const renderDynamicSelectors = () => {
     if (productAttributes.length === 0) return null;
     return (
-      <div className="space-y-4">
+      <div className="space-y-6 pt-4">
         {productAttributes.map(attr => {
-          const isSize = attr.name.toLowerCase() === 'size';
-          const selected = selectedAttributes[attr.id];
+          const isSize = attr.name.toLowerCase().includes('size');
+          const selectedId = selectedAttributes[attr.attributeId];
+          const selectedVal = attr.values.find((v: any) => v.valueId === selectedId)?.value;
+
           return (
-            <div key={attr.id} className="space-y-2">
+            <div key={attr.attributeId} className="space-y-3">
               <div className="flex justify-between items-center">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark">
                   {attr.name}:{' '}
-                  <span className="text-brand-dark-muted font-black">{selected || 'Select'}</span>
+                  <span className="text-brand-gold-dark font-black tracking-widest">{selectedVal || 'Select'}</span>
                 </h3>
                 {isSize && (
-                  <button className="text-[9px] text-brand-gold-dark underline uppercase tracking-widest font-black hover:text-brand-dark transition-colors">
+                  <button className="text-[9px] text-brand-gold-dark underline uppercase tracking-[0.2em] font-black hover:text-brand-dark transition-colors">
                     Size Guide
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {attr.values.map(val => (
-                  <button
-                    key={val}
-                    onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.id]: val }))}
-                    className={`flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-bold transition-all border ${
-                      selected === val
-                        ? 'bg-brand-dark text-white border-brand-dark shadow-sm'
-                        : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold'
-                    }`}
+
+              {attr.displayType === 'color_swatch' ? (
+                <div className="flex flex-wrap gap-4">
+                  {attr.values.map((v: any) => (
+                    <button
+                      key={v.valueId}
+                      onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.attributeId]: v.valueId }))}
+                      className={`group relative w-10 h-10 rounded-full transition-all flex items-center justify-center ${
+                        selectedId === v.valueId 
+                          ? 'ring-4 ring-brand-gold ring-offset-2' 
+                          : 'ring-1 ring-brand-dark/10 ring-offset-0 hover:ring-2 hover:ring-brand-gold'
+                      }`}
+                      title={v.value}
+                    >
+                      <div 
+                        className="w-full h-full rounded-full shadow-inner"
+                        style={{ backgroundColor: v.colorCode || '#ccc' }}
+                      />
+                      <AnimatePresence>
+                        {selectedId === v.valueId && (
+                          <motion.div 
+                            initial={{ scale: 0 }} 
+                            animate={{ scale: 1 }} 
+                            className="absolute -top-1 -right-1 bg-brand-gold text-white rounded-full p-0.5 shadow-md"
+                          >
+                            <CheckCircle2 size={10} />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </button>
+                  ))}
+                </div>
+              ) : attr.displayType === 'dropdown' ? (
+                <div className="relative group">
+                  <select
+                    value={selectedId || ''}
+                    onChange={(e) => setSelectedAttributes(prev => ({ ...prev, [attr.attributeId]: e.target.value }))}
+                    className="w-full bg-brand-cream/10 border border-brand-dark/10 rounded-2xl px-6 py-4 text-xs font-bold uppercase tracking-widest appearance-none focus:outline-none focus:ring-4 focus:ring-brand-gold/10 focus:border-brand-gold/30 transition-all cursor-pointer"
                   >
-                    {val}
-                    {selected === val && <CheckCircle2 size={10} className="ml-1 text-brand-gold" />}
-                  </button>
-                ))}
-              </div>
+                    <option value="">Choose {attr.name}</option>
+                    {attr.values.map((v: any) => (
+                      <option key={v.valueId} value={v.valueId}>{v.value}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="absolute right-6 top-1/2 -translate-y-1/2 text-brand-dark/40 pointer-events-none group-hover:text-brand-gold transition-colors" />
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2.5">
+                  {attr.values.map((v: any) => (
+                    <button
+                      key={v.valueId}
+                      onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.attributeId]: v.valueId }))}
+                      className={`px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                        selectedId === v.valueId
+                          ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20'
+                          : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold hover:shadow-md'
+                      }`}
+                    >
+                      {v.value}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}

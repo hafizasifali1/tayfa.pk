@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, Package, BarChart3, Shield, Settings, 
   LogOut, Menu, X, Bell, Search, User, ChevronRight, ChevronDown, Sparkles,
   Ticket, Tag, FileText, Globe, Layers, Award, CreditCard, Percent,
-  ShoppingBag, BookOpen, Building, MessageSquare, Mail
+  ShoppingBag, BookOpen, Building, MessageSquare, Mail, ListOrdered
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 import AccessDenied from '../../components/admin/AccessDenied';
 
 const AdminLayout = () => {
-  const { user, logout, hasPermission, isAuthReady } = useAuth();
+  const { user, logout, hasPermission, canView, isAuthReady, refreshRoles } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
@@ -24,6 +24,13 @@ const AdminLayout = () => {
       'Settings': true
     };
   });
+
+  // Refresh permissions on mount so admin sidebar always reflects latest DB state.
+  useEffect(() => {
+    if (isAuthReady) {
+      refreshRoles();
+    }
+  }, [isAuthReady]);
 
   const modules = [
     {
@@ -54,6 +61,7 @@ const AdminLayout = () => {
       items: [
         { icon: Award, label: 'Brands', path: '/admin/brands', module: 'products' },
         { icon: Layers, label: 'Categories', path: '/admin/categories', module: 'products' },
+        { icon: ListOrdered, label: 'Attributes', path: '/admin/attributes', module: 'attributes' },
         { icon: Tag, label: 'Filters', path: '/admin/filters', module: 'products' },
         { icon: Globe, label: 'SEO Manager', path: '/admin/seo', module: 'seo' },
         { icon: Globe, label: 'Countries', path: '/admin/countries', module: 'settings' },
@@ -85,19 +93,19 @@ const AdminLayout = () => {
     );
   }
 
-  // Redirect if not logged in
   if (!user) {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  // Customers and sellers should not access the admin layout. Any other role
-  // (admin, super_admin, or a custom role like "Distributor") is allowed in
-  // and gets a sidebar filtered down to only the modules they have permission
-  // for via hasPermission().
-  if (user.role === 'user' || user.role === 'seller') {
+  // Access Control: Prevent standard customers and sellers from accessing admin panel.
+  // Admin panel requires specific administrative permissions.
+  // Access Control: Allow super_admins, admins, or any custom role with dashboard access.
+  const isAuthorized = user.role === 'super_admin' || user.role === 'admin' || canView('overview') || canView('rbac');
+  
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
-        <AccessDenied requiredRole="admin" />
+        <AccessDenied requiredRole="administrator" />
       </div>
     );
   }
@@ -110,10 +118,16 @@ const AdminLayout = () => {
     });
   };
 
-  const filteredModules = modules.map(mod => ({
-    ...mod,
-    items: mod.items.filter(item => hasPermission(item.module as any, 'view'))
-  })).filter(mod => mod.items.length > 0);
+  const filteredModules = modules.map(mod => {
+    const visibleItems = (mod.items || []).filter(item => {
+      const isVisible = canView(item.module as any);
+      console.log(`[Admin Sidebar] Module: ${item.module} | Result: ${isVisible ? 'ALLOWED' : 'DENIED'}`);
+      return isVisible;
+    });
+    return { ...mod, items: visibleItems };
+  }).filter(mod => (mod.items || []).length > 0);
+
+  console.log('[Admin Result] User:', user?.email, 'Role:', user?.role, 'Visible Sections:', filteredModules.length);
 
   // If a custom role has no permissions configured at all, show Access Denied
   // rather than an empty admin shell.

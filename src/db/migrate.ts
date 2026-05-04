@@ -190,6 +190,49 @@ export async function migrate() {
       `);
 
       await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS attributes (
+          id CHAR(36) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL UNIQUE,
+          display_type VARCHAR(50) DEFAULT 'default',
+          description TEXT,
+          is_required BOOLEAN DEFAULT FALSE,
+          is_active BOOLEAN DEFAULT TRUE,
+          display_order INT DEFAULT 0,
+          show_on_product_page BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS attribute_values (
+          id CHAR(36) PRIMARY KEY,
+          attribute_id CHAR(36) NOT NULL,
+          value VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL,
+          color_code VARCHAR(50),
+          image_url VARCHAR(500),
+          display_order INT DEFAULT 0,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (attribute_id) REFERENCES attributes(id) ON DELETE CASCADE
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS product_attributes (
+          id CHAR(36) PRIMARY KEY,
+          product_id CHAR(36) NOT NULL,
+          attribute_id CHAR(36) NOT NULL,
+          value_id CHAR(36) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (attribute_id) REFERENCES attributes(id) ON DELETE CASCADE
+        )
+      `);
+
+      await db.execute(sql`
         CREATE TABLE IF NOT EXISTS countries (
           id INT AUTO_INCREMENT PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
@@ -215,6 +258,7 @@ export async function migrate() {
 
       // 2. Add missing columns
       console.log('Adding missing columns (MySQL)...');
+      await addColumn('products', 'attributes', 'JSON');
       await addColumn('orders', 'tax_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumn('orders', 'discount_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumn('orders', 'currency', "VARCHAR(10) DEFAULT 'PKR'");
@@ -422,6 +466,47 @@ export async function migrate() {
       `);
 
       await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS attributes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL UNIQUE,
+          display_type VARCHAR(50) DEFAULT 'default',
+          description TEXT,
+          is_required BOOLEAN DEFAULT FALSE,
+          is_active BOOLEAN DEFAULT TRUE,
+          display_order INT DEFAULT 0,
+          show_on_product_page BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS attribute_values (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
+          value VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL,
+          color_code VARCHAR(50),
+          image_url VARCHAR(500),
+          display_order INT DEFAULT 0,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS product_attributes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          product_id UUID NOT NULL,
+          attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
+          value_id UUID NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await db.execute(sql`
         CREATE TABLE IF NOT EXISTS roles (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           name VARCHAR(255) NOT NULL,
@@ -435,6 +520,7 @@ export async function migrate() {
 
       // 2. Add missing columns
       console.log('Adding missing columns (PG)...');
+      await addColumnPg('products', 'attributes', 'JSONB');
       await addColumnPg('orders', 'tax_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumnPg('orders', 'discount_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumnPg('orders', 'currency', "VARCHAR(10) DEFAULT 'PKR'");
@@ -621,22 +707,20 @@ export async function migrate() {
       for (const role of defaultRoles) {
         const [existing] = await db.select().from(roles).where(eq(roles.id, role.id));
         if (!existing) {
+
           console.log(`Creating role: ${role.id}`);
           await db.insert(roles).values({
-            ...role,
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            isSystem: role.isSystem,
+            permissions: JSON.stringify(role.permissions),
             createdAt: new Date(),
             updatedAt: new Date()
-          });
-        } else if (role.isSystem && role.id !== 'admin' && role.id !== 'super_admin') {
-          // Force update other system roles to ensure latest permissions, 
-          // but skip admin/super_admin to allow manual customization in dashboard
-          console.log(`Syncing system role: ${role.id}`);
-          await db.update(roles)
-            .set({ 
-              permissions: role.permissions,
-              updatedAt: new Date()
-            })
-            .where(eq(roles.id, role.id));
+          } as any);
+        } else {
+          // Role already exists — skip. Any permissions set via the Access Control UI are preserved.
+          console.log(`Role '${role.id}' already exists — skipping.`);
         }
       }
       console.log('Roles synchronization completed.');

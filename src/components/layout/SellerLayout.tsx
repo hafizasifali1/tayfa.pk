@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -13,7 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import AccessDenied from '../../components/admin/AccessDenied';
 
 const SellerLayout = () => {
-  const { user, logout, hasPermission, isAuthReady } = useAuth();
+  const { user, logout, hasPermission, canView, isAuthReady, refreshRoles } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
@@ -25,6 +25,14 @@ const SellerLayout = () => {
       'Settings': true
     };
   });
+
+  // Refresh permissions from the DB every time the seller layout mounts so that
+  // admin changes to roles are immediately reflected without a full app restart.
+  useEffect(() => {
+    if (isAuthReady) {
+      refreshRoles();
+    }
+  }, [isAuthReady]);
 
   if (!isAuthReady) {
     return (
@@ -40,7 +48,11 @@ const SellerLayout = () => {
   }
 
   // Show Access Denied if logged in but not seller
-  if (user.role !== 'seller') {
+  // Access Control: Only allow sellers or custom roles with dashboard access.
+  // We check if they have 'view' permission on 'overview' as a proxy for dashboard access.
+  const isAuthorized = user.role === 'seller' || hasPermission('overview', 'view');
+  
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
         <AccessDenied requiredRole="seller" />
@@ -52,31 +64,30 @@ const SellerLayout = () => {
     {
       label: 'Operations',
       items: [
-        { icon: LayoutDashboard, label: 'Overview', path: '/seller/dashboard', module: 'overview' },
-        { icon: ShoppingBag, label: 'Orders', path: '/seller/orders', module: 'orders' },
-        { icon: FileText, label: 'Invoices', path: '/seller/invoices', module: 'invoices' },
-        { icon: CreditCard, label: 'Payments', path: '/seller/payments', module: 'payments' },
-        { icon: FileText, label: 'Pricelists', path: '/seller/pricelists', module: 'pricelist' },
-        { icon: Tag, label: 'Promotions', path: '/seller/promotions', module: 'promotions' },
-        { icon: Ticket, label: 'Coupons', path: '/seller/coupons', module: 'coupons' },
-        { icon: Tag, label: 'Discounts', path: '/seller/discounts', module: 'discounts' },
-        { icon: Upload, label: 'Bulk Upload', path: '/seller/bulk-upload', module: 'bulk_upload' },
-        { icon: Package, label: 'Product', path: '/seller/products', module: 'products' },
+        { icon: LayoutDashboard, label: 'Overview',      path: '/seller/dashboard',   module: 'overview'    },
+        { icon: ShoppingBag,    label: 'Orders',        path: '/seller/orders',      module: 'orders'      },
+        { icon: FileText,       label: 'Invoices',      path: '/seller/invoices',    module: 'invoices'    },
+        { icon: CreditCard,     label: 'Payments',      path: '/seller/payments',    module: 'payments'    },
+        { icon: FileText,       label: 'Pricelists',    path: '/seller/pricelists',  module: 'pricelist'   },
+        { icon: Tag,            label: 'Promotions',    path: '/seller/promotions',  module: 'promotions'  },
+        { icon: Ticket,         label: 'Coupons',       path: '/seller/coupons',     module: 'coupons'     },
+        { icon: Tag,            label: 'Discounts',     path: '/seller/discounts',   module: 'discounts'   },
+        { icon: Upload,         label: 'Bulk Upload',   path: '/seller/bulk-upload', module: 'bulk_upload' },
+        { icon: Package,        label: 'Products',      path: '/seller/products',    module: 'products'    },
       ]
     },
     {
       label: 'Reporting',
       items: [
         { icon: BarChart3, label: 'Sales Analytics', path: '/seller/analytics', module: 'analytics' },
-        { icon: BookOpen, label: 'Ledger', path: '/seller/ledger', module: 'ledger' },
-        { icon: Activity, label: 'Activity Logs', path: '/seller/logs', module: 'system' },
+        { icon: BookOpen,  label: 'Ledger',          path: '/seller/ledger',    module: 'ledger'    },
+        { icon: Activity,  label: 'Activity Logs',   path: '/seller/logs',      module: 'system'    },
       ]
     },
     {
       label: 'Configurations',
       items: [
         { icon: Truck, label: 'Shipping', path: '/seller/shipping', module: 'shipping' },
-        { icon: ShieldCheck, label: 'Security Settings', path: '/seller/security', module: 'settings' },
       ]
     },
     {
@@ -95,10 +106,16 @@ const SellerLayout = () => {
     });
   };
 
-  const filteredModules = modules.map(mod => ({
-    ...mod,
-    items: mod.items.filter(item => hasPermission(item.module as any, 'view'))
-  })).filter(mod => mod.items.length > 0);
+  const filteredModules = modules.map(mod => {
+    const visibleItems = (mod.items || []).filter(item => {
+      const isVisible = canView(item.module as any);
+      console.log(`[Sidebar Check] Module: ${item.module} | Result: ${isVisible ? 'ALLOWED' : 'DENIED'}`);
+      return isVisible;
+    });
+    return { ...mod, items: visibleItems };
+  }).filter(mod => (mod.items || []).length > 0);
+
+  console.log('[Sidebar Result] User:', user?.email, 'Role:', user?.role, 'Visible Sections:', filteredModules.length);
 
   return (
     <div className="min-h-screen bg-brand-cream flex">

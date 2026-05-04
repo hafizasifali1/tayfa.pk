@@ -1,17 +1,19 @@
 import express from 'express';
 import { db } from '../db';
-import { 
-  orders, 
-  orderItems, 
-  orderStatusHistory, 
-  shipments, 
-  returns, 
+import {
+  orders,
+  orderItems,
+  orderStatusHistory,
+  shipments,
+  returns,
   refunds,
-  products
+  products,
+  users
 } from '../db/schema';
 import { handlePatchUpdate } from './utils/updateHandler';
-import { eq, and, desc, sql, exists } from 'drizzle-orm';
+import { eq, and, desc, sql, exists, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { sendEmail } from './routes';
 
 const router = express.Router();
 
@@ -71,21 +73,36 @@ router.post('/orders', async (req, res) => {
     const [newOrder] = await db.select().from(orders).where(eq(orders.id, orderId));
 
     // 2. Create Order Items (Split by Seller)
-    const itemsToInsert = items.map((item: any) => ({
-      id: uuidv4(),
-      orderId: newOrder.id,
-      productId: item.id,
-      sellerId: item.sellerId || '00000000-0000-0000-0000-000000000000', // Default if not provided
-      name: item.name,
-      price: item.price.toString(),
-      originalPrice: (item.originalPrice || item.price).toString(),
-      quantity: item.quantity,
-      shippedQuantity: 0,
-      returnedQuantity: 0,
-      size: item.size,
-      color: item.color,
-      status: 'pending'
-    }));
+    // Resolve missing seller IDs from products table so seller notifications still fire
+    // even when the cart entry doesn't carry sellerId.
+    const productIds = items.map((it: any) => it.productId || it.id).filter(Boolean);
+    const productSellerMap = new Map<string, string>();
+    if (productIds.length > 0) {
+      const productRows = await db.select().from(products).where(inArray(products.id, productIds));
+      for (const p of productRows) {
+        if (p.sellerId) productSellerMap.set(p.id, p.sellerId);
+      }
+    }
+
+    const itemsToInsert = items.map((item: any) => {
+      const productId = item.productId || item.id;
+      const resolvedSellerId = item.sellerId || productSellerMap.get(productId) || '00000000-0000-0000-0000-000000000000';
+      return {
+        id: uuidv4(),
+        orderId: newOrder.id,
+        productId,
+        sellerId: resolvedSellerId,
+        name: item.name,
+        price: item.price.toString(),
+        originalPrice: (item.originalPrice || item.price).toString(),
+        quantity: item.quantity ?? item.qty ?? 1,
+        shippedQuantity: 0,
+        returnedQuantity: 0,
+        size: item.size || item.variantId,
+        color: item.color,
+        status: 'pending'
+      };
+    });
 
     await db.insert(orderItems).values(itemsToInsert);
 
@@ -97,10 +114,85 @@ router.post('/orders', async (req, res) => {
       comment: 'Order placed successfully'
     });
 
+    // 4. Fire-and-forget notification emails (don't block the order response)
+    void (async () => {
+      try {
+        const customerName = shippingAddress?.firstName
+          ? `${shippingAddress.firstName} ${shippingAddress.lastName || ''}`.trim()
+          : (customerEmail || 'Customer');
+
+        if (customerEmail) {
+          await sendEmail({
+            to: customerEmail,
+            templateName: 'order_confirmation',
+            data: {
+              customer_name: customerName,
+              order_id: newOrder.orderNumber,
+              total_amount: `${newOrder.currency || 'PKR'} ${Number(newOrder.totalAmount).toFixed(2)}`,
+            },
+          });
+        }
+
+        // Group items by seller and notify each unique seller
+        const itemsBySeller = new Map<string, typeof itemsToInsert>();
+        for (const it of itemsToInsert) {
+          const list = itemsBySeller.get(it.sellerId) || [];
+          list.push(it);
+          itemsBySeller.set(it.sellerId, list);
+        }
+
+        const sellerIds = [...itemsBySeller.keys()].filter(
+          id => id && id !== '00000000-0000-0000-0000-000000000000'
+        );
+        console.log(`[order ${newOrder.orderNumber}] resolved sellerIds:`, sellerIds);
+        if (sellerIds.length === 0) {
+          console.warn(`[order ${newOrder.orderNumber}] no real sellerIds — seller notification skipped`);
+        }
+        if (sellerIds.length > 0) {
+          const sellerUsers = await db.select().from(users).where(inArray(users.id, sellerIds));
+          const foundIds = new Set(sellerUsers.map(s => s.id));
+          for (const sid of sellerIds) {
+            if (!foundIds.has(sid)) {
+              console.warn(`[order ${newOrder.orderNumber}] sellerId ${sid} has no matching users row — skipped`);
+            }
+          }
+          for (const seller of sellerUsers) {
+            if (!seller.email) {
+              console.warn(`[order ${newOrder.orderNumber}] seller ${seller.id} has no email — skipped`);
+              continue;
+            }
+            const sellerItems = itemsBySeller.get(seller.id) || [];
+            const sellerTotal = sellerItems.reduce(
+              (sum, it) => sum + Number(it.price) * Number(it.quantity),
+              0
+            );
+            const itemsHtml = sellerItems
+              .map(it => `<div>• ${it.name} × ${it.quantity} — ${Number(it.price).toFixed(2)}</div>`)
+              .join('');
+
+            console.log(`[order ${newOrder.orderNumber}] sending seller_new_order to ${seller.email}`);
+            await sendEmail({
+              to: seller.email,
+              templateName: 'seller_new_order',
+              data: {
+                seller_name: seller.fullName || 'Seller',
+                order_id: newOrder.orderNumber,
+                items_html: itemsHtml,
+                seller_total: sellerTotal.toFixed(2),
+                currency: newOrder.currency || 'PKR',
+              },
+            });
+          }
+        }
+      } catch (mailErr) {
+        console.error('Order notification email error:', mailErr);
+      }
+    })();
+
     res.status(201).json(newOrder);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating order:', error);
-    res.status(500).json({ error: 'Failed to create order' });
+    res.status(500).json({ error: 'Failed to create order', details: error?.message });
   }
 });
 
@@ -179,7 +271,7 @@ router.patch('/orders/:id', async (req, res) => {
       data: req.body,
       userId: req.body.adminId || 'system',
       module: 'Order',
-      allowedFields: ['status', 'paymentStatus', 'shippingAddress', 'billingAddress', 'notes'],
+      allowedFields: ['status', 'paymentStatus', 'paymentMethod', 'shippingAddress', 'billingAddress', 'notes', 'customerEmail', 'totalAmount', 'taxAmount', 'discountAmount'],
       enumValidators: {
         status: ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'returned'],
         paymentStatus: ['pending', 'partial', 'paid', 'failed', 'refunded']
@@ -189,6 +281,76 @@ router.patch('/orders/:id', async (req, res) => {
   } catch (error: any) {
     console.error('Error updating order:', error);
     res.status(error.message.includes('not found') ? 404 : 400).json({ error: error.message });
+  }
+});
+
+// Replace order items list (admin edit). Recomputes total from new items.
+router.put('/orders/:id/items', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { items } = req.body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
+
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    // Resolve missing seller IDs from products
+    const productIds = items.map((it: any) => it.productId || it.id).filter(Boolean);
+    const productSellerMap = new Map<string, string>();
+    if (productIds.length > 0) {
+      const productRows = await db.select().from(products).where(inArray(products.id, productIds));
+      for (const p of productRows) {
+        if (p.sellerId) productSellerMap.set(p.id, p.sellerId);
+      }
+    }
+
+    const newItems = items.map((item: any) => {
+      const productId = item.productId || item.id;
+      return {
+        id: uuidv4(),
+        orderId,
+        productId,
+        sellerId: item.sellerId || productSellerMap.get(productId) || '00000000-0000-0000-0000-000000000000',
+        name: item.name,
+        price: Number(item.price).toString(),
+        originalPrice: Number(item.originalPrice || item.price).toString(),
+        quantity: item.quantity ?? item.qty ?? 1,
+        shippedQuantity: 0,
+        returnedQuantity: 0,
+        size: item.size || item.variantId,
+        color: item.color,
+        status: 'pending'
+      };
+    });
+
+    await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
+    if (newItems.length > 0) await db.insert(orderItems).values(newItems);
+
+    const newTotal = newItems.reduce((sum, it) => sum + Number(it.price) * Number(it.quantity), 0);
+    await db.update(orders)
+      .set({ totalAmount: newTotal.toString(), updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(orders.id, orderId));
+
+    const [updatedOrder] = await db.select().from(orders).where(eq(orders.id, orderId));
+    const refreshedItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+    res.json({ ...updatedOrder, items: refreshedItems });
+  } catch (error: any) {
+    console.error('Error replacing order items:', error);
+    res.status(500).json({ error: 'Failed to update order items', details: error?.message });
+  }
+});
+
+// Delete order (admin)
+router.delete('/orders/:id', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
+    await db.delete(orderStatusHistory).where(eq(orderStatusHistory.orderId, orderId));
+    await db.delete(orders).where(eq(orders.id, orderId));
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ error: 'Failed to delete order' });
   }
 });
 

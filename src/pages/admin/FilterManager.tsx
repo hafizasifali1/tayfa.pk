@@ -238,12 +238,6 @@ const FilterManager = () => {
                             <span>Sidebar</span>
                           </span>
                         )}
-                        {filter.isAttribute && (
-                          <span className="inline-flex items-center space-x-1 px-2 py-1 bg-violet-50 text-violet-600 rounded-lg text-[9px] font-bold uppercase tracking-widest">
-                            <Tag size={10} />
-                            <span>Detail</span>
-                          </span>
-                        )}
                         {!filter.isFilterable && !filter.isAttribute && (
                           <span className="text-[10px] text-brand-dark/20">—</span>
                         )}
@@ -399,18 +393,6 @@ const FilterManager = () => {
                       <div>
                         <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Show in Shop Sidebar</span>
                         <p className="text-[10px] text-brand-dark/30 mt-0.5">Visible as a filter option on the shop page</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => setCurrentFilter(prev => ({ ...prev!, isAttribute: !prev?.isAttribute }))}
-                        className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${currentFilter.isAttribute ? 'bg-violet-500' : 'bg-brand-dark/20'}`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${currentFilter.isAttribute ? 'left-7' : 'left-1'}`} />
-                      </button>
-                      <div>
-                        <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Show on Product Detail Page</span>
-                        <p className="text-[10px] text-brand-dark/30 mt-0.5">Displayed as a product attribute/spec</p>
                       </div>
                     </div>
                   </div>

@@ -78,7 +78,7 @@ const PaymentSelection: React.FC<PaymentSelectionProps> = ({
       });
       const data = await response.json();
       if (response.ok) {
-        onPaymentInitiated({ ...data, gatewayCode: selectedGateway.code });
+        onPaymentInitiated({ ...data, gatewayCode: selectedGateway.code, gatewayName: selectedGateway.name, gatewayType: selectedGateway.type });
       } else {
         setError(data.message || 'Payment initiation failed. Please try another method.');
       }

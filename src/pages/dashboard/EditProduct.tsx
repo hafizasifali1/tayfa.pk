@@ -129,7 +129,8 @@ const EditProduct = () => {
       description: '',
       keywords: '',
       robots: 'index, follow'
-    } as SEOMetadata
+    } as SEOMetadata,
+    attributes: {} as Record<string, string[]> // attributeId -> valueIds[]
   });
 
   const [images, setImages] = useState<ProductImage[]>([]);
@@ -141,6 +142,7 @@ const EditProduct = () => {
   const [imageInput, setImageInput] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [brandsList, setBrandsList] = useState<any[]>([]);
+  const [availableAttributes, setAvailableAttributes] = useState<any[]>([]);
   // tracks the last parentCategoryId we fetched filters for — used to know if user changed the category
   const lastFetchedCategoryRef = React.useRef<string>('');
 
@@ -163,40 +165,20 @@ const EditProduct = () => {
     const fetchProduct = async () => {
       try {
         const response = await axios.get(`/api/products?sellerId=${user?.id}`);
-        const product = response.data.find((p: any) => p.id === id);
-        if (product) {
+          const attrResponse = await axios.get(`/api/attributes/products/${id}`);
+          let productAttrs: Record<string, string[]> = {};
+          if (attrResponse.data.success) {
+            attrResponse.data.data.forEach((item: any) => {
+              if (!productAttrs[item.attributeId]) productAttrs[item.attributeId] = [];
+              productAttrs[item.attributeId].push(item.valueId);
+            });
+          }
+
           const pData = {
-            name: product.name || '',
-            brand: product.brand || '',
-            brandId: product.brandId || '',
-            price: product.price?.toString() || '',
-            salePrice: product.salePrice?.toString() || '',
-            discount: product.discount?.toString() || '',
-            discountType: product.discountType || null,
-            category: product.category || '',
-            parentCategoryId: product.parentCategoryId || '',
-            categoryId: product.categoryId || '',
-            gender: product.gender || 'women',
-            type: product.type || 'clothing',
-            subcategory: product.subcategory || 'pret',
-            description: product.description || '',
-            stock: product.stock?.toString() || '',
-            sku: product.sku || '',
-            tags: parseJsonSafe(product.tags),
-            colors: parseJsonSafe(product.colors),
-            sizes: parseJsonSafe(product.sizes),
-            status: product.status || 'published',
-            slug: product.slug || '',
-            pricelistId: product.pricelistId || '',
-            taxRuleId: product.taxRuleId || '',
-            dynamicFilters: parseJsonSafe(product.dynamicFilters),
-            seo: parseJsonSafe(product.seo) || {
-              title: '',
-              description: '',
-              keywords: '',
-              robots: 'index, follow'
-            },
+            ...pDataInitial,
+            attributes: productAttrs
           };
+
           setFormData(pData);
           setInitialData(pData);
           const pImages = parseJsonSafe(product.images).map((url: string) => ({ id: Math.random().toString(36).substr(2, 9), url }));
@@ -211,6 +193,39 @@ const EditProduct = () => {
       } finally {
         setIsFetching(false);
       }
+    };
+
+    const pDataInitial = {
+      name: product.name || '',
+      brand: product.brand || '',
+      brandId: product.brandId || '',
+      price: product.price?.toString() || '',
+      salePrice: product.salePrice?.toString() || '',
+      discount: product.discount?.toString() || '',
+      discountType: product.discountType || null,
+      category: product.category || '',
+      parentCategoryId: product.parentCategoryId || '',
+      categoryId: product.categoryId || '',
+      gender: product.gender || 'women',
+      type: product.type || 'clothing',
+      subcategory: product.subcategory || 'pret',
+      description: product.description || '',
+      stock: product.stock?.toString() || '',
+      sku: product.sku || '',
+      tags: parseJsonSafe(product.tags),
+      colors: parseJsonSafe(product.colors),
+      sizes: parseJsonSafe(product.sizes),
+      status: product.status || 'published',
+      slug: product.slug || '',
+      pricelistId: product.pricelistId || '',
+      taxRuleId: product.taxRuleId || '',
+      dynamicFilters: parseJsonSafe(product.dynamicFilters),
+      seo: parseJsonSafe(product.seo) || {
+        title: '',
+        description: '',
+        keywords: '',
+        robots: 'index, follow'
+      },
     };
 
     if (user?.id && id) {
@@ -312,7 +327,7 @@ const EditProduct = () => {
       try {
         const response = await axios.get(`/api/tax-rules?pricelistId=${formData.pricelistId}`);
         if (Array.isArray(response.data)) {
-          setTaxRules(response.data.filter((rule: TaxRule) => rule.isActive));
+          setTaxRules((response.data || []).filter((rule: TaxRule) => rule.isActive));
         }
       } catch (err) {
         console.error('Error fetching tax rules:', err);
@@ -321,6 +336,20 @@ const EditProduct = () => {
     };
     fetchTaxRules();
   }, [formData.pricelistId]);
+
+  useEffect(() => {
+    const fetchAttributes = async () => {
+      try {
+        const response = await axios.get('/api/attributes');
+        if (response.data.success) {
+          setAvailableAttributes(response.data.data);
+        }
+      } catch (err) {
+        console.error('Error fetching attributes:', err);
+      }
+    };
+    fetchAttributes();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -396,25 +425,33 @@ const EditProduct = () => {
   };
 
   const removeImage = (id: string) => {
-    setImages(images.filter((img) => img.id !== id));
+    setImages((images || []).filter((img) => img.id !== id));
   };
 
   const toggleSize = (size: string) => {
     setFormData(prev => ({
       ...prev,
       sizes: prev.sizes.includes(size)
-        ? prev.sizes.filter(s => s !== size)
-        : [...prev.sizes, size],
+        ? (prev.sizes || []).filter(s => s !== size)
+        : [...(prev.sizes || []), size],
     }));
   };
 
-  const toggleColor = (colorName: string) => {
-    setFormData(prev => ({
-      ...prev,
-      colors: prev.colors.includes(colorName)
-        ? prev.colors.filter(c => c !== colorName)
-        : [...prev.colors, colorName],
-    }));
+  const toggleAttributeValue = (attributeId: string, valueId: string) => {
+    setFormData(prev => {
+      const currentValues = prev.attributes[attributeId] || [];
+      const newValues = currentValues.includes(valueId)
+        ? (currentValues || []).filter(id => id !== valueId)
+        : [...(currentValues || []), valueId];
+      
+      return {
+        ...prev,
+        attributes: {
+          ...prev.attributes,
+          [attributeId]: newValues
+        }
+      };
+    });
   };
 
   const toggleDynamicFilterValue = (filterId: string, valueId: string, type: string) => {
@@ -425,8 +462,8 @@ const EditProduct = () => {
         newValues = [valueId];
       } else {
         newValues = currentValues.includes(valueId)
-          ? currentValues.filter(v => v !== valueId)
-          : [...currentValues, valueId];
+          ? (currentValues || []).filter(v => v !== valueId)
+          : [...(currentValues || []), valueId];
       }
       return {
         ...prev,
@@ -464,6 +501,7 @@ const EditProduct = () => {
         stock: parseInt(formData.stock) || 0,
         images: images.map(img => img.url),
         dynamicFilters: formData.dynamicFilters,
+        attributes: formData.attributes,
         status,
       } as any;
 
@@ -782,7 +820,7 @@ const EditProduct = () => {
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                   >
                     <option value="">Select Parent Category</option>
-                    {categories.filter(c => !c.parentId).map(cat => (
+                    {categories.filter(c => !(c as any).parentId).map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
@@ -798,7 +836,7 @@ const EditProduct = () => {
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                   >
                     <option value="">Select Child Category</option>
-                    {categories.filter(c => formData.parentCategoryId ? c.parentId === formData.parentCategoryId : c.parentId).map(cat => (
+                    {categories.filter(c => formData.parentCategoryId ? (c as any).parentId === formData.parentCategoryId : (c as any).parentId).map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
@@ -856,32 +894,46 @@ const EditProduct = () => {
                   </div>
                 </div>
 
-                {/* Dynamic Attributes */}
+                {/* PDP Attributes */}
                 <div className="pt-6 border-t border-brand-dark/5 space-y-6">
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Product Attributes</h4>
-                  {!formData.parentCategoryId ? (
-                    <p className="text-[10px] text-brand-dark/40 italic">Select a Parent Category above to load available attributes.</p>
-                  ) : dynamicFilters.length === 0 ? (
-                    <p className="text-[10px] text-brand-dark/40 italic">No attributes configured for this category yet.</p>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">PDP Display Attributes</h4>
+                    <span className="text-[8px] bg-brand-gold/10 text-brand-gold px-2 py-0.5 rounded-full font-bold">Visible on Product Page</span>
+                  </div>
+                  
+                  {availableAttributes.length === 0 ? (
+                    <p className="text-[10px] text-brand-dark/40 italic">No global attributes configured.</p>
                   ) : (
-                    dynamicFilters.map(filter => (
-                      <div key={filter.id} className="space-y-3">
-                        <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60">{filter.name}</label>
+                    availableAttributes.map(attr => (
+                      <div key={attr.id} className="space-y-3 bg-brand-cream/10 p-4 rounded-2xl border border-brand-dark/5">
+                        <div className="flex justify-between items-center">
+                          <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60">{attr.name}</label>
+                          <span className="text-[8px] text-brand-dark/30 font-bold uppercase tracking-widest">{attr.displayType.replace('_', ' ')}</span>
+                        </div>
                         <div className="flex flex-wrap gap-2">
-                          {(filterValuesMap[filter.id] || []).map(val => (
-                            <button
-                              key={val.id}
-                              type="button"
-                              onClick={() => toggleDynamicFilterValue(filter.id, val.id, filter.type)}
-                              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${
-                                (formData.dynamicFilters[filter.id] || []).includes(val.id)
-                                  ? 'bg-brand-gold text-white border-brand-gold'
-                                  : 'bg-white text-brand-dark/40 border-brand-dark/10 hover:border-brand-gold'
-                              }`}
-                            >
-                              {val.value}
-                            </button>
-                          ))}
+                          {(attr.values || []).map((val: any) => {
+                            const isSelected = (formData.attributes[attr.id] || []).includes(val.id);
+                            return (
+                              <button
+                                key={val.id}
+                                type="button"
+                                onClick={() => toggleAttributeValue(attr.id, val.id)}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all flex items-center space-x-2 ${
+                                  isSelected
+                                    ? 'bg-brand-dark text-white border-brand-dark shadow-md'
+                                    : 'bg-white text-brand-dark/40 border-brand-dark/10 hover:border-brand-gold'
+                                }`}
+                              >
+                                {attr.displayType === 'color_swatch' && val.colorCode && (
+                                  <div 
+                                    className="w-3 h-3 rounded-full border border-white/20" 
+                                    style={{ backgroundColor: val.colorCode }}
+                                  />
+                                )}
+                                <span>{val.value}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ))

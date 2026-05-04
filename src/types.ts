@@ -20,6 +20,7 @@ export type Module =
   | 'settings'
   | 'blogs'
   | 'seo'
+  | 'attributes'
   | 'tax_rules';
 
 export interface ModulePermission {

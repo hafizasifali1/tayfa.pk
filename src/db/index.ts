@@ -11,10 +11,7 @@ const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl) {
   console.warn('DATABASE_URL is not set. Database features will be disabled.');
 }
-let dbInstance: any;
-
-if (dbUrl?.startsWith('mysql')) {
-  const pool = mysql.createPool({
+export const pool = dbUrl?.startsWith('mysql') ? mysql.createPool({
     uri: dbUrl,
     ssl: dbUrl.includes('localhost') ? undefined : { rejectUnauthorized: false },
     waitForConnections: true,
@@ -22,7 +19,9 @@ if (dbUrl?.startsWith('mysql')) {
     queueLimit: 0,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
-  });
+  }) : null;
+
+if (pool && dbUrl?.startsWith('mysql')) {
   dbInstance = drizzleMysql(pool, { schema, mode: 'default' });
 } else {
   const pool = new PgPool({

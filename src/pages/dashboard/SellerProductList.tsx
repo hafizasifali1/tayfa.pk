@@ -107,7 +107,7 @@ const SellerProductList = () => {
     try {
       setIsDeleting(true);
       await axios.delete(`/api/products/${id}`);
-      setProducts(prev => prev.filter(p => p.id !== id));
+      setProducts(prev => (prev || []).filter(p => p.id !== id));
       setNotification({ type: 'success', message: 'Product deleted successfully' });
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -135,7 +135,7 @@ const SellerProductList = () => {
       try {
         setIsDeleting(true);
         await axios.post('/api/products/bulk-delete', { ids: selectedIds });
-        setProducts(prev => prev.filter(p => !selectedIds.includes(p.id)));
+        setProducts(prev => (prev || []).filter(p => !selectedIds.includes(p.id)));
         setSelectedIds([]);
         setNotification({ type: 'success', message: `${selectedIds.length} products deleted successfully` });
       } catch (error) {
@@ -160,7 +160,7 @@ const SellerProductList = () => {
 
   const toggleSelectProduct = (id: string) => {
     setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+      (prev || []).includes(id) ? (prev || []).filter(i => i !== id) : [...(prev || []), id]
     );
   };
 

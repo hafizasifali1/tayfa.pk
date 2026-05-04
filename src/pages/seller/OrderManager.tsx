@@ -169,7 +169,7 @@ const SellerOrderManager = () => {
                         <div>
                           <h3 className="font-bold text-brand-dark">{order.orderNumber}</h3>
                           <p className="text-xs text-brand-dark/40">
-                            {order.items.filter(i => i.sellerId === user?.id).length} items assigned
+                            {(order.items || []).filter((i: any) => i.sellerId === user?.id).length} items assigned
                           </p>
                         </div>
                       </div>
