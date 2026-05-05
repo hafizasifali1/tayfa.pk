@@ -212,6 +212,46 @@ async function migrate() {
         )
       `);
             await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS attributes (
+          id CHAR(36) PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL UNIQUE,
+          display_type VARCHAR(50) DEFAULT 'default',
+          description TEXT,
+          is_required BOOLEAN DEFAULT FALSE,
+          is_active BOOLEAN DEFAULT TRUE,
+          display_order INT DEFAULT 0,
+          show_on_product_page BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS attribute_values (
+          id CHAR(36) PRIMARY KEY,
+          attribute_id CHAR(36) NOT NULL,
+          value VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL,
+          color_code VARCHAR(50),
+          image_url VARCHAR(500),
+          display_order INT DEFAULT 0,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (attribute_id) REFERENCES attributes(id) ON DELETE CASCADE
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS product_attributes (
+          id CHAR(36) PRIMARY KEY,
+          product_id CHAR(36) NOT NULL,
+          attribute_id CHAR(36) NOT NULL,
+          value_id CHAR(36) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (attribute_id) REFERENCES attributes(id) ON DELETE CASCADE
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
         CREATE TABLE IF NOT EXISTS countries (
           id INT AUTO_INCREMENT PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
@@ -235,6 +275,7 @@ async function migrate() {
       `);
             // 2. Add missing columns
             console.log('Adding missing columns (MySQL)...');
+            await addColumn('products', 'attributes', 'JSON');
             await addColumn('orders', 'tax_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
             await addColumn('orders', 'discount_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
             await addColumn('orders', 'currency', "VARCHAR(10) DEFAULT 'PKR'");
@@ -257,6 +298,32 @@ async function migrate() {
             await addColumn('users', 'permissions', 'JSON');
             await addColumn('users', 'updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
             await addColumn('brands', 'company_id', 'CHAR(36)');
+            await addColumn('seller_applications', 'category', 'VARCHAR(100)');
+            await addColumn('seller_applications', 'custom_category', 'VARCHAR(100)');
+            await addColumn('seller_applications', 'company_name', 'VARCHAR(255)');
+            await addColumn('seller_applications', 'registration_number', 'VARCHAR(100)');
+            await addColumn('seller_applications', 'tax_id', 'VARCHAR(100)');
+            await addColumn('seller_applications', 'address_line1', 'TEXT');
+            await addColumn('seller_applications', 'city', 'VARCHAR(100)');
+            await addColumn('seller_applications', 'state', 'VARCHAR(100)');
+            await addColumn('seller_applications', 'postal_code', 'VARCHAR(20)');
+            await addColumn('seller_applications', 'country_code', 'VARCHAR(10)');
+            await addColumn('seller_applications', 'company_phone', 'VARCHAR(50)');
+            await addColumn('seller_applications', 'company_email', 'VARCHAR(255)');
+            await addColumn('pricelists', 'is_global', 'BOOLEAN DEFAULT FALSE');
+            await addColumn('promotions', 'buy_quantity', 'INT');
+            await addColumn('promotions', 'get_quantity', 'INT');
+            await addColumn('promotions', 'min_quantity', 'INT DEFAULT 1');
+            await addColumn('promotions', 'apply_to', "VARCHAR(50) DEFAULT 'all'");
+            await addColumn('promotions', 'product_ids', 'JSON');
+            await addColumn('promotions', 'category_id', 'CHAR(36)');
+            await addColumn('seller_applications', 'brands', 'JSON');
+            await addColumn('seller_applications', 'overview_document_url', 'VARCHAR(500)');
+            await addColumn('filters', 'category_id', 'CHAR(36) NULL');
+            await addColumn('filters', 'is_filterable', 'TINYINT(1) NOT NULL DEFAULT 0');
+            await addColumn('filters', 'is_attribute', 'TINYINT(1) NOT NULL DEFAULT 0');
+            await addColumn('cart_items', 'attributes', 'JSON NULL');
+            await addColumn('cart_items', 'variant_id', 'VARCHAR(255)');
         }
         else {
             // PostgreSQL
@@ -399,6 +466,44 @@ async function migrate() {
         )
       `);
             await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS attributes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL UNIQUE,
+          display_type VARCHAR(50) DEFAULT 'default',
+          description TEXT,
+          is_required BOOLEAN DEFAULT FALSE,
+          is_active BOOLEAN DEFAULT TRUE,
+          display_order INT DEFAULT 0,
+          show_on_product_page BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS attribute_values (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
+          value VARCHAR(255) NOT NULL,
+          slug VARCHAR(255) NOT NULL,
+          color_code VARCHAR(50),
+          image_url VARCHAR(500),
+          display_order INT DEFAULT 0,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS product_attributes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          product_id UUID NOT NULL,
+          attribute_id UUID NOT NULL REFERENCES attributes(id) ON DELETE CASCADE,
+          value_id UUID NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
         CREATE TABLE IF NOT EXISTS roles (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           name VARCHAR(255) NOT NULL,
@@ -411,6 +516,7 @@ async function migrate() {
       `);
             // 2. Add missing columns
             console.log('Adding missing columns (PG)...');
+            await addColumnPg('products', 'attributes', 'JSONB');
             await addColumnPg('orders', 'tax_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
             await addColumnPg('orders', 'discount_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
             await addColumnPg('orders', 'currency', "VARCHAR(10) DEFAULT 'PKR'");
@@ -429,7 +535,84 @@ async function migrate() {
             await addColumnPg('order_items', 'status', "VARCHAR(50) DEFAULT 'pending'");
             await addColumnPg('users', 'reset_token', 'VARCHAR(255)');
             await addColumnPg('users', 'reset_token_expires_at', 'TIMESTAMP');
+            await addColumnPg('users', 'reset_token_expires_at', 'TIMESTAMP');
+            await addColumnPg('seller_applications', 'category', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'custom_category', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'company_name', 'VARCHAR(255)');
+            await addColumnPg('seller_applications', 'registration_number', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'tax_id', 'VARCHAR(100)');
+            await addColumnPg('pricelists', 'is_global', 'BOOLEAN DEFAULT FALSE');
+            await addColumnPg('promotions', 'buy_quantity', 'INT');
+            await addColumnPg('promotions', 'get_quantity', 'INT');
+            await addColumnPg('promotions', 'min_quantity', 'INT DEFAULT 1');
+            await addColumnPg('promotions', 'apply_to', "VARCHAR(50) DEFAULT 'all'");
+            await addColumnPg('promotions', 'product_ids', 'JSONB');
+            await addColumnPg('promotions', 'category_id', 'UUID');
+            await addColumnPg('filters', 'category_id', 'UUID NULL');
+            await addColumnPg('filters', 'is_filterable', 'BOOLEAN NOT NULL DEFAULT FALSE');
+            await addColumnPg('filters', 'is_attribute', 'BOOLEAN NOT NULL DEFAULT FALSE');
+            await addColumnPg('cart_items', 'attributes', 'JSONB NULL');
+            await addColumnPg('cart_items', 'variant_id', 'VARCHAR(255)');
+            await addColumnPg('seller_applications', 'address_line1', 'TEXT');
+            await addColumnPg('seller_applications', 'city', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'state', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'postal_code', 'VARCHAR(20)');
+            await addColumnPg('seller_applications', 'country_code', 'VARCHAR(10)');
+            await addColumnPg('seller_applications', 'company_phone', 'VARCHAR(50)');
+            await addColumnPg('seller_applications', 'company_email', 'VARCHAR(255)');
+            await addColumnPg('seller_applications', 'brands', 'JSONB');
+            await addColumnPg('seller_applications', 'overview_document_url', 'VARCHAR(500)');
             await addColumnPg('brands', 'company_id', 'UUID');
+            await addColumnPg('seller_applications', 'category', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'custom_category', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'company_name', 'VARCHAR(255)');
+            await addColumnPg('seller_applications', 'registration_number', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'tax_id', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'address_line1', 'TEXT');
+            await addColumnPg('seller_applications', 'city', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'state', 'VARCHAR(100)');
+            await addColumnPg('seller_applications', 'postal_code', 'VARCHAR(20)');
+            await addColumnPg('seller_applications', 'country_code', 'VARCHAR(10)');
+            await addColumnPg('seller_applications', 'company_phone', 'VARCHAR(50)');
+            await addColumnPg('seller_applications', 'company_email', 'VARCHAR(255)');
+            await addColumnPg('seller_applications', 'brands', 'JSONB');
+            await addColumnPg('seller_applications', 'overview_document_url', 'VARCHAR(500)');
+        }
+        // Data migration for seller_applications
+        try {
+            console.log('Migrating existing seller_applications data...');
+            const { sellerApplications } = await Promise.resolve().then(() => __importStar(require('./schema')));
+            const apps = await index_1.db.select().from(sellerApplications);
+            for (const app of apps) {
+                if (app.businessData && typeof app.businessData === 'object' && !app.companyName) {
+                    console.log(`Migrating data for application ${app.id}...`);
+                    const bd = app.businessData;
+                    const company = bd.companies?.[0] || {};
+                    await index_1.db.update(sellerApplications)
+                        .set({
+                        category: bd.category,
+                        customCategory: bd.customCategory,
+                        companyName: company.name,
+                        registrationNumber: company.registrationNumber,
+                        taxId: company.taxId,
+                        addressLine1: company.addressLine1 || company.address,
+                        city: company.city,
+                        state: company.state,
+                        postalCode: company.postalCode,
+                        countryCode: company.countryCode,
+                        companyPhone: company.phone,
+                        companyEmail: company.email,
+                        brands: company.brands,
+                        overviewDocumentUrl: bd.overviewDocumentUrl || (Array.isArray(bd.overviewDocument) ? bd.overviewDocument[0]?.url : null),
+                        updatedAt: new Date()
+                    })
+                        .where((0, drizzle_orm_1.eq)(sellerApplications.id, app.id));
+                }
+            }
+            console.log('Seller applications data migration completed.');
+        }
+        catch (migError) {
+            console.error('Failed to migrate seller applications data:', migError);
         }
         // Seed/Sync roles and permissions
         try {
@@ -440,7 +623,36 @@ async function migrate() {
                     name: 'Administrator',
                     description: 'Full system access',
                     isSystem: true,
-                    permissions: [] // Admin bypasses checks
+                    permissions: [
+                        { module: 'overview', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'orders', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'categories', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'brands', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'rbac', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'settings', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'analytics', actions: ['view'] },
+                        { module: 'system', actions: ['view'] }
+                    ]
+                },
+                {
+                    id: 'super_admin',
+                    name: 'Super Administrator',
+                    description: 'Highest level system access',
+                    isSystem: true,
+                    permissions: [
+                        { module: 'overview', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'orders', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'users', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'categories', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'brands', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'rbac', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'settings', actions: ['view', 'create', 'edit', 'delete'] },
+                        { module: 'analytics', actions: ['view'] },
+                        { module: 'system', actions: ['view'] }
+                    ]
                 },
                 {
                     id: 'seller',
@@ -481,20 +693,18 @@ async function migrate() {
                 if (!existing) {
                     console.log(`Creating role: ${role.id}`);
                     await index_1.db.insert(roles).values({
-                        ...role,
+                        id: role.id,
+                        name: role.name,
+                        description: role.description,
+                        isSystem: role.isSystem,
+                        permissions: JSON.stringify(role.permissions),
                         createdAt: new Date(),
                         updatedAt: new Date()
                     });
                 }
-                else if (role.isSystem) {
-                    // Force update system roles to ensure latest permissions
-                    console.log(`Syncing system role: ${role.id}`);
-                    await index_1.db.update(roles)
-                        .set({
-                        permissions: role.permissions,
-                        updatedAt: new Date()
-                    })
-                        .where((0, drizzle_orm_1.eq)(roles.id, role.id));
+                else {
+                    // Role already exists — skip. Any permissions set via the Access Control UI are preserved.
+                    console.log(`Role '${role.id}' already exists — skipping.`);
                 }
             }
             console.log('Roles synchronization completed.');
@@ -513,7 +723,7 @@ async function migrate() {
                 console.log('Updating existing user to admin...');
                 await index_1.db.update(schema_1.users)
                     .set({
-                    role: 'admin',
+                    role: 'super_admin',
                     status: 'active',
                     password: hashedPassword,
                     updatedAt: new Date()
@@ -527,7 +737,7 @@ async function migrate() {
                     fullName: 'Tayyab Admin',
                     email: adminEmail,
                     password: hashedPassword,
-                    role: 'admin',
+                    role: 'super_admin',
                     status: 'active'
                 });
             }
@@ -661,3 +871,4 @@ async function migrate() {
         console.error('Migration failed:', error);
     }
 }
+migrate();

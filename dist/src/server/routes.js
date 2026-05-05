@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.sendEmail = sendEmail;
 const express_1 = __importDefault(require("express"));
 const db_1 = require("../db");
 const schema_1 = require("../db/schema");
@@ -18,6 +19,7 @@ const google_auth_library_1 = require("google-auth-library");
 const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const searchRoutes_1 = __importDefault(require("./routes/searchRoutes"));
 const router = express_1.default.Router();
 const isMysql = process.env.DATABASE_URL?.startsWith('mysql');
 const idType = isMysql ? 'CHAR(36)' : 'UUID';
@@ -52,6 +54,8 @@ router.post('/upload', upload.single('image'), (req, res) => {
         res.status(500).json({ error: 'Failed to upload image' });
     }
 });
+// --- Advanced Search Routes ---
+router.use('/search', searchRoutes_1.default);
 // --- Database Migration Helper ---
 const runMigrations = async () => {
     if (!process.env.DATABASE_URL)
@@ -132,6 +136,10 @@ const runMigrations = async () => {
         catch (e) { }
         try {
             await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN dynamic_filters JSON`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE products ADD COLUMN attributes JSON`);
         }
         catch (e) { }
         // Ensure images column is large enough for Base64 (LONGTEXT for MySQL)
@@ -280,6 +288,19 @@ const runMigrations = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`);
+            // Migration for new columns
+            try {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE filters ADD COLUMN category_id ${drizzle_orm_1.sql.raw(idTypeFilter)}`);
+            }
+            catch (e) { }
+            try {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE filters ADD COLUMN is_filterable BOOLEAN DEFAULT FALSE`);
+            }
+            catch (e) { }
+            try {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE filters ADD COLUMN is_attribute BOOLEAN DEFAULT FALSE`);
+            }
+            catch (e) { }
         }
         catch (e) { }
         try {
@@ -315,6 +336,46 @@ const runMigrations = async () => {
                 await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE product_filter_values ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
             }
             catch (e) { }
+            // Fix for 'filter_value_id' error - drop the redundant column if it exists
+            try {
+                await db_1.db.execute((0, drizzle_orm_1.sql) `ALTER TABLE product_filter_values DROP COLUMN filter_value_id`);
+            }
+            catch (e) { }
+        }
+        catch (e) { }
+        // PDP Attributes Module
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `CREATE TABLE IF NOT EXISTS attributes (
+        id ${drizzle_orm_1.sql.raw(idType)} PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        display_type VARCHAR(50) DEFAULT 'default',
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `CREATE TABLE IF NOT EXISTS attribute_values (
+        id ${drizzle_orm_1.sql.raw(idType)} PRIMARY KEY,
+        attribute_id ${drizzle_orm_1.sql.raw(idType)} NOT NULL,
+        value VARCHAR(255) NOT NULL,
+        color_code VARCHAR(50),
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+        }
+        catch (e) { }
+        try {
+            await db_1.db.execute((0, drizzle_orm_1.sql) `CREATE TABLE IF NOT EXISTS product_attributes (
+        id ${drizzle_orm_1.sql.raw(idType)} PRIMARY KEY,
+        product_id ${drizzle_orm_1.sql.raw(idType)} NOT NULL,
+        attribute_id ${drizzle_orm_1.sql.raw(idType)} NOT NULL,
+        value_id ${drizzle_orm_1.sql.raw(idType)} NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
         }
         catch (e) { }
         // SEO
@@ -429,8 +490,20 @@ const runMigrations = async () => {
             ('welcome_email', 'Welcome to TAYFA, {{customer_name}}!', '<h2>Welcome {{customer_name}}!</h2><p>Thank you for joining TAYFA.</p>', '{{customer_name}},{{email}}'),
             ('password_reset', 'Reset Your Password', '<p>Click <a href="{{reset_link}}">here</a> to reset your password.</p>', '{{customer_name}},{{reset_link}}'),
             ('seller_approved', 'Your Seller Account is Approved!', '<h2>Congratulations {{seller_name}}!</h2><p>Your seller account has been approved.</p>', '{{seller_name}},{{dashboard_link}}'),
-            ('order_shipped', 'Your Order #{{order_id}} Has Been Shipped', '<p>Your order is on the way! Tracking: {{tracking_number}}</p>', '{{customer_name}},{{order_id}},{{tracking_number}}')
+            ('order_shipped', 'Your Order #{{order_id}} Has Been Shipped', '<p>Your order is on the way! Tracking: {{tracking_number}}</p>', '{{customer_name}},{{order_id}},{{tracking_number}}'),
+            ('seller_new_order', 'New Order Received - #{{order_id}}', '<h2>Hi {{seller_name}},</h2><p>A new order <strong>#{{order_id}}</strong> has been placed that contains your products.</p><p><strong>Items:</strong></p><div>{{items_html}}</div><p><strong>Seller Total:</strong> {{seller_total}} {{currency}}</p><p>Please log in to your dashboard to fulfill the order.</p>', '{{seller_name}},{{order_id}},{{items_html}},{{seller_total}},{{currency}}')
           `);
+                }
+                // Idempotent: ensure seller_new_order template exists and is active even on already-seeded DBs
+                const [sellerTpl] = await db_1.db.select().from(schema_1.emailTemplates).where((0, drizzle_orm_1.eq)(schema_1.emailTemplates.name, 'seller_new_order')).limit(1);
+                if (!sellerTpl) {
+                    await db_1.db.execute((0, drizzle_orm_1.sql) `
+            INSERT INTO email_templates (name, subject, body, variables, is_active) VALUES
+            ('seller_new_order', 'New Order Received - #{{order_id}}', '<h2>Hi {{seller_name}},</h2><p>A new order <strong>#{{order_id}}</strong> has been placed that contains your products.</p><p><strong>Items:</strong></p><div>{{items_html}}</div><p><strong>Seller Total:</strong> {{seller_total}} {{currency}}</p><p>Please log in to your dashboard to fulfill the order.</p>', '{{seller_name}},{{order_id}},{{items_html}},{{seller_total}},{{currency}}', true)
+          `);
+                }
+                else if (!sellerTpl.isActive) {
+                    await db_1.db.update(schema_1.emailTemplates).set({ isActive: true }).where((0, drizzle_orm_1.eq)(schema_1.emailTemplates.id, sellerTpl.id));
                 }
             }
         }
@@ -466,6 +539,57 @@ const parseJsonField = (field) => {
     }
     return field;
 };
+// Helper to find applicable promotions for a product
+const getApplicablePromotionsInternal = (product, allPromotions) => {
+    if (!allPromotions || !product)
+        return [];
+    const now = new Date();
+    return allPromotions.filter(promo => {
+        if (!promo.isActive)
+            return false;
+        // Check dates
+        if (promo.startDate && new Date(promo.startDate) > now)
+            return false;
+        if (promo.endDate && new Date(promo.endDate) < now)
+            return false;
+        // Check scope
+        if (promo.applyTo === 'all')
+            return true;
+        if (promo.applyTo === 'category' && (promo.categoryId === product.categoryId || promo.categoryId === product.parentCategoryId))
+            return true;
+        if (promo.applyTo === 'specific') {
+            const pIds = parseJsonField(promo.productIds);
+            return Array.isArray(pIds) && (pIds.includes(product.id) || pIds.includes(product.slug));
+        }
+        return false;
+    });
+};
+const getBestPromotion = (product, promotions, quantity = 1) => {
+    const applicable = promotions.filter(promo => {
+        const minQty = parseInt(promo.buyQuantity?.toString() || '1');
+        return quantity >= minQty;
+    });
+    if (applicable.length === 0)
+        return null;
+    // Pick the one with highest discount
+    return applicable.reduce((best, current) => {
+        const bestDiscount = calculateDiscountAmount(product.price, best, quantity);
+        const currentDiscount = calculateDiscountAmount(product.price, current, quantity);
+        return currentDiscount > bestDiscount ? current : best;
+    });
+};
+const calculateDiscountAmount = (price, promotion, quantity) => {
+    if (!promotion)
+        return 0;
+    const val = parseFloat(promotion.value?.toString() || '0');
+    if (promotion.type === 'percentage') {
+        return price * quantity * (val / 100);
+    }
+    else if (promotion.type === 'fixed_amount') {
+        return val * quantity;
+    }
+    return 0;
+};
 // --- Coupons API ---
 router.get('/coupons', async (req, res) => {
     try {
@@ -494,14 +618,24 @@ router.get('/filters', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
             return res.json([]);
-        const { isActive } = req.query;
+        const { isActive, category_id, isFilterable, isAttribute } = req.query;
         let conditions = [];
         if (isActive !== undefined)
             conditions.push((0, drizzle_orm_1.eq)(schema_1.filters.isActive, isActive === 'true'));
+        if (category_id)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.filters.categoryId, category_id));
+        if (isFilterable !== undefined)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.filters.isFilterable, isFilterable === 'true'));
+        if (isAttribute !== undefined)
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.filters.isAttribute, isAttribute === 'true'));
         const result = await db_1.db.select().from(schema_1.filters)
             .where(conditions.length > 0 ? (0, drizzle_orm_1.and)(...conditions) : undefined)
             .orderBy(schema_1.filters.displayOrder);
-        res.json(result);
+        const parsedResult = result.map(f => ({
+            ...f,
+            labels: parseJsonField(f.labels)
+        }));
+        res.json(parsedResult);
     }
     catch (error) {
         console.error('Error fetching filters:', error);
@@ -511,17 +645,23 @@ router.get('/filters', async (req, res) => {
 router.post('/filters', async (req, res) => {
     try {
         const id = (0, uuid_1.v4)();
-        const { name, type, displayOrder, isActive, labels } = req.body;
+        const { name, type, displayOrder, isActive, labels, categoryId, isFilterable, isAttribute } = req.body;
         await db_1.db.insert(schema_1.filters).values({
             id,
             name,
             type,
             displayOrder: displayOrder || 0,
             isActive: isActive !== undefined ? isActive : true,
-            labels: labels || {}
+            labels: parseJsonField(labels) || {},
+            categoryId: categoryId || null,
+            isFilterable: isFilterable ?? false,
+            isAttribute: isAttribute ?? false,
         });
         const [newFilter] = await db_1.db.select().from(schema_1.filters).where((0, drizzle_orm_1.eq)(schema_1.filters.id, id));
-        res.status(201).json(newFilter);
+        res.status(201).json({
+            ...newFilter,
+            labels: parseJsonField(newFilter.labels)
+        });
     }
     catch (error) {
         console.error('Error creating filter:', error);
@@ -533,12 +673,18 @@ router.patch('/filters/:id', async (req, res) => {
         const updated = await (0, updateHandler_1.handlePatchUpdate)({
             table: schema_1.filters,
             id: req.params.id,
-            data: req.body,
+            data: {
+                ...req.body,
+                labels: req.body.labels ? parseJsonField(req.body.labels) : undefined
+            },
             userId: req.body.adminId || 'system',
             module: 'Filter',
-            allowedFields: ['name', 'type', 'displayOrder', 'isActive', 'labels']
+            allowedFields: ['name', 'type', 'displayOrder', 'isActive', 'labels', 'categoryId', 'isFilterable', 'isAttribute']
         });
-        res.json(updated);
+        res.json({
+            ...updated,
+            labels: parseJsonField(updated.labels)
+        });
     }
     catch (error) {
         res.status(400).json({ error: error.message });
@@ -565,9 +711,14 @@ router.get('/filter-values', async (req, res) => {
         const result = await db_1.db.select().from(schema_1.filterValues)
             .where(conditions.length > 0 ? (0, drizzle_orm_1.and)(...conditions) : undefined)
             .orderBy(schema_1.filterValues.displayOrder);
-        res.json(result);
+        const parsedResult = result.map(fv => ({
+            ...fv,
+            labels: parseJsonField(fv.labels)
+        }));
+        res.json(parsedResult);
     }
     catch (error) {
+        console.error('Error fetching filter values:', error);
         res.status(500).json({ error: 'Failed to fetch filter values' });
     }
 });
@@ -579,11 +730,14 @@ router.post('/filter-values', async (req, res) => {
             id,
             filterId,
             value,
-            labels: labels || {},
+            labels: parseJsonField(labels) || {},
             displayOrder: displayOrder || 0
         });
         const [newValue] = await db_1.db.select().from(schema_1.filterValues).where((0, drizzle_orm_1.eq)(schema_1.filterValues.id, id));
-        res.status(201).json(newValue);
+        res.status(201).json({
+            ...newValue,
+            labels: parseJsonField(newValue.labels)
+        });
     }
     catch (error) {
         console.error('Error creating filter value:', error);
@@ -595,12 +749,18 @@ router.patch('/filter-values/:id', async (req, res) => {
         const updated = await (0, updateHandler_1.handlePatchUpdate)({
             table: schema_1.filterValues,
             id: req.params.id,
-            data: req.body,
+            data: {
+                ...req.body,
+                labels: req.body.labels ? parseJsonField(req.body.labels) : undefined
+            },
             userId: req.body.adminId || 'system',
             module: 'FilterValue',
             allowedFields: ['value', 'displayOrder', 'labels']
         });
-        res.json(updated);
+        res.json({
+            ...updated,
+            labels: parseJsonField(updated.labels)
+        });
     }
     catch (error) {
         res.status(400).json({ error: error.message });
@@ -950,6 +1110,8 @@ router.get('/products', async (req, res) => {
             .leftJoin(parentCategories, (0, drizzle_orm_1.eq)(schema_1.products.parentCategoryId, parentCategories.id))
             .leftJoin(schema_1.users, (0, drizzle_orm_1.eq)(schema_1.products.sellerId, schema_1.users.id))
             .leftJoin(schema_1.pricelists, (0, drizzle_orm_1.eq)(schema_1.products.pricelistId, schema_1.pricelists.id));
+        // Fetch active promotions
+        const activePromotions = await db_1.db.select().from(schema_1.promotions).where((0, drizzle_orm_1.eq)(schema_1.promotions.isActive, true));
         // Apply filters
         const conditions = [];
         if (sellerId)
@@ -993,6 +1155,8 @@ router.get('/products', async (req, res) => {
                 p.colors = parseJsonField(p.colors);
                 p.tags = parseJsonField(p.tags);
                 p.dynamicFilters = parseJsonField(p.dynamicFilters);
+                // Add applicable promotions
+                p.applicablePromotions = getApplicablePromotionsInternal(p, activePromotions);
             });
             // --- Apply Active Discounts ---
             try {
@@ -1081,6 +1245,18 @@ router.post('/products', async (req, res) => {
         data.dynamicFilters = parseJsonField(data.dynamicFilters);
         console.log('Creating product with data:', { ...data, id, slug });
         await db_1.db.insert(schema_1.products).values({ ...data, id, slug });
+        // Sync dynamicFilters JSON → product_filter_values table
+        if (data.dynamicFilters && typeof data.dynamicFilters === 'object') {
+            const pfvRows = Object.entries(data.dynamicFilters).flatMap(([filterId, valueIds]) => (valueIds || []).map(valueId => ({ id: (0, uuid_1.v4)(), productId: id, filterId, valueId })));
+            if (pfvRows.length > 0)
+                await db_1.db.insert(schema_1.productFilterValues).values(pfvRows);
+        }
+        // Sync attributes JSON → product_attributes table
+        if (data.attributes && typeof data.attributes === 'object') {
+            const attrRows = Object.entries(data.attributes).flatMap(([attributeId, valueIds]) => (valueIds || []).map(valueId => ({ id: (0, uuid_1.v4)(), productId: id, attributeId, valueId })));
+            if (attrRows.length > 0)
+                await db_1.db.insert(schema_1.productAttributes).values(attrRows);
+        }
         const [newProduct] = await db_1.db.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id));
         res.status(201).json(newProduct);
     }
@@ -1104,6 +1280,20 @@ router.put('/products/:id', async (req, res) => {
         if (data.dynamicFilters)
             data.dynamicFilters = parseJsonField(data.dynamicFilters);
         await db_1.db.update(schema_1.products).set(data).where((0, drizzle_orm_1.eq)(schema_1.products.id, req.params.id));
+        // Sync dynamicFilters JSON → product_filter_values table
+        if (data.dynamicFilters && typeof data.dynamicFilters === 'object') {
+            await db_1.db.delete(schema_1.productFilterValues).where((0, drizzle_orm_1.eq)(schema_1.productFilterValues.productId, req.params.id));
+            const pfvRows = Object.entries(data.dynamicFilters).flatMap(([filterId, valueIds]) => (valueIds || []).map(valueId => ({ id: (0, uuid_1.v4)(), productId: req.params.id, filterId, valueId })));
+            if (pfvRows.length > 0)
+                await db_1.db.insert(schema_1.productFilterValues).values(pfvRows);
+        }
+        // Sync attributes JSON → product_attributes table
+        if (data.attributes && typeof data.attributes === 'object') {
+            await db_1.db.delete(schema_1.productAttributes).where((0, drizzle_orm_1.eq)(schema_1.productAttributes.productId, req.params.id));
+            const attrRows = Object.entries(data.attributes).flatMap(([attributeId, valueIds]) => (valueIds || []).map(valueId => ({ id: (0, uuid_1.v4)(), productId: req.params.id, attributeId, valueId })));
+            if (attrRows.length > 0)
+                await db_1.db.insert(schema_1.productAttributes).values(attrRows);
+        }
         const [updated] = await db_1.db.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, req.params.id));
         res.json(updated);
     }
@@ -1120,6 +1310,61 @@ router.delete('/products/:id', async (req, res) => {
     catch (error) {
         console.error('Error deleting product:', error);
         res.status(500).json({ error: 'Failed to delete product' });
+    }
+});
+router.get('/products/:id/attributes', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.json([]);
+        // Accept both UUID and slug — product detail page passes the slug from the URL
+        const [product] = await db_1.db.select({ id: schema_1.products.id, dynamicFilters: schema_1.products.dynamicFilters })
+            .from(schema_1.products)
+            .where((0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.products.id, req.params.id), (0, drizzle_orm_1.eq)(schema_1.products.slug, req.params.id)));
+        if (!product)
+            return res.status(404).json({ error: 'Product not found' });
+        // Get all attribute filters (is_attribute = true, is_active = true)
+        const attributeFilters = await db_1.db.select().from(schema_1.filters)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.filters.isAttribute, true), (0, drizzle_orm_1.eq)(schema_1.filters.isActive, true)))
+            .orderBy(schema_1.filters.displayOrder);
+        if (attributeFilters.length === 0)
+            return res.json([]);
+        const attributeFilterIds = attributeFilters.map(f => f.id);
+        // Build a map of filterId → valueId[] from product_filter_values
+        const pfvRows = await db_1.db.select().from(schema_1.productFilterValues)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.productFilterValues.productId, product.id), (0, drizzle_orm_1.inArray)(schema_1.productFilterValues.filterId, attributeFilterIds)));
+        const selectionMap = {};
+        pfvRows.forEach(r => {
+            if (!selectionMap[r.filterId])
+                selectionMap[r.filterId] = [];
+            selectionMap[r.filterId].push(r.valueId);
+        });
+        // Fall back to products.dynamicFilters JSON for products saved before the junction table sync
+        if (pfvRows.length === 0) {
+            const jsonFilters = parseJsonField(product.dynamicFilters) || {};
+            attributeFilterIds.forEach(filterId => {
+                if (jsonFilters[filterId]?.length)
+                    selectionMap[filterId] = jsonFilters[filterId];
+            });
+        }
+        if (Object.keys(selectionMap).length === 0)
+            return res.json([]);
+        const allValueIds = Object.values(selectionMap).flat();
+        const fvRows = await db_1.db.select().from(schema_1.filterValues)
+            .where((0, drizzle_orm_1.inArray)(schema_1.filterValues.id, allValueIds));
+        const valueMap = new Map(fvRows.map(fv => [fv.id, fv.value]));
+        const result = attributeFilters
+            .map(filter => {
+            const values = (selectionMap[filter.id] || [])
+                .map(vid => valueMap.get(vid))
+                .filter(Boolean);
+            return values.length > 0 ? { id: filter.id, name: filter.name, values } : null;
+        })
+            .filter(Boolean);
+        res.json(result);
+    }
+    catch (error) {
+        console.error('Error fetching product attributes:', error);
+        res.status(500).json({ error: 'Failed to fetch product attributes' });
     }
 });
 router.post('/products/bulk-delete', async (req, res) => {
@@ -1240,6 +1485,8 @@ router.get('/products/:slug', async (req, res) => {
         catch (discountError) {
             console.error('Error applying discount to single product:', discountError);
         }
+        const activePromotions = await db_1.db.select().from(schema_1.promotions).where((0, drizzle_orm_1.eq)(schema_1.promotions.isActive, true));
+        product.applicablePromotions = getApplicablePromotionsInternal(product, activePromotions);
         res.json(product);
     }
     catch (error) {
@@ -1934,67 +2181,12 @@ router.post('/bulk-upload', async (req, res) => {
     }
 });
 // --- Roles & RBAC API ---
-router.get('/roles', async (req, res) => {
-    try {
-        const defaultRoles = [
-            {
-                id: 'admin',
-                name: 'Administrator',
-                description: 'Full system access',
-                isSystem: true,
-                permissions: []
-            },
-            {
-                id: 'seller',
-                name: 'Seller',
-                description: 'Manage products and orders',
-                isSystem: true,
-                permissions: [
-                    { module: 'overview', actions: ['view'] },
-                    { module: 'products', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'bulk_upload', actions: ['view', 'create'] },
-                    { module: 'orders', actions: ['view', 'edit'] },
-                    { module: 'analytics', actions: ['view'] },
-                    { module: 'pricelist', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'promotions', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'coupons', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'discounts', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'shipping', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'payments', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'invoices', actions: ['view', 'create', 'edit', 'delete'] },
-                    { module: 'ledger', actions: ['view'] },
-                    { module: 'system', actions: ['view'] },
-                    { module: 'settings', actions: ['view', 'edit'] }
-                ]
-            },
-            {
-                id: 'user',
-                name: 'Customer',
-                description: 'Standard customer access',
-                isSystem: true,
-                permissions: [
-                    { module: 'overview', actions: ['view'] }
-                ]
-            }
-        ];
-        if (!process.env.DATABASE_URL)
-            return res.json(defaultRoles);
-        // Fetch from DB
-        const dbRoles = await db_1.db.select().from(schema_1.roles);
-        // If empty, seed default roles
-        if (dbRoles.length === 0) {
-            for (const role of defaultRoles) {
-                await db_1.db.insert(schema_1.roles).values(role);
-            }
-            return res.json(defaultRoles);
-        }
-        res.json(dbRoles);
-    }
-    catch (error) {
-        console.error('Error fetching roles:', error);
-        res.status(500).json({ error: 'Failed to fetch roles' });
-    }
-});
+// NOTE: a single canonical GET /roles handler is defined further below
+// (search for "router.get('/roles'"). The earlier duplicate handler that
+// previously lived here has been removed because Express only runs the first
+// match — the duplicate was masking the more complete handler and seeded
+// the Administrator role with no permissions, which contributed to admin
+// permissions appearing empty after refresh.
 // --- Seller Analytics API ---
 router.get('/seller/analytics', async (req, res) => {
     try {
@@ -2022,11 +2214,15 @@ router.get('/pricelists', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
             return res.json([]);
-        const { sellerId, isActive } = req.query;
+        const { sellerId, isActive, isGlobal } = req.query;
         const { limit, offset } = getPagination(req.query);
         let conditions = [];
-        if (sellerId)
-            conditions.push((0, drizzle_orm_1.eq)(schema_1.pricelists.sellerId, sellerId));
+        if (sellerId) {
+            conditions.push((0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_1.pricelists.sellerId, sellerId), (0, drizzle_orm_1.eq)(schema_1.pricelists.isGlobal, true)));
+        }
+        else if (isGlobal === 'true') {
+            conditions.push((0, drizzle_orm_1.eq)(schema_1.pricelists.isGlobal, true));
+        }
         if (isActive !== undefined)
             conditions.push((0, drizzle_orm_1.eq)(schema_1.pricelists.isActive, isActive === 'true'));
         const result = await db_1.db.select().from(schema_1.pricelists)
@@ -2240,6 +2436,12 @@ router.get('/promotions', async (req, res) => {
             type: promoTable.type,
             value: promoTable.value,
             minPurchase: promoTable.minPurchase,
+            buyQuantity: promoTable.buyQuantity,
+            getQuantity: promoTable.getQuantity,
+            minQuantity: promoTable.minQuantity,
+            applyTo: promoTable.applyTo,
+            productIds: promoTable.productIds,
+            categoryId: promoTable.categoryId,
             startDate: promoTable.startDate,
             endDate: promoTable.endDate,
             isActive: promoTable.isActive,
@@ -2252,7 +2454,11 @@ router.get('/promotions', async (req, res) => {
             .limit(limit)
             .offset(offset)
             .orderBy((0, drizzle_orm_1.desc)(promoTable.createdAt));
-        res.json(result);
+        const parsedResult = result.map(p => ({
+            ...p,
+            productIds: parseJsonField(p.productIds) || []
+        }));
+        res.json(parsedResult);
     }
     catch (error) {
         console.error('Error fetching promotions:', error);
@@ -2264,21 +2470,74 @@ router.post('/promotions', async (req, res) => {
         if (!process.env.DATABASE_URL)
             return res.status(500).json({ error: 'DB not connected' });
         const id = (0, uuid_1.v4)();
-        await db_1.db.insert(schema_1.promotions).values({ ...req.body, id });
+        const { sellerId, name, description, type, value, minPurchase, buyQuantity, getQuantity, minQuantity, applyTo, productIds, categoryId, startDate, endDate, isActive } = req.body;
+        await db_1.db.insert(schema_1.promotions).values({
+            id, sellerId, name, description, type,
+            value: value?.toString() || '0',
+            minPurchase: minPurchase?.toString() || '0.00',
+            buyQuantity: buyQuantity ?? null,
+            getQuantity: getQuantity ?? null,
+            minQuantity: minQuantity ?? 1,
+            applyTo: applyTo || 'all',
+            productIds: productIds || [],
+            categoryId: categoryId || null,
+            startDate: startDate ? new Date(startDate) : null,
+            endDate: endDate ? new Date(endDate) : null,
+            isActive: isActive !== undefined ? isActive : true,
+        });
         const [newPromotion] = await db_1.db.select().from(schema_1.promotions).where((0, drizzle_orm_1.eq)(schema_1.promotions.id, id));
-        res.status(201).json(newPromotion);
+        res.status(201).json({
+            ...newPromotion,
+            productIds: parseJsonField(newPromotion.productIds) || []
+        });
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to create promotion' });
+        console.error('Error creating promotion:', error);
+        res.status(500).json({ error: 'Failed to create promotion', details: error.message });
     }
 });
 router.put('/promotions/:id', async (req, res) => {
     try {
-        await db_1.db.update(schema_1.promotions).set(req.body).where((0, drizzle_orm_1.eq)(schema_1.promotions.id, req.params.id));
-        res.json({ success: true });
+        const { name, description, type, value, minPurchase, buyQuantity, getQuantity, minQuantity, applyTo, productIds, categoryId, startDate, endDate, isActive } = req.body;
+        const updateData = {};
+        if (name !== undefined)
+            updateData.name = name;
+        if (description !== undefined)
+            updateData.description = description;
+        if (type !== undefined)
+            updateData.type = type;
+        if (value !== undefined)
+            updateData.value = value?.toString();
+        if (minPurchase !== undefined)
+            updateData.minPurchase = minPurchase?.toString();
+        if (buyQuantity !== undefined)
+            updateData.buyQuantity = buyQuantity;
+        if (getQuantity !== undefined)
+            updateData.getQuantity = getQuantity;
+        if (minQuantity !== undefined)
+            updateData.minQuantity = minQuantity ?? 1;
+        if (applyTo !== undefined)
+            updateData.applyTo = applyTo;
+        if (productIds !== undefined)
+            updateData.productIds = productIds;
+        if (categoryId !== undefined)
+            updateData.categoryId = categoryId || null;
+        if (startDate !== undefined)
+            updateData.startDate = startDate ? new Date(startDate) : null;
+        if (endDate !== undefined)
+            updateData.endDate = endDate ? new Date(endDate) : null;
+        if (isActive !== undefined)
+            updateData.isActive = isActive;
+        await db_1.db.update(schema_1.promotions).set(updateData).where((0, drizzle_orm_1.eq)(schema_1.promotions.id, req.params.id));
+        const [updated] = await db_1.db.select().from(schema_1.promotions).where((0, drizzle_orm_1.eq)(schema_1.promotions.id, req.params.id));
+        res.json({
+            ...(updated || {}),
+            productIds: updated ? (parseJsonField(updated.productIds) || []) : []
+        });
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to update promotion' });
+        console.error('Error updating promotion:', error);
+        res.status(500).json({ error: 'Failed to update promotion', details: error.message });
     }
 });
 router.delete('/promotions/:id', async (req, res) => {
@@ -3178,7 +3437,10 @@ router.get('/roles', async (req, res) => {
             ];
             for (const role of defaultRoles) {
                 try {
-                    await db_1.db.insert(schema_1.roles).values(role);
+                    await db_1.db.insert(schema_1.roles).values({
+                        ...role,
+                        permissions: JSON.stringify(role.permissions)
+                    });
                 }
                 catch (e) {
                     console.error(`Failed to seed role ${role.id}:`, e);
@@ -3204,9 +3466,14 @@ router.post('/roles', async (req, res) => {
             return res.status(500).json({ error: 'DB not connected' });
         const id = (0, uuid_1.v4)();
         const data = { ...req.body, id };
-        // Ensure permissions is a clean object
-        if (data.permissions) {
-            data.permissions = parseJsonField(data.permissions);
+        // Stringify permissions before insert (drizzle-mysql2 doesn't reliably
+        // auto-serialize JSON columns on writes for this codebase's setup).
+        if (data.permissions !== undefined) {
+            const parsed = parseJsonField(data.permissions);
+            data.permissions = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
+        }
+        else {
+            data.permissions = '[]';
         }
         await db_1.db.insert(schema_1.roles).values(data);
         const [newRole] = await db_1.db.select().from(schema_1.roles).where((0, drizzle_orm_1.eq)(schema_1.roles.id, id));
@@ -3248,8 +3515,12 @@ router.patch('/roles/:id', async (req, res) => {
             }
         }
         const updateData = { ...req.body };
-        if (updateData.permissions) {
-            updateData.permissions = parseJsonField(updateData.permissions);
+        if (updateData.permissions !== undefined) {
+            // drizzle-mysql2 does not always auto-serialize JSON columns on
+            // .set(), so we stringify explicitly here. Mirrors the pattern used
+            // elsewhere in this file for json columns (see settings.value writes).
+            const parsed = parseJsonField(updateData.permissions);
+            updateData.permissions = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
         }
         const updated = await (0, updateHandler_1.handlePatchUpdate)({
             table: schema_1.roles,
@@ -3315,6 +3586,47 @@ router.get('/admin/users', async (req, res) => {
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+router.post('/admin/users', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'DB not connected' });
+        const { email, password, fullName, phone, role, status, adminId } = req.body;
+        if (!email || !password || !fullName || !role) {
+            return res.status(400).json({ error: 'fullName, email, password, and role are required' });
+        }
+        const [existingUser] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.email, email));
+        if (existingUser) {
+            return res.status(400).json({ error: 'Email already exists' });
+        }
+        const hashedPassword = await bcryptjs_1.default.hash(password, 10);
+        const id = (0, uuid_1.v4)();
+        const finalStatus = status || (role === 'seller' ? 'pending' : 'active');
+        await db_1.db.insert(schema_1.users).values({
+            id,
+            email,
+            password: hashedPassword,
+            fullName,
+            phone: phone || null,
+            role,
+            status: finalStatus
+        });
+        await db_1.db.insert(schema_1.auditLogs).values({
+            id: (0, uuid_1.v4)(),
+            userId: adminId || 'system',
+            action: 'create_user',
+            module: 'users',
+            details: { targetUserId: id, role, status: finalStatus },
+            createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
+        });
+        const [newUser] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, id));
+        const { password: _pw, ...userWithoutPassword } = newUser;
+        res.status(201).json(userWithoutPassword);
+    }
+    catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ error: error.message || 'Failed to create user' });
     }
 });
 router.patch('/admin/users/:id', async (req, res) => {
@@ -3415,6 +3727,138 @@ router.delete('/admin/users/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete user. The user may have existing orders or financial records that prevent deletion.' });
     }
 });
+// --- Admin Seller Details API ---
+router.get('/admin/sellers/:id', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'DB not connected' });
+        const sellerId = req.params.id;
+        const [user] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, sellerId)).limit(1);
+        if (!user)
+            return res.status(404).json({ error: 'Seller not found' });
+        const [application] = await db_1.db.select().from(schema_1.sellerApplications).where((0, drizzle_orm_1.eq)(schema_1.sellerApplications.userId, sellerId)).limit(1);
+        const sellerCompanies = await db_1.db.select().from(schema_1.companies).where((0, drizzle_orm_1.eq)(schema_1.companies.sellerId, sellerId));
+        // Fetch brands for each company
+        const companiesWithBrands = await Promise.all(sellerCompanies.map(async (company) => {
+            const companyBrands = await db_1.db.select().from(schema_1.brands).where((0, drizzle_orm_1.eq)(schema_1.brands.companyId, company.id));
+            return { ...company, brands: companyBrands };
+        }));
+        // Quick Stats (if approved)
+        let stats = null;
+        if (user.role === 'seller' || user.role === 'admin') {
+            const [productCount] = await db_1.db.select({ count: (0, drizzle_orm_1.sql) `count(*)` }).from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.sellerId, sellerId));
+            const [orderCount] = await db_1.db.select({ count: (0, drizzle_orm_1.sql) `count(distinct ${schema_1.orderItems.orderId})` }).from(schema_1.orderItems).where((0, drizzle_orm_1.eq)(schema_1.orderItems.sellerId, sellerId));
+            const [revenue] = await db_1.db.select({ total: (0, drizzle_orm_1.sql) `sum(${schema_1.orderItems.price} * ${schema_1.orderItems.quantity})` }).from(schema_1.orderItems).where((0, drizzle_orm_1.eq)(schema_1.orderItems.sellerId, sellerId));
+            stats = {
+                totalProducts: productCount?.count || 0,
+                totalOrders: orderCount?.count || 0,
+                totalRevenue: parseFloat(revenue?.total || '0')
+            };
+        }
+        // Reconstruct businessData structure from separate columns to ensure new columns are the source of truth
+        const formattedApplication = application ? {
+            ...application,
+            businessData: {
+                ...(application.businessData || {}),
+                category: application.category,
+                customCategory: application.customCategory,
+                overviewDocumentUrl: application.overviewDocumentUrl,
+                companies: application.companyName ? [{
+                        ...(application.businessData?.companies?.[0] || {}),
+                        name: application.companyName,
+                        registrationNumber: application.registrationNumber,
+                        taxId: application.taxId,
+                        address: application.addressLine1,
+                        addressLine1: application.addressLine1,
+                        city: application.city,
+                        state: application.state,
+                        postalCode: application.postalCode,
+                        countryCode: application.countryCode,
+                        phone: application.companyPhone,
+                        email: application.companyEmail,
+                        brands: application.brands || []
+                    }] : (application.businessData?.companies || [])
+            }
+        } : null;
+        res.json({
+            user,
+            application: formattedApplication,
+            companies: companiesWithBrands,
+            stats
+        });
+    }
+    catch (error) {
+        console.error('Error fetching seller details:', error);
+        res.status(500).json({ error: 'Failed to fetch seller details' });
+    }
+});
+router.patch('/admin/sellers/:id/approve', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'DB not connected' });
+        const sellerId = req.params.id;
+        const { adminId } = req.body;
+        await db_1.db.update(schema_1.users).set({ status: 'active', role: 'seller' }).where((0, drizzle_orm_1.eq)(schema_1.users.id, sellerId));
+        await db_1.db.update(schema_1.sellerApplications).set({
+            status: 'approved',
+            reviewedBy: adminId,
+            reviewedAt: new Date()
+        }).where((0, drizzle_orm_1.eq)(schema_1.sellerApplications.userId, sellerId));
+        const [user] = await db_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.id, sellerId)).limit(1);
+        // Audit Log
+        await db_1.db.insert(schema_1.auditLogs).values({
+            id: (0, uuid_1.v4)(),
+            userId: adminId || 'system',
+            action: 'approve_seller',
+            module: 'sellers',
+            details: { targetUserId: sellerId },
+            createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
+        });
+        // Send Email
+        if (user) {
+            const siteUrl = req.get('origin') || 'http://localhost:5173';
+            sendEmail({
+                to: user.email,
+                templateName: 'seller_account_approved',
+                data: { name: user.fullName, login_url: `${siteUrl}` }
+            });
+        }
+        res.json({ success: true, status: 'active' });
+    }
+    catch (error) {
+        console.error('Error approving seller:', error);
+        res.status(500).json({ error: 'Failed to approve seller' });
+    }
+});
+router.patch('/admin/sellers/:id/reject', async (req, res) => {
+    try {
+        if (!process.env.DATABASE_URL)
+            return res.status(500).json({ error: 'DB not connected' });
+        const sellerId = req.params.id;
+        const { reason, adminId } = req.body;
+        await db_1.db.update(schema_1.users).set({ status: 'rejected' }).where((0, drizzle_orm_1.eq)(schema_1.users.id, sellerId));
+        await db_1.db.update(schema_1.sellerApplications).set({
+            status: 'rejected',
+            adminNotes: reason,
+            reviewedBy: adminId,
+            reviewedAt: new Date()
+        }).where((0, drizzle_orm_1.eq)(schema_1.sellerApplications.userId, sellerId));
+        // Audit Log
+        await db_1.db.insert(schema_1.auditLogs).values({
+            id: (0, uuid_1.v4)(),
+            userId: adminId || 'system',
+            action: 'reject_seller',
+            module: 'sellers',
+            details: { targetUserId: sellerId, reason },
+            createdAt: (0, drizzle_orm_1.sql) `CURRENT_TIMESTAMP`
+        });
+        res.json({ success: true, status: 'rejected' });
+    }
+    catch (error) {
+        console.error('Error rejecting seller:', error);
+        res.status(500).json({ error: 'Failed to reject seller' });
+    }
+});
 router.post('/users', async (req, res) => {
     try {
         if (!process.env.DATABASE_URL)
@@ -3482,10 +3926,29 @@ router.post('/auth/register', async (req, res) => {
             status
         });
         if (role === 'seller' && businessData) {
+            const bd = businessData;
+            console.log('Registering seller with businessData keys:', Object.keys(bd));
+            console.log('Overview Document URL received:', bd.overviewDocumentUrl);
+            const firstCompany = bd.companies?.[0] || {};
             await db_1.db.insert(schema_1.sellerApplications).values({
                 id: (0, uuid_1.v4)(),
                 userId: id,
-                businessData: businessData, // Contains companies, brands, etc.
+                businessData, // Keep for backup
+                // New separate columns
+                category: bd.category,
+                customCategory: bd.customCategory,
+                companyName: firstCompany.name,
+                registrationNumber: firstCompany.registrationNumber,
+                taxId: firstCompany.taxId,
+                addressLine1: firstCompany.addressLine1 || firstCompany.address,
+                city: firstCompany.city,
+                state: firstCompany.state,
+                postalCode: firstCompany.postalCode,
+                countryCode: firstCompany.countryCode,
+                companyPhone: firstCompany.phone,
+                companyEmail: firstCompany.email,
+                brands: firstCompany.brands,
+                overviewDocumentUrl: bd.overviewDocumentUrl || (Array.isArray(bd.overviewDocument) ? bd.overviewDocument[0]?.url : null),
                 status: 'pending'
             });
         }
@@ -3838,8 +4301,7 @@ const loadCartItems = async (cartId) => {
         imageUrl: r.image,
         qty: r.qty,
         variantId: r.variantId || 'default',
-        size: r.variantId?.split('-')[0] || '',
-        color: r.variantId?.split('-')[1] || '',
+        attributes: r.attributes ? (typeof r.attributes === 'string' ? JSON.parse(r.attributes) : r.attributes) : {},
     }));
 };
 // GET /api/cart?userId=xxx  — fetch cart for logged-in user
@@ -3862,7 +4324,7 @@ router.get('/cart', async (req, res) => {
 // POST /api/cart/items  — add item to cart (idempotent: merges qty if same variant)
 router.post('/cart/items', async (req, res) => {
     try {
-        const { userId, id: productId, sellerId, name, price, image, imageUrl, qty = 1, variantId = 'default' } = req.body;
+        const { userId, id: productId, sellerId, name, price, image, imageUrl, qty = 1, variantId = 'default', attributes } = req.body;
         if (!userId || !productId || !name || price === undefined) {
             return res.status(400).json({ error: 'userId, id, name, price are required' });
         }
@@ -3896,6 +4358,7 @@ router.post('/cart/items', async (req, res) => {
                 price: price.toString(),
                 image: finalImage || null,
                 qty,
+                attributes: attributes || null,
             });
         }
         const items = await loadCartItems(cart.id);
@@ -4076,6 +4539,45 @@ router.put('/customers/:id', async (req, res) => {
     }
     catch (error) {
         res.status(500).json({ error: error.message || 'Failed to update customer' });
+    }
+});
+router.post('/cart/apply-promotion', async (req, res) => {
+    try {
+        const { productId, quantity } = req.body;
+        if (!productId || !quantity) {
+            return res.status(400).json({ error: 'Product ID and quantity are required' });
+        }
+        const [product] = await db_1.db.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, productId));
+        if (!product)
+            return res.status(404).json({ error: 'Product not found' });
+        const activePromotions = await db_1.db.select().from(schema_1.promotions).where((0, drizzle_orm_1.eq)(schema_1.promotions.isActive, true));
+        const applicable = getApplicablePromotionsInternal(product, activePromotions);
+        const bestPromo = getBestPromotion(product, applicable, quantity);
+        if (!bestPromo) {
+            return res.json({
+                applied: false,
+                originalPrice: product.price,
+                discountedPrice: product.price,
+                savings: 0
+            });
+        }
+        const savings = calculateDiscountAmount(product.price, bestPromo, quantity);
+        const originalTotal = product.price * quantity;
+        const discountedTotal = originalTotal - savings;
+        res.json({
+            applied: true,
+            promotionName: bestPromo.name,
+            promotionType: bestPromo.type,
+            promotionValue: bestPromo.value,
+            originalPrice: product.price,
+            discountedPrice: discountedTotal / quantity,
+            savings,
+            discountLabel: bestPromo.type === 'percentage' ? `${bestPromo.value}% OFF` : `PKR ${bestPromo.value} OFF`
+        });
+    }
+    catch (error) {
+        console.error('Error applying promotion:', error);
+        res.status(500).json({ error: 'Failed to apply promotion' });
     }
 });
 exports.default = router;

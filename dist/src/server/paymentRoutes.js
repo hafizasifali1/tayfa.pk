@@ -152,7 +152,16 @@ router.get('/checkout/gateways', async (req, res) => {
             if (matches)
                 eligibleGateways.push(gateway);
         }
-        res.json(eligibleGateways);
+        // Also include active manual payment methods (e.g. Cash on Delivery) configured in admin
+        const activeManualMethods = await db_1.db.select().from(schema_1.paymentMethods).where((0, drizzle_orm_2.eq)(schema_1.paymentMethods.isActive, true));
+        const manualEntries = activeManualMethods.map(m => ({
+            id: m.id,
+            name: m.name,
+            code: `pm_${m.id}`,
+            type: 'cod',
+            isDefault: false,
+        }));
+        res.json([...eligibleGateways, ...manualEntries]);
     }
     catch (error) {
         res.status(500).json({ error: 'Failed to fetch eligible gateways' });
@@ -164,6 +173,21 @@ router.post('/checkout/initiate-payment', async (req, res) => {
         const { gatewayCode, amount, currency, orderId } = req.body;
         if (!process.env.DATABASE_URL) {
             return res.json({ success: true, transactionId: 'mock_tx_123', redirectUrl: '#' });
+        }
+        // Manual payment method (e.g. Cash on Delivery) created via admin Payment Methods.
+        // No external gateway call and no transactions row (no money moves until delivery).
+        if (typeof gatewayCode === 'string' && gatewayCode.startsWith('pm_')) {
+            const methodId = gatewayCode.slice(3);
+            const [method] = await db_1.db.select().from(schema_1.paymentMethods).where((0, drizzle_orm_2.eq)(schema_1.paymentMethods.id, methodId));
+            if (!method || !method.isActive) {
+                return res.status(404).json({ error: 'Payment method not found' });
+            }
+            return res.json({
+                success: true,
+                transactionId: `manual_${(0, uuid_1.v4)()}`,
+                message: method.instructions || 'Order placed. Payment will be collected as per the selected method.',
+                metadata: { provider: 'manual', methodId: method.id, methodName: method.name },
+            });
         }
         const [gateway] = await db_1.db.select().from(schema_1.paymentGateways).where((0, drizzle_orm_2.eq)(schema_1.paymentGateways.code, gatewayCode));
         if (!gateway)

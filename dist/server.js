@@ -16,6 +16,7 @@ const paymentRoutes_1 = __importDefault(require("./src/server/paymentRoutes"));
 const orderRoutes_1 = __importDefault(require("./src/server/orderRoutes"));
 const omsRoutes_1 = __importDefault(require("./src/server/omsRoutes"));
 const dashboardRoutes_1 = __importDefault(require("./src/server/dashboardRoutes"));
+const attributes_1 = __importDefault(require("./src/server/routes/attributes"));
 const migrate_1 = require("./src/db/migrate");
 const db_1 = require("./src/db");
 const drizzle_orm_1 = require("drizzle-orm");
@@ -75,6 +76,7 @@ async function startServer() {
     app.use('/api', orderRoutes_1.default);
     app.use('/api/oms', omsRoutes_1.default);
     app.use('/api/dashboard', dashboardRoutes_1.default);
+    app.use('/api/attributes', attributes_1.default);
     // Vite middleware for development
     if (process.env.NODE_ENV !== 'production') {
         console.log('Running in DEVELOPMENT mode with Vite middleware');

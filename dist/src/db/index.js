@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.db = void 0;
+exports.db = exports.pool = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const node_postgres_1 = require("drizzle-orm/node-postgres");
@@ -48,9 +48,10 @@ const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl) {
     console.warn('DATABASE_URL is not set. Database features will be disabled.');
 }
+// ✅ Declare dbInstance
 let dbInstance;
-if (dbUrl?.startsWith('mysql')) {
-    const pool = promise_1.default.createPool({
+exports.pool = dbUrl?.startsWith('mysql')
+    ? promise_1.default.createPool({
         uri: dbUrl,
         ssl: dbUrl.includes('localhost') ? undefined : { rejectUnauthorized: false },
         waitForConnections: true,
@@ -58,16 +59,20 @@ if (dbUrl?.startsWith('mysql')) {
         queueLimit: 0,
         enableKeepAlive: true,
         keepAliveInitialDelay: 10000,
+    })
+    : null;
+if (exports.pool && dbUrl?.startsWith('mysql')) {
+    dbInstance = (0, mysql2_1.drizzle)(exports.pool, { schema, mode: 'default' });
+}
+else if (dbUrl) {
+    const pgPool = new pg_1.Pool({
+        connectionString: dbUrl,
+        max: 10,
+        ssl: dbUrl.includes('localhost') ? false : { rejectUnauthorized: false },
     });
-    dbInstance = (0, mysql2_1.drizzle)(pool, { schema, mode: 'default' });
+    dbInstance = (0, node_postgres_1.drizzle)(pgPool, { schema });
 }
 else {
-    const pool = new pg_1.Pool({
-        connectionString: dbUrl,
-        // Only attempt to connect if DATABASE_URL is set
-        max: dbUrl ? 10 : 0,
-        ssl: dbUrl?.includes('localhost') ? false : { rejectUnauthorized: false },
-    });
-    dbInstance = (0, node_postgres_1.drizzle)(pool, { schema });
+    dbInstance = null;
 }
 exports.db = dbInstance;
