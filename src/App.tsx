@@ -162,6 +162,16 @@ export default function App() {
                       <Route path="logs" element={<ProtectedRoute module="system"><SellerLogs /></ProtectedRoute>} />
                       <Route path="analytics" element={<ProtectedRoute module="analytics"><SellerAnalytics /></ProtectedRoute>} />
                       <Route path="settings" element={<ProtectedRoute module="settings"><AccountSettings /></ProtectedRoute>} />
+                      {/* Modules previously only mounted on /admin. Reused here so any role granted
+                          the matching permission has a destination. */}
+                      <Route path="attributes" element={<ProtectedRoute module="attributes"><AttributesManager /></ProtectedRoute>} />
+                      <Route path="seo" element={<ProtectedRoute module="seo"><SEOManager /></ProtectedRoute>} />
+                      <Route path="taxes" element={<ProtectedRoute module="tax_rules"><TaxManager /></ProtectedRoute>} />
+                      <Route path="blogs" element={<ProtectedRoute module="blogs"><AdminBlogManager /></ProtectedRoute>} />
+                      <Route path="blogs/new" element={<ProtectedRoute module="blogs" action="create"><AdminBlogEditor /></ProtectedRoute>} />
+                      <Route path="blogs/edit/:id" element={<ProtectedRoute module="blogs" action="edit"><AdminBlogEditor /></ProtectedRoute>} />
+                      <Route path="users" element={<ProtectedRoute module="users"><UserManagement /></ProtectedRoute>} />
+                      <Route path="access" element={<ProtectedRoute module="rbac"><AccessControl /></ProtectedRoute>} />
                       <Route path="*" element={<PortalNotFound />} />
                     </Route>
 

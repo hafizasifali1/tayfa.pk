@@ -29,6 +29,7 @@ const ProductDetail = () => {
   const [product, setProduct] = useState<any>(null);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [productAttributes, setProductAttributes] = useState<any[]>([]);
+  const [categoryAttributes, setCategoryAttributes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [currentImage, setCurrentImage] = useState(0);
@@ -69,7 +70,7 @@ const ProductDetail = () => {
         setProduct(currentProduct);
 
         try {
-          const attrResponse = await axios.get(`/api/attributes/products/${id}`);
+          const attrResponse = await axios.get(`/api/attributes/products/${currentProduct.id}`);
           if (attrResponse.data.success) {
             // Group by attribute name/type
             const grouped: any[] = [];
@@ -80,6 +81,7 @@ const ProductDetail = () => {
                   attributeId: item.attributeId, 
                   name: item.attributeName, 
                   displayType: item.displayType, 
+                  isRequired: item.isRequired === 1 || item.isRequired === true,
                   values: [] 
                 };
                 grouped.push(existing);
@@ -90,6 +92,16 @@ const ProductDetail = () => {
           }
         } catch (err) {
           console.error('Error fetching attributes:', err);
+        }
+
+        // Fetch category-specific attributes (filters with isAttribute=true)
+        try {
+          const catAttrResponse = await axios.get(`/api/products/${id}/attributes`);
+          if (Array.isArray(catAttrResponse.data)) {
+            setCategoryAttributes(catAttrResponse.data);
+          }
+        } catch (err) {
+          console.error('Error fetching category attributes:', err);
         }
 
         const allProductsResponse = await axios.get('/api/products');
@@ -163,10 +175,10 @@ const ProductDetail = () => {
   }
 
   const handleAddToCart = async () => {
-    // Require size selection if a Size filter exists
-    const sizeAttr = productAttributes.find(a => a.name.toLowerCase() === 'size');
-    if (sizeAttr && !selectedAttributes[sizeAttr.id]) {
-      alert('Please select a size');
+    // Validate required attributes
+    const missingRequired = productAttributes.find(a => (a.isRequired || a.name.toLowerCase().includes('size')) && !selectedAttributes[a.attributeId]);
+    if (missingRequired) {
+      alert(`Please select a ${missingRequired.name}`);
       return;
     }
 
@@ -186,93 +198,145 @@ const ProductDetail = () => {
   };
 
   const renderDynamicSelectors = () => {
-    if (productAttributes.length === 0) return null;
+    if (productAttributes.length === 0 && categoryAttributes.length === 0) return null;
     return (
-      <div className="space-y-6 pt-4">
+      <div className="space-y-8 pt-6">
+        {/* Global Attributes */}
         {productAttributes.map(attr => {
           const isSize = attr.name.toLowerCase().includes('size');
           const selectedId = selectedAttributes[attr.attributeId];
           const selectedVal = attr.values.find((v: any) => v.valueId === selectedId)?.value;
 
           return (
-            <div key={attr.attributeId} className="space-y-3">
+            <motion.div 
+              key={attr.attributeId} 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
               <div className="flex justify-between items-center">
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark">
-                  {attr.name}:{' '}
-                  <span className="text-brand-gold-dark font-black tracking-widest">{selectedVal || 'Select'}</span>
-                </h3>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-brand-dark">
+                    {attr.name} {attr.isRequired && <span className="text-red-500">*</span>}
+                  </h3>
+                  {selectedVal && (
+                    <motion.span 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="text-[11px] font-black uppercase tracking-[0.1em] text-brand-gold-dark bg-brand-gold/5 px-2 py-0.5 rounded-md"
+                    >
+                      {selectedVal}
+                    </motion.span>
+                  )}
+                </div>
                 {isSize && (
-                  <button className="text-[9px] text-brand-gold-dark underline uppercase tracking-[0.2em] font-black hover:text-brand-dark transition-colors">
-                    Size Guide
+                  <button className="text-[10px] text-brand-gold-dark hover:text-brand-dark transition-all flex items-center space-x-1 group">
+                    <Ruler size={14} className="group-hover:rotate-12 transition-transform" />
+                    <span className="font-bold uppercase tracking-widest border-b border-brand-gold-dark/30 pb-0.5">Size Guide</span>
                   </button>
                 )}
               </div>
 
               {attr.displayType === 'color_swatch' ? (
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap gap-4 p-1">
                   {attr.values.map((v: any) => (
-                    <button
-                      key={v.valueId}
-                      onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.attributeId]: v.valueId }))}
-                      className={`group relative w-10 h-10 rounded-full transition-all flex items-center justify-center ${
-                        selectedId === v.valueId 
-                          ? 'ring-4 ring-brand-gold ring-offset-2' 
-                          : 'ring-1 ring-brand-dark/10 ring-offset-0 hover:ring-2 hover:ring-brand-gold'
-                      }`}
-                      title={v.value}
-                    >
-                      <div 
-                        className="w-full h-full rounded-full shadow-inner"
-                        style={{ backgroundColor: v.colorCode || '#ccc' }}
-                      />
-                      <AnimatePresence>
+                    <div key={v.valueId} className="flex flex-col items-center space-y-2">
+                      <button
+                        onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.attributeId]: v.valueId }))}
+                        className={`group relative w-12 h-12 rounded-full transition-all flex items-center justify-center p-0.5 ${
+                          selectedId === v.valueId 
+                            ? 'ring-2 ring-brand-gold ring-offset-4 scale-110' 
+                            : 'ring-1 ring-brand-dark/5 ring-offset-0 hover:ring-2 hover:ring-brand-gold/40 hover:scale-105'
+                        }`}
+                        title={v.value}
+                      >
+                        <div 
+                          className="w-full h-full rounded-full shadow-lg border border-white/20"
+                          style={{ backgroundColor: v.colorCode || '#ccc' }}
+                        />
                         {selectedId === v.valueId && (
                           <motion.div 
-                            initial={{ scale: 0 }} 
-                            animate={{ scale: 1 }} 
-                            className="absolute -top-1 -right-1 bg-brand-gold text-white rounded-full p-0.5 shadow-md"
+                            layoutId={`selected-${attr.attributeId}`}
+                            className="absolute -top-1 -right-1 bg-brand-gold text-white rounded-full p-1 shadow-xl z-10"
                           >
-                            <CheckCircle2 size={10} />
+                            <CheckCircle2 size={12} className="stroke-[3]" />
                           </motion.div>
                         )}
-                      </AnimatePresence>
-                    </button>
+                      </button>
+                      <span className={`text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                        selectedId === v.valueId ? 'text-brand-gold-dark scale-110' : 'text-brand-dark/60 hover:text-brand-dark'
+                      }`}>
+                        {v.value}
+                      </span>
+                    </div>
                   ))}
                 </div>
               ) : attr.displayType === 'dropdown' ? (
-                <div className="relative group">
+                <div className="relative group max-w-sm">
                   <select
                     value={selectedId || ''}
                     onChange={(e) => setSelectedAttributes(prev => ({ ...prev, [attr.attributeId]: e.target.value }))}
-                    className="w-full bg-brand-cream/10 border border-brand-dark/10 rounded-2xl px-6 py-4 text-xs font-bold uppercase tracking-widest appearance-none focus:outline-none focus:ring-4 focus:ring-brand-gold/10 focus:border-brand-gold/30 transition-all cursor-pointer"
+                    className="w-full bg-white border-2 border-brand-dark/5 rounded-2xl px-6 py-4 text-xs font-bold uppercase tracking-widest appearance-none focus:outline-none focus:ring-4 focus:ring-brand-gold/5 focus:border-brand-gold/30 transition-all cursor-pointer shadow-sm group-hover:border-brand-gold/20"
                   >
-                    <option value="">Choose {attr.name}</option>
+                    <option value="">Select {attr.name}</option>
                     {attr.values.map((v: any) => (
                       <option key={v.valueId} value={v.valueId}>{v.value}</option>
                     ))}
                   </select>
-                  <ChevronDown size={16} className="absolute right-6 top-1/2 -translate-y-1/2 text-brand-dark/40 pointer-events-none group-hover:text-brand-gold transition-colors" />
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-brand-gold transition-colors">
+                    <ChevronDown size={18} className="text-brand-dark/30" />
+                  </div>
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-2.5">
+                <div className="flex flex-wrap gap-3">
                   {attr.values.map((v: any) => (
                     <button
                       key={v.valueId}
                       onClick={() => setSelectedAttributes(prev => ({ ...prev, [attr.attributeId]: v.valueId }))}
-                      className={`px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${
+                      className={`relative px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] transition-all border-2 overflow-hidden group/btn ${
                         selectedId === v.valueId
-                          ? 'bg-brand-dark text-white border-brand-dark shadow-lg shadow-brand-dark/20'
-                          : 'bg-white text-brand-dark border-brand-dark/10 hover:border-brand-gold hover:shadow-md'
+                          ? 'bg-brand-dark text-white border-brand-dark shadow-xl shadow-brand-dark/20 scale-[1.02]'
+                          : 'bg-white text-brand-dark border-brand-dark/5 hover:border-brand-gold/30 hover:shadow-lg'
                       }`}
                     >
-                      {v.value}
+                      <span className="relative z-10">{v.value}</span>
+                      {selectedId === v.valueId && (
+                        <motion.div 
+                          layoutId={`active-bg-${attr.attributeId}`}
+                          className="absolute inset-0 bg-brand-dark"
+                        />
+                      )}
                     </button>
                   ))}
                 </div>
               )}
-            </div>
+            </motion.div>
           );
         })}
+
+        {/* Category Specific Attributes/Filters */}
+        {categoryAttributes.map(attr => (
+          <motion.div 
+            key={attr.id} 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3"
+          >
+            <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-brand-dark">
+              {attr.name}
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {(attr.values || []).map((val: string, idx: number) => (
+                <span 
+                  key={idx}
+                  className="px-3 py-1.5 bg-brand-cream/30 border border-brand-dark/5 rounded-lg text-[10px] font-bold text-brand-dark/70 uppercase tracking-widest"
+                >
+                  {val}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        ))}
       </div>
     );
   };
@@ -369,7 +433,7 @@ const ProductDetail = () => {
               )}
             </div>
             
-            <h1 className="text-4xl md:text-6xl font-serif leading-tight text-brand-dark font-medium">{product.name}</h1>
+            <h1 className="text-3xl md:text-5xl font-serif leading-tight text-brand-dark font-medium">{product.name}</h1>
             
             <div className="flex items-center space-x-4">
               <Price 

@@ -21,6 +21,7 @@ const FilterManager = () => {
   const [currentFilter, setCurrentFilter] = useState<Partial<Filter> | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [parentCategories, setParentCategories] = useState<CategoryOption[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Filter Values State
   const [filterValues, setFilterValues] = useState<FilterValue[]>([]);
@@ -93,17 +94,26 @@ const FilterManager = () => {
 
   const handleSave = async () => {
     if (!currentFilter?.name) return;
+    setIsSaving(true);
+
+    const payload = {
+      ...currentFilter,
+      isFilterable: currentFilter.isActive
+    };
 
     try {
       if (currentFilter.id) {
-        await axios.patch(`/api/filters/${currentFilter.id}`, currentFilter);
+        await axios.patch(`/api/filters/${currentFilter.id}`, payload);
       } else {
-        await axios.post('/api/filters', currentFilter);
+        await axios.post('/api/filters', payload);
       }
       setIsEditing(false);
       fetchFilters();
     } catch (error) {
       console.error('Error saving filter:', error);
+      alert('Failed to save filter. Please check console for details.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -180,15 +190,8 @@ const FilterManager = () => {
 
       <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-brand-dark/5">
         <div className="flex items-center space-x-4 mb-8">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-dark/30" size={20} />
-            <input
-              type="text"
-              placeholder="Search filters..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-6 py-4 bg-brand-cream/30 border-none rounded-2xl focus:ring-2 focus:ring-brand-gold/20 text-sm"
-            />
+          <div className="hidden lg:flex items-center flex-grow">
+            {/* Global search removed as requested */}
           </div>
         </div>
 
@@ -199,7 +202,6 @@ const FilterManager = () => {
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Order</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Filter Name</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Type</th>
-                <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Usage</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4">Status</th>
                 <th className="pb-4 text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 px-4 text-right">Actions</th>
               </tr>
@@ -232,19 +234,6 @@ const FilterManager = () => {
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center space-x-2">
-                        {filter.isFilterable && (
-                          <span className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-bold uppercase tracking-widest">
-                            <SlidersHorizontal size={10} />
-                            <span>Sidebar</span>
-                          </span>
-                        )}
-                        {!filter.isFilterable && !filter.isAttribute && (
-                          <span className="text-[10px] text-brand-dark/20">—</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center space-x-2">
                         <div className={`w-2 h-2 rounded-full ${filter.isActive ? 'bg-emerald-500' : 'bg-brand-dark/20'}`} />
                         <span className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40">
                           {filter.isActive ? 'Active' : 'Inactive'}
@@ -252,26 +241,27 @@ const FilterManager = () => {
                       </div>
                     </td>
                     <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
+                      <div className="flex items-center justify-end space-x-4">
+                        <button
                           onClick={() => handleManageValues(filter)}
-                          className="p-2 text-brand-dark/60 hover:text-brand-gold transition-colors flex items-center space-x-1"
-                          title="Manage Values"
+                          className="p-2.5 bg-brand-cream/50 hover:bg-brand-gold/10 text-brand-gold rounded-xl transition-all flex items-center space-x-2 border border-brand-gold/10"
                         >
-                          <List size={18} />
+                          <List size={14} />
                           <span className="text-[10px] font-bold uppercase tracking-widest">Values</span>
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleEdit(filter)}
-                          className="p-2 text-brand-dark/60 hover:text-brand-gold transition-colors"
+                          className="p-2.5 bg-brand-gold text-white rounded-xl shadow-lg shadow-brand-gold/20 hover:scale-110 transition-all"
+                          title="Edit Filter"
                         >
-                          <Edit2 size={18} />
+                          <Edit2 size={14} />
                         </button>
-                        <button 
+                        <button
                           onClick={() => setShowDeleteConfirm(filter.id)}
-                          className="p-2 text-brand-dark/60 hover:text-rose-500 transition-colors"
+                          className="p-2.5 bg-red-500 text-white rounded-xl shadow-lg shadow-red-500/20 hover:scale-110 transition-all"
+                          title="Delete Filter"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -382,19 +372,8 @@ const FilterManager = () => {
                     </select>
                   </div>
 
-                  <div className="flex flex-col space-y-3">
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => setCurrentFilter(prev => ({ ...prev!, isFilterable: !prev?.isFilterable }))}
-                        className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${currentFilter.isFilterable ? 'bg-blue-500' : 'bg-brand-dark/20'}`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${currentFilter.isFilterable ? 'left-7' : 'left-1'}`} />
-                      </button>
-                      <div>
-                        <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/60">Show in Shop Sidebar</span>
-                        <p className="text-[10px] text-brand-dark/30 mt-0.5">Visible as a filter option on the shop page</p>
-                      </div>
-                    </div>
+                  <div className="flex flex-col space-y-4">
+                    {/* Filter visibility now depends solely on Active Status */}
                   </div>
                 </div>
               </div>
@@ -408,9 +387,17 @@ const FilterManager = () => {
                 </button>
                 <button 
                   onClick={handleSave}
-                  className="px-10 py-4 bg-brand-dark text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-brand-gold transition-all shadow-lg"
+                  disabled={isSaving}
+                  className="px-10 py-4 bg-brand-dark text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-brand-gold transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
-                  Save Filter
+                  {isSaving ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Filter</span>
+                  )}
                 </button>
               </div>
             </motion.div>

@@ -140,6 +140,7 @@ const runMigrations = async () => {
     try { await db.execute(sql`ALTER TABLE products ADD COLUMN pricelist_id ${sql.raw(idType)}`); } catch (e) { }
     try { await db.execute(sql`ALTER TABLE products ADD COLUMN tax_rule_id ${sql.raw(idType)}`); } catch (e) { }
     try { await db.execute(sql`ALTER TABLE products ADD COLUMN dynamic_filters JSON`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE products ADD COLUMN attributes JSON`); } catch (e) { }
     // Ensure images column is large enough for Base64 (LONGTEXT for MySQL)
     if (isMysql) {
       try { await db.execute(sql`ALTER TABLE products MODIFY COLUMN images LONGTEXT`); } catch (e) { }
@@ -254,6 +255,11 @@ const runMigrations = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`);
+      
+      // Migration for new columns
+      try { await db.execute(sql`ALTER TABLE filters ADD COLUMN category_id ${sql.raw(idTypeFilter)}`); } catch (e) { }
+      try { await db.execute(sql`ALTER TABLE filters ADD COLUMN is_filterable BOOLEAN DEFAULT FALSE`); } catch (e) { }
+      try { await db.execute(sql`ALTER TABLE filters ADD COLUMN is_attribute BOOLEAN DEFAULT FALSE`); } catch (e) { }
     } catch (e) { }
 
     try {
@@ -281,6 +287,43 @@ const runMigrations = async () => {
       try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN filter_id ${sql.raw(idTypeFilter)}`); } catch (e) { }
       try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN value_id ${sql.raw(idTypeFilter)}`); } catch (e) { }
       try { await db.execute(sql`ALTER TABLE product_filter_values ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`); } catch (e) { }
+      // Fix for 'filter_value_id' error - drop the redundant column if it exists
+      try { await db.execute(sql`ALTER TABLE product_filter_values DROP COLUMN filter_value_id`); } catch (e) { }
+    } catch (e) { }
+
+    // PDP Attributes Module
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS attributes (
+        id ${sql.raw(idType)} PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        display_type VARCHAR(50) DEFAULT 'default',
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+    } catch (e) { }
+
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS attribute_values (
+        id ${sql.raw(idType)} PRIMARY KEY,
+        attribute_id ${sql.raw(idType)} NOT NULL,
+        value VARCHAR(255) NOT NULL,
+        color_code VARCHAR(50),
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`);
+    } catch (e) { }
+
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS product_attributes (
+        id ${sql.raw(idType)} PRIMARY KEY,
+        product_id ${sql.raw(idType)} NOT NULL,
+        attribute_id ${sql.raw(idType)} NOT NULL,
+        value_id ${sql.raw(idType)} NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
     } catch (e) { }
 
     // SEO
@@ -537,7 +580,12 @@ router.get('/filters', async (req, res) => {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(filters.displayOrder);
 
-    res.json(result);
+    const parsedResult = result.map(f => ({
+      ...f,
+      labels: parseJsonField(f.labels)
+    }));
+
+    res.json(parsedResult);
   } catch (error) {
     console.error('Error fetching filters:', error);
     res.status(500).json({ error: 'Failed to fetch filters' });
@@ -554,13 +602,16 @@ router.post('/filters', async (req, res) => {
       type,
       displayOrder: displayOrder || 0,
       isActive: isActive !== undefined ? isActive : true,
-      labels: labels || {},
+      labels: parseJsonField(labels) || {},
       categoryId: categoryId || null,
       isFilterable: isFilterable ?? false,
       isAttribute: isAttribute ?? false,
     });
     const [newFilter] = await db.select().from(filters).where(eq(filters.id, id));
-    res.status(201).json(newFilter);
+    res.status(201).json({
+      ...newFilter,
+      labels: parseJsonField(newFilter.labels)
+    });
   } catch (error) {
     console.error('Error creating filter:', error);
     res.status(500).json({ error: 'Failed to create filter' });
@@ -572,12 +623,18 @@ router.patch('/filters/:id', async (req, res) => {
     const updated = await handlePatchUpdate({
       table: filters,
       id: req.params.id,
-      data: req.body,
+      data: {
+        ...req.body,
+        labels: req.body.labels ? parseJsonField(req.body.labels) : undefined
+      },
       userId: req.body.adminId || 'system',
       module: 'Filter',
       allowedFields: ['name', 'type', 'displayOrder', 'isActive', 'labels', 'categoryId', 'isFilterable', 'isAttribute']
     });
-    res.json(updated);
+    res.json({
+      ...updated,
+      labels: parseJsonField(updated.labels)
+    });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
@@ -605,8 +662,14 @@ router.get('/filter-values', async (req, res) => {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(filterValues.displayOrder);
 
-    res.json(result);
+    const parsedResult = result.map(fv => ({
+      ...fv,
+      labels: parseJsonField(fv.labels)
+    }));
+
+    res.json(parsedResult);
   } catch (error) {
+    console.error('Error fetching filter values:', error);
     res.status(500).json({ error: 'Failed to fetch filter values' });
   }
 });
@@ -619,11 +682,14 @@ router.post('/filter-values', async (req, res) => {
       id,
       filterId,
       value,
-      labels: labels || {},
+      labels: parseJsonField(labels) || {},
       displayOrder: displayOrder || 0
     });
     const [newValue] = await db.select().from(filterValues).where(eq(filterValues.id, id));
-    res.status(201).json(newValue);
+    res.status(201).json({
+      ...newValue,
+      labels: parseJsonField(newValue.labels)
+    });
   } catch (error) {
     console.error('Error creating filter value:', error);
     res.status(500).json({ error: 'Failed to create filter value' });
@@ -635,12 +701,18 @@ router.patch('/filter-values/:id', async (req, res) => {
     const updated = await handlePatchUpdate({
       table: filterValues,
       id: req.params.id,
-      data: req.body,
+      data: {
+        ...req.body,
+        labels: req.body.labels ? parseJsonField(req.body.labels) : undefined
+      },
       userId: req.body.adminId || 'system',
       module: 'FilterValue',
       allowedFields: ['value', 'displayOrder', 'labels']
     });
-    res.json(updated);
+    res.json({
+      ...updated,
+      labels: parseJsonField(updated.labels)
+    });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }

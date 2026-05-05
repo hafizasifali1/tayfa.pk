@@ -8,34 +8,11 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
+import { MODULES_CONFIG } from '../../config/permissions.config';
 
-const MODULES = [
-  // Operations
-  { id: 'overview', label: 'Overview & Analytics' },
-  { id: 'orders', label: 'Orders Management' },
-  { id: 'invoices', label: 'Invoices' },
-  { id: 'payments', label: 'Payments' },
-  { id: 'pricelist', label: 'Pricelists' },
-  { id: 'promotions', label: 'Promotions' },
-  { id: 'coupons', label: 'Coupons' },
-  { id: 'discounts', label: 'Discounts' },
-  { id: 'blogs', label: 'Journal / Blogs' },
-  { id: 'products', label: 'Product Management (Brands, Categories, Filters)' },
-  { id: 'bulk_upload', label: 'Bulk Product Upload' },
-  // Reporting
-  { id: 'analytics', label: 'Sales Analytics' },
-  { id: 'ledger', label: 'Financial Ledger' },
-  { id: 'system', label: 'System Logs' },
-  // Configurations
-  { id: 'seo', label: 'SEO Manager' },
-  { id: 'attributes', label: 'Attributes Manager' },
-  { id: 'tax_rules', label: 'Tax Management' },
-  { id: 'shipping', label: 'Shipping' },
-  // Settings
-  { id: 'users', label: 'Users & Seller Applications' },
-  { id: 'rbac', label: 'Access Control (RBAC)' },
-  { id: 'settings', label: 'System Settings (Countries, Notifications, Localization, Communication, Email)' },
-];
+// Derived from the single source of truth so sidebar and access-control toggles
+// can never drift apart again.
+const MODULES = MODULES_CONFIG.map(m => ({ id: m.key, label: m.adminLabel }));
 
 const ACTIONS: { id: Action; label: string }[] = [
   { id: 'view', label: 'View' },

@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  LayoutDashboard, Package, BarChart3, Settings, 
-  LogOut, Menu, X, Bell, Search, ChevronRight, ChevronDown,
-  Ticket, Tag, FileText, CreditCard, ShoppingBag, 
-  Truck, BookOpen, Plus, Upload, Activity,
-  Globe, Layers, Award, BellRing, Languages, ShieldCheck
+import {
+  LogOut, Menu, X, Bell, Search, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { MODULES_CONFIG, SECTION_ORDER, ModuleSection } from '../../config/permissions.config';
 
 import AccessDenied from '../../components/admin/AccessDenied';
 
@@ -60,44 +57,6 @@ const SellerLayout = () => {
     );
   }
 
-  const modules = [
-    {
-      label: 'Operations',
-      items: [
-        { icon: LayoutDashboard, label: 'Overview',      path: '/seller/dashboard',   module: 'overview'    },
-        { icon: ShoppingBag,    label: 'Orders',        path: '/seller/orders',      module: 'orders'      },
-        { icon: FileText,       label: 'Invoices',      path: '/seller/invoices',    module: 'invoices'    },
-        { icon: CreditCard,     label: 'Payments',      path: '/seller/payments',    module: 'payments'    },
-        { icon: FileText,       label: 'Pricelists',    path: '/seller/pricelists',  module: 'pricelist'   },
-        { icon: Tag,            label: 'Promotions',    path: '/seller/promotions',  module: 'promotions'  },
-        { icon: Ticket,         label: 'Coupons',       path: '/seller/coupons',     module: 'coupons'     },
-        { icon: Tag,            label: 'Discounts',     path: '/seller/discounts',   module: 'discounts'   },
-        { icon: Upload,         label: 'Bulk Upload',   path: '/seller/bulk-upload', module: 'bulk_upload' },
-        { icon: Package,        label: 'Products',      path: '/seller/products',    module: 'products'    },
-      ]
-    },
-    {
-      label: 'Reporting',
-      items: [
-        { icon: BarChart3, label: 'Sales Analytics', path: '/seller/analytics', module: 'analytics' },
-        { icon: BookOpen,  label: 'Ledger',          path: '/seller/ledger',    module: 'ledger'    },
-        { icon: Activity,  label: 'Activity Logs',   path: '/seller/logs',      module: 'system'    },
-      ]
-    },
-    {
-      label: 'Configurations',
-      items: [
-        { icon: Truck, label: 'Shipping', path: '/seller/shipping', module: 'shipping' },
-      ]
-    },
-    {
-      label: 'Settings',
-      items: [
-        { icon: Settings, label: 'Account Settings', path: '/account-settings', module: 'settings' },
-      ]
-    }
-  ];
-
   const toggleSection = (label: string) => {
     setExpandedSections(prev => {
       const next = { ...prev, [label]: !prev[label] };
@@ -106,14 +65,22 @@ const SellerLayout = () => {
     });
   };
 
-  const filteredModules = modules.map(mod => {
-    const visibleItems = (mod.items || []).filter(item => {
-      const isVisible = canView(item.module as any);
-      console.log(`[Sidebar Check] Module: ${item.module} | Result: ${isVisible ? 'ALLOWED' : 'DENIED'}`);
-      return isVisible;
-    });
-    return { ...mod, items: visibleItems };
-  }).filter(mod => (mod.items || []).length > 0);
+  // Build sidebar groups dynamically from MODULES_CONFIG, filtered by canView.
+  // Why: previously this was a hard-coded array missing newly-added modules
+  // (attributes, tax_rules, seo, blogs, users, rbac), so granting their
+  // permissions had no effect on the sidebar.
+  // Note: computed inline (not via useMemo) because this runs after early
+  // returns above; useMemo here would change the hook count between renders.
+  const grouped = new Map<ModuleSection, { icon: any; label: string; path: string; module: string }[]>();
+  for (const m of MODULES_CONFIG) {
+    if (!canView(m.key)) continue;
+    const items = grouped.get(m.section) ?? [];
+    items.push({ icon: m.icon, label: m.label, path: m.sellerPath, module: m.key });
+    grouped.set(m.section, items);
+  }
+  const filteredModules = SECTION_ORDER
+    .filter(s => grouped.has(s))
+    .map(label => ({ label, items: grouped.get(label)! }));
 
   console.log('[Sidebar Result] User:', user?.email, 'Role:', user?.role, 'Visible Sections:', filteredModules.length);
 

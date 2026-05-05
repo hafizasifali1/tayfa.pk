@@ -81,7 +81,7 @@ const AttributesManager: React.FC = () => {
           <h1 className="text-4xl font-serif font-bold text-brand-dark tracking-tight">Attribute Management</h1>
           <p className="text-brand-dark/40 mt-2 font-medium">Define product specifications shown on product detail pages.</p>
         </div>
-        <PermissionGate permission="attributes.create">
+        <PermissionGate module="attributes" action="create">
           <button
             onClick={() => { setSelectedAttribute(null); setIsModalOpen(true); }}
             className="flex items-center gap-3 px-8 py-4 bg-brand-dark text-white rounded-[1.5rem] text-xs font-bold uppercase tracking-widest hover:bg-brand-gold hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-brand-dark/10"
@@ -206,7 +206,7 @@ const AttributesManager: React.FC = () => {
                     </td>
                     <td className="p-6">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <PermissionGate permission="attributes.edit">
+                        <PermissionGate module="attributes" action="edit">
                           <button
                             onClick={() => { setSelectedAttribute(attr); setIsModalOpen(true); }}
                             className="p-2.5 bg-brand-cream text-brand-dark/60 hover:text-brand-dark hover:bg-brand-cream-dark rounded-xl transition-all"
@@ -215,7 +215,7 @@ const AttributesManager: React.FC = () => {
                             <Edit2 size={16} />
                           </button>
                         </PermissionGate>
-                        <PermissionGate permission="attributes.delete">
+                        <PermissionGate module="attributes" action="delete">
                           <button
                             onClick={() => setDeleteId(attr.id)}
                             className="p-2.5 bg-rose-50 text-rose-400 hover:text-rose-600 hover:bg-rose-100 rounded-xl transition-all"

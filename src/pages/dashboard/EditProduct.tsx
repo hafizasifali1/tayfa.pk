@@ -165,8 +165,11 @@ const EditProduct = () => {
     const fetchProduct = async () => {
       try {
         const response = await axios.get(`/api/products?sellerId=${user?.id}`);
+        const product = (response.data || []).find((p: any) => p.id === id);
+
+        if (product) {
           const attrResponse = await axios.get(`/api/attributes/products/${id}`);
-          let productAttrs: Record<string, string[]> = {};
+          const productAttrs: Record<string, string[]> = {};
           if (attrResponse.data.success) {
             attrResponse.data.data.forEach((item: any) => {
               if (!productAttrs[item.attributeId]) productAttrs[item.attributeId] = [];
@@ -174,14 +177,50 @@ const EditProduct = () => {
             });
           }
 
+          const pDataInitial = {
+            name: product.name || '',
+            brand: product.brand || '',
+            brandId: product.brandId || '',
+            price: product.price?.toString() || '',
+            salePrice: product.salePrice?.toString() || '',
+            discount: product.discount?.toString() || '',
+            discountType: product.discountType || null,
+            category: product.category || '',
+            parentCategoryId: product.parentCategoryId || '',
+            categoryId: product.categoryId || '',
+            gender: product.gender || 'women',
+            type: product.type || 'clothing',
+            subcategory: product.subcategory || 'pret',
+            description: product.description || '',
+            stock: product.stock?.toString() || '',
+            sku: product.sku || '',
+            tags: parseJsonSafe(product.tags),
+            colors: parseJsonSafe(product.colors),
+            sizes: parseJsonSafe(product.sizes),
+            status: product.status || 'published',
+            slug: product.slug || '',
+            pricelistId: product.pricelistId || '',
+            taxRuleId: product.taxRuleId || '',
+            dynamicFilters: parseJsonSafe(product.dynamicFilters),
+            seo: parseJsonSafe(product.seo) || {
+              title: '',
+              description: '',
+              keywords: '',
+              robots: 'index, follow'
+            },
+          };
+
           const pData = {
             ...pDataInitial,
-            attributes: productAttrs
+            attributes: productAttrs,
           };
 
           setFormData(pData);
           setInitialData(pData);
-          const pImages = parseJsonSafe(product.images).map((url: string) => ({ id: Math.random().toString(36).substr(2, 9), url }));
+          const pImages = parseJsonSafe(product.images).map((url: string) => ({
+            id: Math.random().toString(36).substr(2, 9),
+            url,
+          }));
           setImages(pImages);
           setError('');
         } else {
@@ -193,39 +232,6 @@ const EditProduct = () => {
       } finally {
         setIsFetching(false);
       }
-    };
-
-    const pDataInitial = {
-      name: product.name || '',
-      brand: product.brand || '',
-      brandId: product.brandId || '',
-      price: product.price?.toString() || '',
-      salePrice: product.salePrice?.toString() || '',
-      discount: product.discount?.toString() || '',
-      discountType: product.discountType || null,
-      category: product.category || '',
-      parentCategoryId: product.parentCategoryId || '',
-      categoryId: product.categoryId || '',
-      gender: product.gender || 'women',
-      type: product.type || 'clothing',
-      subcategory: product.subcategory || 'pret',
-      description: product.description || '',
-      stock: product.stock?.toString() || '',
-      sku: product.sku || '',
-      tags: parseJsonSafe(product.tags),
-      colors: parseJsonSafe(product.colors),
-      sizes: parseJsonSafe(product.sizes),
-      status: product.status || 'published',
-      slug: product.slug || '',
-      pricelistId: product.pricelistId || '',
-      taxRuleId: product.taxRuleId || '',
-      dynamicFilters: parseJsonSafe(product.dynamicFilters),
-      seo: parseJsonSafe(product.seo) || {
-        title: '',
-        description: '',
-        keywords: '',
-        robots: 'index, follow'
-      },
     };
 
     if (user?.id && id) {
@@ -340,7 +346,7 @@ const EditProduct = () => {
   useEffect(() => {
     const fetchAttributes = async () => {
       try {
-        const response = await axios.get('/api/attributes');
+        const response = await axios.get('/api/attributes?isActive=true');
         if (response.data.success) {
           setAvailableAttributes(response.data.data);
         }
@@ -935,10 +941,68 @@ const EditProduct = () => {
                             );
                           })}
                         </div>
+                        {(!attr.values || attr.values.length === 0) && (
+                          <p className="text-[9px] text-brand-dark/30 italic">No values defined for this attribute.</p>
+                        )}
                       </div>
                     ))
                   )}
                 </div>
+
+                {/* Dynamic Category Filters */}
+                {dynamicFilters.length > 0 && (
+                  <div className="pt-6 border-t border-brand-dark/5 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Category Specific Filters</h4>
+                      <span className="text-[8px] bg-brand-gold/10 text-brand-gold px-2 py-0.5 rounded-full font-bold">Based on Parent Category</span>
+                    </div>
+
+                    {dynamicFilters.map(filter => (
+                      <div key={filter.id} className="space-y-3 bg-brand-cream/10 p-4 rounded-2xl border border-brand-dark/5">
+                        <div className="flex justify-between items-center">
+                          <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60">{filter.name}</label>
+                          <span className="text-[8px] text-brand-dark/30 font-bold uppercase tracking-widest">{filter.type.replace('_', ' ')}</span>
+                        </div>
+
+                        {filter.type === 'dropdown' ? (
+                          <select
+                            value={formData.dynamicFilters[filter.id]?.[0] || ''}
+                            onChange={(e) => toggleDynamicFilterValue(filter.id, e.target.value, 'dropdown')}
+                            className="w-full px-4 py-2.5 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-[10px] font-bold uppercase tracking-widest"
+                          >
+                            <option value="">Select {filter.name}</option>
+                            {(filterValuesMap[filter.id] || []).map(val => (
+                              <option key={val.id} value={val.id}>{val.value}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {(filterValuesMap[filter.id] || []).map(val => {
+                              const isSelected = (formData.dynamicFilters[filter.id] || []).includes(val.id);
+                              return (
+                                <button
+                                  key={val.id}
+                                  type="button"
+                                  onClick={() => toggleDynamicFilterValue(filter.id, val.id, filter.type)}
+                                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                                    isSelected
+                                      ? 'bg-brand-dark text-white border-brand-dark shadow-md'
+                                      : 'bg-white text-brand-dark/40 border-brand-dark/10 hover:border-brand-gold'
+                                  }`}
+                                >
+                                  {val.value}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {(!filterValuesMap[filter.id] || filterValuesMap[filter.id].length === 0) && (
+                          <p className="text-[9px] text-brand-dark/30 italic">No values defined for this filter.</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

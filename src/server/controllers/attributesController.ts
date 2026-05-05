@@ -30,7 +30,9 @@ const slugify = (text: string) => {
 
 export const listAttributes = async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool!.query<RowDataPacket[]>(`
+    const { isActive } = req.query;
+    
+    let query = `
       SELECT a.*, 
              JSON_ARRAYAGG(
                JSON_OBJECT(
@@ -45,10 +47,17 @@ export const listAttributes = async (req: Request, res: Response) => {
                )
              ) as values_json
       FROM attributes a
-      LEFT JOIN attribute_values av ON a.id = av.attribute_id
-      GROUP BY a.id
-      ORDER BY a.display_order ASC
-    `);
+      LEFT JOIN attribute_values av ON a.id = av.attribute_id AND (av.is_active = 1 OR av.id IS NULL)
+    `;
+
+    const queryParams: any[] = [];
+    if (isActive === 'true') {
+      query += ` WHERE a.is_active = 1 `;
+    }
+
+    query += ` GROUP BY a.id ORDER BY a.display_order ASC`;
+
+    const [rows] = await pool!.query<RowDataPacket[]>(query, queryParams);
 
     const data = rows.map(row => ({
       ...row,
@@ -278,7 +287,7 @@ export const getProductAttributes = async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
     const [rows] = await pool!.query<RowDataPacket[]>(`
-      SELECT pa.id as assignment_id, a.id as attribute_id, a.name as attribute_name, a.display_type,
+      SELECT pa.id as assignment_id, a.id as attribute_id, a.name as attribute_name, a.display_type, a.is_required,
              av.id as value_id, av.value, av.color_code, av.image_url
       FROM product_attributes pa
       JOIN attributes a ON pa.attribute_id = a.id
