@@ -17,8 +17,16 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import OrderTimeline from '../../components/orders/OrderTimeline';
+import OrderStatusHistory from '../../components/orders/OrderStatusHistory';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
+
+const formatCurrency = (amount?: string | number) => {
+  const num = Number(amount);
+  if (isNaN(num)) return 'PKR 0';
+  return `PKR ${num.toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
+
 
 interface Order {
   id: string;
@@ -46,7 +54,11 @@ const OrderHistory = () => {
     try {
       setIsLoading(true);
       const res = await axios.get(`/api/orders?customerId=${user?.id}`);
-      setOrders(res.data);
+      if (Array.isArray(res.data)) {
+        setOrders(res.data);
+      } else {
+        setOrders([]);
+      }
     } catch (error) {
       console.error('Error fetching customer orders:', error);
     } finally {
@@ -57,7 +69,9 @@ const OrderHistory = () => {
   const fetchOrderDetails = async (id: string) => {
     try {
       const res = await axios.get(`/api/orders/${id}`);
-      setSelectedOrder(res.data);
+      if (res.data) {
+        setSelectedOrder(res.data);
+      }
     } catch (error) {
       console.error('Error fetching order details:', error);
     }
@@ -83,9 +97,31 @@ const OrderHistory = () => {
     try {
       await axios.post(`/api/orders/${orderId}/returns`, { 
         orderItemId, 
-        reason 
+        reason,
+        processedByRole: 'customer',
+        processedByName: user?.fullName || 'Customer',
+        processedById: user?.id
       });
       await fetchOrderDetails(orderId);
+      alert('Return request submitted successfully.');
+    } catch (error) {
+      console.error('Error requesting return:', error);
+    }
+  };
+
+  const requestReturnFlow = async (orderId: string) => {
+    const reason = window.prompt('Please enter the reason for returning the entire order:');
+    if (!reason) return;
+    try {
+      await axios.patch(`/api/orders/${orderId}/status`, { 
+        status: 'return_requested', 
+        comment: `Return requested by customer: ${reason}`,
+        processedByRole: 'customer',
+        processedByName: user?.fullName || 'Customer',
+        processedById: user?.id
+      });
+      await fetchOrderDetails(orderId);
+      await fetchOrders();
       alert('Return request submitted successfully.');
     } catch (error) {
       console.error('Error requesting return:', error);
@@ -125,6 +161,25 @@ const OrderHistory = () => {
                   Cancel Order
                 </Button>
               )}
+              {selectedOrder.status === 'delivered' && (
+                <Button 
+                  variant="premium" 
+                  onClick={() => requestReturnFlow(selectedOrder.id)}
+                  className="rounded-2xl text-xs"
+                >
+                  Request Return
+                </Button>
+              )}
+              {selectedOrder.status === 'return_requested' && (
+                <span className="px-4 py-2 bg-orange-100 text-orange-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
+                  Return Pending
+                </span>
+              )}
+              {selectedOrder.status === 'refunded' && (
+                <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
+                  Refunded
+                </span>
+              )}
             </div>
           </div>
 
@@ -138,7 +193,7 @@ const OrderHistory = () => {
               <div className="space-y-6">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-brand-gold">Items</h3>
                 <div className="space-y-4">
-                  {selectedOrder.items.map((item: any) => (
+                  {(selectedOrder.items || []).map((item: any) => (
                     <div key={item.id} className="flex items-center justify-between p-4 bg-brand-cream/30 rounded-2xl">
                       <div className="flex items-center space-x-4">
                         <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-brand-dark/10">
@@ -157,7 +212,7 @@ const OrderHistory = () => {
                           )}
                         </div>
                       </div>
-                      <p className="font-bold text-brand-dark">PKR {item.price}</p>
+                      <p className="font-bold text-brand-dark">{formatCurrency(item.price)}</p>
                     </div>
                   ))}
                 </div>
@@ -166,7 +221,7 @@ const OrderHistory = () => {
               <div className="space-y-8">
                 <div className="space-y-4">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-brand-gold">Shipping Updates</h3>
-                  {selectedOrder.shipments.length > 0 ? (
+                  {(selectedOrder.shipments || []).length > 0 ? (
                     <div className="space-y-4">
                       {selectedOrder.shipments.map((shipment: any) => (
                         <div key={shipment.id} className="p-6 bg-brand-dark text-white rounded-[2rem] relative overflow-hidden">
@@ -198,7 +253,7 @@ const OrderHistory = () => {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between text-brand-dark/60">
                       <span>Subtotal</span>
-                      <span>PKR {selectedOrder.totalAmount}</span>
+                      <span>{formatCurrency(selectedOrder.totalAmount)}</span>
                     </div>
                     <div className="flex justify-between text-brand-dark/60">
                       <span>Shipping</span>
@@ -206,13 +261,20 @@ const OrderHistory = () => {
                     </div>
                     <div className="flex justify-between font-bold text-brand-dark pt-2 border-t border-brand-dark/5">
                       <span>Total</span>
-                      <span>PKR {selectedOrder.totalAmount}</span>
+                      <span>{formatCurrency(selectedOrder.totalAmount)}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </Card>
+
+          {/* Status History */}
+          {Array.isArray(selectedOrder.history) && selectedOrder.history.length > 0 && (
+            <Card className="p-8 rounded-[2.5rem]">
+              <OrderStatusHistory history={selectedOrder.history} showRoleBadge={false} />
+            </Card>
+          )}
         </div>
       </div>
     );
@@ -232,7 +294,7 @@ const OrderHistory = () => {
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold" />
           </div>
-        ) : orders.length === 0 ? (
+        ) : !orders || orders.length === 0 ? (
           <Card className="p-16 text-center rounded-[2.5rem]">
             <div className="w-20 h-20 bg-brand-cream rounded-[2rem] flex items-center justify-center text-brand-dark/10 mx-auto mb-6">
               <ShoppingBag size={40} />
@@ -267,18 +329,20 @@ const OrderHistory = () => {
                     </div>
                     <div className="flex items-center justify-between md:justify-end md:space-x-8">
                       <div className="text-right">
-                        <p className="font-bold text-brand-dark">PKR {order.totalAmount}</p>
+                        <p className="font-bold text-brand-dark">{formatCurrency(order.totalAmount)}</p>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 mt-1">
-                          {order.items.length} {order.items.length === 1 ? 'Item' : 'Items'}
+                          {(order.items || []).length} {(order.items || []).length === 1 ? 'Item' : 'Items'}
                         </p>
                       </div>
                       <div className="flex items-center space-x-4">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
                           order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
                           order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                          order.status === 'return_requested' ? 'bg-orange-100 text-orange-700' :
+                          order.status === 'refunded' ? 'bg-blue-100 text-blue-700' :
                           'bg-blue-100 text-blue-700'
                         }`}>
-                          {order.status}
+                          {order.status.replace('_', ' ')}
                         </span>
                         <ChevronRight size={20} className="text-brand-dark/20" />
                       </div>

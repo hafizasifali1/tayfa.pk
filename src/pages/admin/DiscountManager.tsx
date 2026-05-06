@@ -25,7 +25,10 @@ import { Table } from '../../components/ui/Table';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { X as LucideX } from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext';
 import { ConfirmModal } from '../../components/common/ConfirmModal';
+
+
 
 const AdminDiscountManager = () => {
   const brandGold = '#C5A059';
@@ -44,6 +47,9 @@ const AdminDiscountManager = () => {
   const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, id: string | null}>({ isOpen: false, id: null });
   const [isDeleting, setIsDeleting] = useState(false);
   
+  const { selectedCountry } = useCurrency();
+const currencyCode = selectedCountry?.currencyCode || 'PKR'; // Fallback to PKR
+
   const [newDiscount, setNewDiscount] = useState<{
     name: string;
     type: 'percentage' | 'fixed';
@@ -451,7 +457,7 @@ const AdminDiscountManager = () => {
                 </td>
                 <td className="px-8 py-6">
                   <span className="text-sm font-bold text-brand-dark">
-                    {discount.type === 'percentage' ? `${discount.value}%` : <Price amount={discount.value} />}
+              {discount.type === 'percentage' ? `${discount.value}%` : <Price amount={discount.value} currency={currencyCode} />}
                   </span>
                 </td>
                 <td className="px-8 py-6">

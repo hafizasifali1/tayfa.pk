@@ -110,6 +110,20 @@ export async function migrate() {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
       `);
+      
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS order_status_history (
+          id CHAR(36) PRIMARY KEY,
+          order_id CHAR(36) NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          comment TEXT,
+          changed_by CHAR(36),
+          processed_by_role VARCHAR(50),
+          processed_by_name VARCHAR(255),
+          processed_by_id CHAR(36),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS order_items (
@@ -314,6 +328,10 @@ export async function migrate() {
 
       await addColumn('cart_items', 'attributes', 'JSON NULL');
       await addColumn('cart_items', 'variant_id', 'VARCHAR(255)');
+
+      await addColumn('order_status_history', 'processed_by_role', 'VARCHAR(50)');
+      await addColumn('order_status_history', 'processed_by_name', 'VARCHAR(255)');
+      await addColumn('order_status_history', 'processed_by_id', 'CHAR(36)');
     } else {
       // PostgreSQL
       const addColumnPg = async (table: string, column: string, definition: string) => {
@@ -415,6 +433,20 @@ export async function migrate() {
           reviewed_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS order_status_history (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          order_id UUID NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          comment TEXT,
+          changed_by UUID,
+          processed_by_role VARCHAR(50),
+          processed_by_name VARCHAR(255),
+          processed_by_id UUID,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
@@ -589,6 +621,10 @@ export async function migrate() {
       await addColumnPg('seller_applications', 'company_email', 'VARCHAR(255)');
       await addColumnPg('seller_applications', 'brands', 'JSONB');
       await addColumnPg('seller_applications', 'overview_document_url', 'VARCHAR(500)');
+
+      await addColumnPg('order_status_history', 'processed_by_role', 'VARCHAR(50)');
+      await addColumnPg('order_status_history', 'processed_by_name', 'VARCHAR(255)');
+      await addColumnPg('order_status_history', 'processed_by_id', 'UUID');
     }
 
     // Data migration for seller_applications
@@ -731,6 +767,7 @@ export async function migrate() {
     console.log('Migrations completed successfully.');
 
     // Seed default admin user
+    /*
     try {
       console.log('Seeding default admin user...');
       const adminEmail = 'tayyab786fq@gmail.com';
@@ -763,6 +800,7 @@ export async function migrate() {
     } catch (seedError) {
       console.error('Failed to seed default admin user:', seedError);
     }
+    */
 
     // Seed default countries and rates
     try {

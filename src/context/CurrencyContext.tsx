@@ -83,7 +83,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [selectedCountry, exchangeRates]);
 
   const formatPrice = useCallback((usdAmount: number, currencyOverride?: string) => {
-    if (!selectedCountry && !currencyOverride) return `$${usdAmount.toFixed(2)}`;
+    if (!selectedCountry && !currencyOverride) return `PKR${usdAmount.toFixed(2)}`;
     
     let converted = convertPrice(usdAmount);
     let currencyCode = currencyOverride || selectedCountry?.currencyCode || 'USD';

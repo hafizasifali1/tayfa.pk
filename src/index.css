@@ -134,3 +134,97 @@
   transition: opacity 400ms, transform 400ms;
 }
 
+
+/* Order Module Responsive Fixes (1024px - 1440px) */
+@media screen and (min-width: 1024px) and (max-width: 1440px) {
+  .order-main-container {
+    height: calc(100vh - 12rem) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    gap: 1.5rem !important;
+  }
+
+  .order-list-panel-wrap {
+    width: 38% !important;
+    height: 100% !important;
+    overflow-y: auto !important;
+    padding-right: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .order-details-panel-wrap {
+    width: 62% !important;
+    height: 100% !important;
+    overflow-y: auto !important;
+    flex-grow: 1 !important;
+  }
+
+  .order-list-panel-wrap::-webkit-scrollbar,
+  .order-details-panel-wrap::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .order-page-title {
+    font-size: 1.4rem !important;
+    line-height: 1.2 !important;
+  }
+  .order-page-subtitle {
+    font-size: 0.8rem !important;
+    margin-top: 0.25rem !important;
+  }
+
+  .order-item-card {
+    padding: 12px 14px !important;
+  }
+  .order-item-avatar {
+    display: none !important;
+  }
+  .order-item-avatar + div {
+    margin-left: 0 !important;
+  }
+
+  .order-item-id {
+    font-size: 0.78rem !important;
+  }
+  .order-item-amount {
+    font-size: 0.85rem !important;
+  }
+  .order-item-status {
+    font-size: 0.65rem !important;
+    padding: 4px 8px !important;
+    border-radius: 8px !important;
+  }
+
+  .order-stepper-circle {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .order-stepper-circle svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .order-stepper-label {
+    font-size: 0.65rem !important;
+    white-space: nowrap !important;
+  }
+
+  .order-detail-card {
+    padding: 1.5rem !important;
+    border-radius: 1.5rem !important;
+  }
+  .order-detail-title {
+    font-size: 1.4rem !important;
+  }
+  .order-customer-text {
+    font-size: 0.75rem !important;
+  }
+  .order-payment-row {
+    font-size: 0.78rem !important;
+  }
+  .order-toolbar-btn {
+    font-size: 0.75rem !important;
+    height: 36px !important;
+    padding: 0 12px !important;
+    border-radius: 10px !important;
+  }
+}

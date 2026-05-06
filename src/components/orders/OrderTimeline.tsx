@@ -12,36 +12,21 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status }) => {
     { id: 'processing', label: 'Processing', icon: Package },
     { id: 'shipped', label: 'Shipped', icon: Truck },
     { id: 'delivered', label: 'Delivered', icon: Check },
+    { id: 'return_requested', label: 'Return Requested', icon: RotateCcw },
+    { id: 'refunded', label: 'Refunded', icon: CreditCard },
   ];
 
   const getStepStatus = (stepId: string) => {
-    const statusOrder = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed'];
+    const statusOrder = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'return_requested', 'refunded'];
     const currentIdx = statusOrder.indexOf(status);
     const stepIdx = statusOrder.indexOf(stepId);
 
-    if (status === 'cancelled') return 'cancelled';
-    if (status === 'returned') return 'returned';
+    if (status === 'cancelled') return 'upcoming';
     if (stepIdx < currentIdx) return 'completed';
     if (stepIdx === currentIdx) return 'active';
     return 'upcoming';
   };
 
-  if (status === 'cancelled') {
-    return (
-      <div className="flex items-center justify-center p-4 bg-red-50 text-red-600 rounded-2xl border border-red-100">
-        <p className="text-sm font-bold uppercase tracking-widest">Order Cancelled</p>
-      </div>
-    );
-  }
-
-  if (status === 'returned' || status === 'refunded') {
-    return (
-      <div className="flex items-center justify-center p-4 bg-orange-50 text-orange-600 rounded-2xl border border-orange-100">
-        <RotateCcw className="mr-2" size={18} />
-        <p className="text-sm font-bold uppercase tracking-widest">Order Returned / Refunded</p>
-      </div>
-    );
-  }
 
   return (
     <div className="relative flex justify-between items-center w-full py-8">
@@ -55,7 +40,7 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status }) => {
         return (
           <div key={step.id} className="relative z-10 flex flex-col items-center">
             <div 
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 order-stepper-circle ${
                 stepStatus === 'completed' 
                   ? 'bg-brand-gold text-white' 
                   : stepStatus === 'active'
@@ -65,7 +50,7 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status }) => {
             >
               {stepStatus === 'completed' ? <Check size={18} /> : <Icon size={18} />}
             </div>
-            <p className={`mt-3 text-[10px] font-bold uppercase tracking-widest ${
+            <p className={`mt-3 text-[10px] font-bold uppercase tracking-widest order-stepper-label ${
               stepStatus === 'active' ? 'text-brand-dark' : 'text-brand-dark/40'
             }`}>
               {step.label}

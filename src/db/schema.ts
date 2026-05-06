@@ -531,6 +531,9 @@ export const orderStatusHistory = table('order_status_history', {
   status: varchar('status', { length: 50 }).notNull(),
   comment: text('comment'),
   changedBy: isMysql ? char('changed_by', { length: 36 }) : char('changed_by'),
+  processedByRole: varchar('processed_by_role', { length: 50 }),
+  processedByName: varchar('processed_by_name', { length: 255 }),
+  processedById: isMysql ? char('processed_by_id', { length: 36 }) : char('processed_by_id'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

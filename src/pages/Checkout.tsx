@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  ShieldCheck, 
-  CreditCard, 
+  CreditCard,
   Truck, 
   CheckCircle2, 
   ArrowLeft, 
@@ -347,9 +346,9 @@ const Checkout = () => {
         </motion.div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-8 lg:gap-16">
+      <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
         {/* Main Content */}
-        <div className="lg:w-2/3 space-y-8 sm:space-y-12">
+        <div className="order-2 lg:order-1 lg:w-3/5 space-y-8 sm:space-y-12">
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div
@@ -522,9 +521,9 @@ const Checkout = () => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
               >
-                <PaymentSelection 
-                  amount={convertPrice(cartTotal)}
-                  currency={selectedCountry?.currency || 'USD'}
+                <PaymentSelection
+                  amount={finalTotal}
+                  currency={selectedCountry?.currencyCode || 'PKR'}
                   orderId={`ORD-${Date.now()}`}
                   onPaymentInitiated={handlePaymentInitiated}
                   onCancel={() => setStep(1)}
@@ -741,12 +740,6 @@ const Checkout = () => {
               )}
             </div>
 
-            <div className="bg-brand-cream/30 p-3 sm:p-4 rounded-xl sm:rounded-2xl flex items-start space-x-2 sm:space-x-3">
-              <ShieldCheck className="text-emerald-500 mt-0.5 flex-shrink-0" size={16} />
-              <p className="text-[9px] sm:text-[10px] text-brand-dark/60 leading-relaxed uppercase tracking-widest">
-                Your data is protected with 256-bit SSL encryption. We never store your full credit card details.
-              </p>
-            </div>
           </div>
         </div>
 

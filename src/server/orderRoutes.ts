@@ -8,7 +8,9 @@ import {
   returns,
   refunds,
   products,
-  users
+  users,
+  paymentMethods,
+  paymentGateways
 } from '../db/schema';
 import { handlePatchUpdate } from './utils/updateHandler';
 import { eq, and, desc, sql, exists, inArray } from 'drizzle-orm';
@@ -250,8 +252,21 @@ router.get('/orders/:id', async (req, res) => {
     const orderShipments = await db.select().from(shipments).where(eq(shipments.orderId, order.id));
     const orderReturns = await db.select().from(returns).where(eq(returns.orderId, order.id));
 
+    let paymentMethodName: string | null = null;
+if (order.paymentMethod) {
+  if (order.paymentMethod.startsWith('pm_')) {
+    const methodId = order.paymentMethod.slice(3);
+    const [pm] = await db.select().from(paymentMethods).where(eq(paymentMethods.id, methodId));
+    paymentMethodName = pm?.name ?? order.paymentMethod;
+  } else {
+    const [gw] = await db.select().from(paymentGateways).where(eq(paymentGateways.code, order.paymentMethod));
+    paymentMethodName = gw?.name ?? order.paymentMethod.toUpperCase();
+  }
+}
+
     res.json({
       ...order,
+      paymentMethodName,
       items,
       history,
       shipments: orderShipments,
@@ -357,7 +372,7 @@ router.delete('/orders/:id', async (req, res) => {
 // --- Update Order Status ---
 router.patch('/orders/:id/status', async (req, res) => {
   try {
-    const { status, comment, changedBy } = req.body;
+    const { status, comment, changedBy, processedByRole, processedByName, processedById } = req.body;
     
     await db.update(orders)
       .set({ status, updatedAt: sql`CURRENT_TIMESTAMP` })
@@ -370,7 +385,10 @@ router.patch('/orders/:id/status', async (req, res) => {
       orderId: req.params.id,
       status,
       comment,
-      changedBy
+      changedBy: changedBy || processedById,
+      processedByRole,
+      processedByName,
+      processedById: processedById || changedBy
     });
 
     res.json(updatedOrder);
@@ -408,7 +426,10 @@ router.post('/orders/:id/shipments', async (req, res) => {
       id: uuidv4(),
       orderId: req.params.id,
       status: 'shipped',
-      comment: `Shipment created with tracking: ${trackingNumber}`
+      comment: `Shipment created with tracking: ${trackingNumber}`,
+      processedByRole: req.body.processedByRole || 'seller',
+      processedByName: req.body.processedByName,
+      processedById: sellerId
     });
 
     res.status(201).json(newShipment);
@@ -459,7 +480,10 @@ router.post('/orders/:id/returns', async (req, res) => {
       id: uuidv4(),
       orderId: req.params.id,
       status: 'return_requested',
-      comment: `Return requested for item: ${orderItemId}`
+      comment: `Return requested for item: ${orderItemId}`,
+      processedByRole: 'customer',
+      processedByName: req.body.processedByName,
+      processedById: req.body.processedById
     });
 
     res.status(201).json(newReturn);

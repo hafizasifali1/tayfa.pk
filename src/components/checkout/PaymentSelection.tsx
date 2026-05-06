@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  CreditCard, 
-  Wallet, 
-  Truck, 
-  CheckCircle2, 
-  ShieldCheck, 
+import {
+  CreditCard,
+  Wallet,
+  Truck,
+  Smartphone,
+  Banknote,
+  ShieldCheck,
   Lock,
-  ChevronRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ChevronRight,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface Gateway {
@@ -28,12 +30,24 @@ interface PaymentSelectionProps {
   onCancel: () => void;
 }
 
-const PaymentSelection: React.FC<PaymentSelectionProps> = ({ 
-  amount, 
-  currency, 
-  orderId, 
+/* Per-gateway icon + accent colour */
+const getGatewayMeta = (name: string, type: string) => {
+  const n = name.toLowerCase();
+  if (n.includes('paypal'))     return { Icon: CreditCard,  accent: '#003087', label: 'PayPal' };
+  if (n.includes('easypaisa'))  return { Icon: Smartphone,  accent: '#1C8C45', label: 'EasyPaisa' };
+  if (n.includes('jazzcash'))   return { Icon: Wallet,      accent: '#D9232B', label: 'JazzCash' };
+  if (n.includes('stripe'))     return { Icon: CreditCard,  accent: '#635BFF', label: 'Stripe' };
+  if (type === 'cod')           return { Icon: Truck,       accent: 'var(--color-brand-gold-dark)', label: 'Cash on Delivery' };
+  if (type === 'wallet')        return { Icon: Wallet,      accent: 'var(--color-brand-dark)', label: name };
+  return                               { Icon: Banknote,    accent: 'var(--color-brand-dark)', label: name };
+};
+
+const PaymentSelection: React.FC<PaymentSelectionProps> = ({
+  amount,
+  currency,
+  orderId,
   onPaymentInitiated,
-  onCancel
+  onCancel,
 }) => {
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [selectedGateway, setSelectedGateway] = useState<Gateway | null>(null);
@@ -41,19 +55,21 @@ const PaymentSelection: React.FC<PaymentSelectionProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchEligibleGateways();
-  }, []);
+  useEffect(() => { fetchEligibleGateways(); }, []);
 
   const fetchEligibleGateways = async () => {
     try {
-      const response = await fetch(`/api/payments/checkout/gateways?region=${currency === 'PKR' ? 'PK' : 'US'}&currency=${currency}&userType=customer`);
-      const data = await response.json();
+      const res = await fetch(
+        `/api/payments/checkout/gateways?region=${currency === 'PKR' ? 'PK' : 'US'}&currency=${currency}&userType=customer`
+      );
+      const data = await res.json();
       setGateways(data);
-      const defaultGateway = data.find((g: Gateway) => g.isDefault) || data[0];
+      const defaultGateway =
+        data.find((g: Gateway) => g.type === 'cod') ||
+        data.find((g: Gateway) => g.isDefault) ||
+        data[0];
       if (defaultGateway) setSelectedGateway(defaultGateway);
-    } catch (error) {
-      console.error('Error fetching gateways:', error);
+    } catch {
       setError('Failed to load payment methods. Please try again.');
     } finally {
       setIsLoading(false);
@@ -64,134 +80,233 @@ const PaymentSelection: React.FC<PaymentSelectionProps> = ({
     if (!selectedGateway) return;
     setIsProcessing(true);
     setError(null);
-
     try {
-      const response = await fetch('/api/payments/checkout/initiate-payment', {
+      const res = await fetch('/api/payments/checkout/initiate-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gatewayCode: selectedGateway.code,
-          amount,
-          currency,
-          orderId
-        })
+        body: JSON.stringify({ gatewayCode: selectedGateway.code, amount, currency, orderId }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        onPaymentInitiated({ ...data, gatewayCode: selectedGateway.code, gatewayName: selectedGateway.name, gatewayType: selectedGateway.type });
+      const data = await res.json();
+      if (res.ok) {
+        onPaymentInitiated({
+          ...data,
+          gatewayCode: selectedGateway.code,
+          gatewayName: selectedGateway.name,
+          gatewayType: selectedGateway.type,
+        });
       } else {
         setError(data.message || 'Payment initiation failed. Please try another method.');
       }
-    } catch (error) {
-      console.error('Payment error:', error);
+    } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'card': return <CreditCard className="w-5 h-5" />;
-      case 'wallet': return <Wallet className="w-5 h-5" />;
-      case 'cod': return <Truck className="w-5 h-5" />;
-      default: return <CreditCard className="w-5 h-5" />;
-    }
-  };
-
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 space-y-4">
-        <Loader2 className="w-10 h-10 text-black animate-spin" />
-        <p className="text-gray-500 font-medium">Loading secure payment methods...</p>
+      <div className="flex flex-col items-center justify-center py-24 space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-brand-gold)' }} />
+        <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-brand-dark-muted)' }}>
+          Loading payment methods…
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-6">
+      {/* ── Section heading ── */}
+      <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Payment Method</h2>
-          <p className="text-gray-500 text-sm mt-1">Select your preferred way to pay securely.</p>
-        </div>
-        <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
-          <ShieldCheck className="w-4 h-4" />
-          <span className="text-[10px] font-bold uppercase tracking-widest">Secure Checkout</span>
-        </div>
-      </div>
-
-      {error && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl flex items-start gap-3 border border-red-100"
-        >
-          <AlertCircle className="w-5 h-5 mt-0.5" />
-          <p className="text-sm font-medium">{error}</p>
-        </motion.div>
-      )}
-
-      <div className="space-y-4 mb-8">
-        {gateways.map((gateway) => (
-          <motion.div
-            key={gateway.id}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            onClick={() => setSelectedGateway(gateway)}
-            className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${
-              selectedGateway?.id === gateway.id 
-                ? 'border-black bg-white shadow-md' 
-                : 'border-transparent bg-gray-50 hover:bg-gray-100'
-            }`}
+          <h2
+            className="text-3xl font-serif tracking-tight"
+            style={{ color: 'var(--color-brand-dark)' }}
           >
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${selectedGateway?.id === gateway.id ? 'bg-black text-white' : 'bg-white text-gray-600 shadow-sm'}`}>
-                {getIcon(gateway.type)}
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">{gateway.name}</h3>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">{gateway.type === 'cod' ? 'Pay on Delivery' : 'Instant Payment'}</p>
-              </div>
-            </div>
-            {selectedGateway?.id === gateway.id && (
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                <CheckCircle2 className="w-6 h-6 text-black" />
-              </motion.div>
-            )}
-          </motion.div>
-        ))}
+            Payment Method
+          </h2>
+          <p
+            className="text-sm mt-1"
+            style={{ color: 'var(--color-brand-dark-muted)' }}
+          >
+            Select your preferred way to pay securely.
+          </p>
+        </div>
+        <div
+          className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full border mt-1"
+          style={{
+            color: '#15803d',
+            background: '#f0fdf4',
+            borderColor: '#bbf7d0',
+          }}
+        >
+          <ShieldCheck size={12} />
+          Secure Checkout
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <button
-          disabled={isProcessing || !selectedGateway}
-          onClick={handleInitiatePayment}
-          className="w-full bg-black text-white py-4 rounded-2xl font-bold text-lg hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-3"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              Pay {currency} {amount.toLocaleString()}
-              <ChevronRight className="w-5 h-5" />
-            </>
-          )}
-        </button>
-        
-        <div className="flex items-center justify-center gap-4 text-gray-400 text-xs font-medium">
-          <div className="flex items-center gap-1">
-            <Lock className="w-3 h-3" />
-            SSL Encrypted
-          </div>
-          <div className="w-1 h-1 bg-gray-300 rounded-full" />
-          <div className="flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3" />
-            PCI Compliant
-          </div>
+      {/* ── Error ── */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="flex items-start gap-3 p-4 rounded-2xl border"
+            style={{ background: '#fff1f2', borderColor: '#fecdd3', color: '#be123c' }}
+          >
+            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            <p className="text-sm font-medium">{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Gateway list ── */}
+      <div className="space-y-3">
+        {gateways.map((gateway) => {
+          const { Icon, accent, label } = getGatewayMeta(gateway.name, gateway.type);
+          const isSelected = selectedGateway?.id === gateway.id;
+
+          return (
+            <motion.button
+              key={gateway.id}
+              onClick={() => setSelectedGateway(gateway)}
+              whileHover={{ scale: 1.005 }}
+              whileTap={{ scale: 0.998 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="w-full text-left relative overflow-hidden rounded-2xl border-2 transition-all duration-150"
+              style={{
+                background: isSelected
+                  ? 'var(--color-brand-cream)'
+                  : 'white',
+                borderColor: isSelected
+                  ? 'var(--color-brand-gold)'
+                  : 'var(--color-brand-cream-dark)',
+                boxShadow: isSelected
+                  ? '0 0 0 1px var(--color-brand-gold-light), 0 2px 12px rgba(197,160,89,0.08)'
+                  : '0 1px 3px rgba(26,26,26,0.04)',
+              }}
+            >
+              {/* Gold left accent bar */}
+              <div
+                className="absolute left-0 top-0 bottom-0 w-1 transition-all duration-150"
+                style={{
+                  background: isSelected ? 'var(--color-brand-gold)' : 'transparent',
+                  borderRadius: '2px 0 0 2px',
+                }}
+              />
+
+              <div className="flex items-center justify-between px-5 py-4 pl-6">
+                <div className="flex items-center gap-4">
+                  {/* Method icon */}
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all duration-150"
+                    style={{
+                      background: isSelected ? accent + '18' : 'var(--color-brand-cream-dark)',
+                      color: isSelected ? accent : 'var(--color-brand-dark-muted)',
+                    }}
+                  >
+                    <Icon size={20} />
+                  </div>
+
+                  {/* Name + badge */}
+                  <div>
+                    <p
+                      className="font-semibold text-sm tracking-tight"
+                      style={{ color: 'var(--color-brand-dark)' }}
+                    >
+                      {gateway.name}
+                    </p>
+                    <span
+                      className="inline-block text-[9px] font-bold uppercase tracking-widest mt-0.5 px-2 py-0.5 rounded-full"
+                      style={{
+                        background: gateway.type === 'cod'
+                          ? 'var(--color-brand-gold-light)' + '50'
+                          : 'var(--color-brand-cream-dark)',
+                        color: gateway.type === 'cod'
+                          ? 'var(--color-brand-gold-dark)'
+                          : 'var(--color-brand-dark-muted)',
+                      }}
+                    >
+                      {gateway.type === 'cod' ? 'Pay on Delivery' : 'Instant Payment'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Checkmark */}
+                <AnimatePresence>
+                  {isSelected && (
+                    <motion.div
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <CheckCircle2
+                        size={22}
+                        style={{ color: 'var(--color-brand-gold)' }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {/* ── Pay button ── */}
+      <motion.button
+        disabled={isProcessing || !selectedGateway}
+        onClick={handleInitiatePayment}
+        whileHover={{ scale: isProcessing ? 1 : 1.01 }}
+        whileTap={{ scale: isProcessing ? 1 : 0.99 }}
+        transition={{ duration: 0.15 }}
+        className="w-full py-5 rounded-2xl font-bold text-base tracking-widest uppercase flex items-center justify-center gap-3 transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+        style={{
+          background: 'var(--color-brand-dark)',
+          color: 'var(--color-brand-cream)',
+        }}
+        onMouseEnter={(e) => {
+          if (!isProcessing) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-brand-gold-dark)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-brand-dark)';
+        }}
+      >
+        {isProcessing ? (
+          <>
+            <Loader2 size={18} className="animate-spin" />
+            <span>Processing…</span>
+          </>
+        ) : (
+          <>
+            <Lock size={16} />
+            <span>
+              Pay {currency} {Number(amount).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+            </span>
+            <ChevronRight size={16} />
+          </>
+        )}
+      </motion.button>
+
+      {/* ── Security badges ── */}
+      <div
+        className="flex items-center justify-center gap-6 pt-1"
+        style={{ color: 'var(--color-brand-dark-muted)', opacity: 0.5 }}
+      >
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest">
+          <Lock size={11} />
+          SSL Encrypted
+        </div>
+        <div
+          className="w-px h-3"
+          style={{ background: 'var(--color-brand-dark-muted)' }}
+        />
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest">
+          <ShieldCheck size={11} />
+          PCI Compliant
         </div>
       </div>
     </div>
