@@ -9,12 +9,14 @@ import ProductCard from '../components/common/ProductCard';
 import SellerOnboarding from '../components/home/SellerOnboarding';
 import SEO from '../components/common/SEO';
 import { useSEO } from '../hooks/useSEO';
+import { useCurrency } from '../context/CurrencyContext';
 import { productService } from '../services/api';
 
 const Home = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -136,7 +138,7 @@ const Home = () => {
             </p>
             <div className="grid grid-cols-2 gap-x-12 gap-y-10 pt-10">
               {[
-                { icon: '/OurHeritage/Free_shipping_v2.png', title: 'Free Shipping', desc: 'On orders over PKR 3,000' },
+                { icon: '/OurHeritage/Free_shipping_v2.png', title: 'Free Shipping', desc: `On orders over ${formatPrice(500)}` },
                 { icon: '/OurHeritage/Easy-returns.png', title: 'Easy Returns', desc: '7-day return policy' },
                 { icon: '/OurHeritage/Secure-payment.png', title: 'Secure Payment', desc: '100% secure checkout' },
                 { icon: '/OurHeritage/Support.png', title: 'Support', desc: '24/7 customer service' },

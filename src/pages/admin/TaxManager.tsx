@@ -25,6 +25,7 @@ const TaxManager = () => {
     state: '',
     rate: 0,
     pricelistId: '',
+    taxType: 'exclusive' as 'inclusive' | 'exclusive',
     isActive: true
   });
 
@@ -67,6 +68,7 @@ const TaxManager = () => {
         state: rule.state || '',
         rate: rule.rate,
         pricelistId: rule.pricelistId,
+        taxType: (rule.taxType as 'inclusive' | 'exclusive') || 'exclusive',
         isActive: rule.isActive
       });
     } else {
@@ -77,6 +79,7 @@ const TaxManager = () => {
         state: '',
         rate: 0,
         pricelistId: pricelists[0]?.id || '',
+        taxType: 'exclusive',
         isActive: true
       });
     }
@@ -344,6 +347,17 @@ const TaxManager = () => {
                       className="w-full bg-brand-cream/30 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-brand-gold/20"
                       placeholder="e.g., California"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-4">Tax Type</label>
+                    <select
+                      value={formData.taxType}
+                      onChange={(e) => setFormData({...formData, taxType: e.target.value as 'inclusive' | 'exclusive'})}
+                      className="w-full bg-brand-cream/30 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-brand-gold/20"
+                    >
+                      <option value="exclusive">Tax Exclusive — tax added on top of base price</option>
+                      <option value="inclusive">Tax Inclusive — tax already included in base price</option>
+                    </select>
                   </div>
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-4">Linked Pricelist</label>

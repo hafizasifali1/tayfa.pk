@@ -104,6 +104,7 @@ const EditProduct = () => {
     brand: '',
     brandId: '',
     price: '',
+     priceAfterTax: '',
     salePrice: '',
     discount: '',
     discountType: null as 'percentage' | 'fixed' | null,
@@ -182,6 +183,7 @@ const EditProduct = () => {
             brand: product.brand || '',
             brandId: product.brandId || '',
             price: product.price?.toString() || '',
+            priceAfterTax: product.priceAfterTax?.toString() || '',
             salePrice: product.salePrice?.toString() || '',
             discount: product.discount?.toString() || '',
             discountType: product.discountType || null,
@@ -357,16 +359,47 @@ const EditProduct = () => {
     fetchAttributes();
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => {
-      const newData = { ...prev, [name]: value };
-      if (name === 'name' && (!prev.slug || prev.slug === prev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))) {
-        newData.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  useEffect(() => {
+    if (formData.price) {
+      const selectedRule = taxRules.find(r => r.id === formData.taxRuleId);
+      const basePrice = parseFloat(formData.price) || 0;
+
+      if (selectedRule) {
+        const rate = parseFloat(String(selectedRule.rate)) || 0;
+        const priceWithTax = basePrice * (1 + rate / 100);
+        setFormData(prev => ({ ...prev, priceAfterTax: priceWithTax.toFixed(2) }));
+      } else {
+        setFormData(prev => ({ ...prev, priceAfterTax: basePrice.toFixed(2) }));
       }
-      return newData;
-    });
-  };
+    }
+  }, [formData.taxRuleId, taxRules, formData.price]);
+
+
+const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const { name, value } = e.target;
+  
+  // Get current tax rate
+  const selectedRule = taxRules.find(r => r.id === (name === 'taxRuleId' ? value : formData.taxRuleId));
+  const currentTaxRate = parseFloat(selectedRule?.rate || '0');
+
+  setFormData(prev => {
+    let newData = { ...prev, [name]: value };
+
+    // Update Slug logic
+    if (name === 'name' && (!prev.slug || prev.slug === prev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))) {
+      newData.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    }
+
+    // TAX CALCULATION LOGIC
+    if (name === 'price') {
+      const calculated = calculatePrices(name, value, currentTaxRate, selectedRule?.taxType);
+      newData = { ...newData, ...calculated };
+    }
+
+    return newData;
+  });
+};
+
 
   const handleAddImage = () => {
     if (imageInput && !images.find(img => img.url === imageInput)) {
@@ -460,6 +493,17 @@ const EditProduct = () => {
     });
   };
 
+
+const calculatePrices = (name: string, value: string, currentTaxRate: number, taxType?: string) => {
+  if (name === 'price') {
+    const newBase = parseFloat(value) || 0;
+    const rate = currentTaxRate / 100;
+    const newAfterTax = taxType === 'inclusive' ? newBase : newBase * (1 + rate);
+    return { price: value, priceAfterTax: newAfterTax.toFixed(2) };
+  }
+  return {};
+};
+
   const toggleDynamicFilterValue = (filterId: string, valueId: string, type: string) => {
     setFormData(prev => {
       const currentValues = prev.dynamicFilters[filterId] || [];
@@ -499,11 +543,11 @@ const EditProduct = () => {
 
     setIsLoading(true);
     try {
-      const { brand, category, ...payload } = {
+      const { brand, category, discount: _d, discountType: _dt, ...payload } = {
         ...formData,
         price: parseFloat(formData.price) || 0,
         salePrice: formData.salePrice ? parseFloat(formData.salePrice) : null,
-        discount: formData.discount ? parseFloat(formData.discount) : 0,
+        discount: 0, // managed by Global Discounts engine, never persisted from the form
         stock: parseInt(formData.stock) || 0,
         images: images.map(img => img.url),
         dynamicFilters: formData.dynamicFilters,
@@ -537,7 +581,7 @@ const EditProduct = () => {
 
   return (
     <>
-      <div className="max-w-5xl mx-auto pb-20">
+      <div className="w-full pb-20">
         <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-widest text-brand-dark/40 mb-8">
           <span>Inventory</span>
           <ChevronRight size={14} />
@@ -722,7 +766,7 @@ const EditProduct = () => {
 
             <div className="bg-white p-8 rounded-[2.5rem] border border-brand-dark/5 shadow-sm space-y-6">
               <h3 className="text-xl font-serif text-brand-dark border-b border-brand-dark/5 pb-4">Pricing & Inventory</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2 whitespace-nowrap">Base Price *</label>
                   <input
@@ -730,17 +774,6 @@ const EditProduct = () => {
                     name="price"
                     required
                     value={formData.price}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Discount Price</label>
-                  <input
-                    type="number"
-                    name="salePrice"
-                    value={formData.salePrice}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm"
                     placeholder="0.00"
@@ -776,16 +809,35 @@ const EditProduct = () => {
                   <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Discount</label>
                   <div className="w-full px-4 py-3 border border-brand-dark/10 bg-brand-gold/5 rounded-xl text-sm font-bold text-brand-gold flex items-center justify-between min-h-[46px]">
                     <span className="text-base">
-                      {formData.discount && parseFloat(formData.discount) > 0 ? (
-                        formData.discountType === 'percentage' 
-                          ? `${formData.discount}%` 
+                      {formData.discount && parseFloat(formData.discount) > 0 && formData.discountType ? (
+                        formData.discountType === 'percentage'
+                          ? `${formData.discount}%`
                           : `${formData.discount} PKR`
                       ) : 'None'}
                     </span>
                     <span className="text-[10px] uppercase font-bold tracking-tighter bg-brand-gold/20 px-2 py-1 rounded-lg">
-                      {formData.discount && parseFloat(formData.discount) > 0 ? (formData.discountType === 'fixed' ? 'Fixed Amount' : 'Percentage') : ''}
+                      {formData.discount && parseFloat(formData.discount) > 0 && formData.discountType
+                        ? (formData.discountType === 'fixed' ? 'Fixed Amount' : 'Percentage')
+                        : ''}
                     </span>
                   </div>
+
+<div>
+  <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">
+    Price After Tax
+  </label>
+  <input
+    type="number"
+    name="priceAfterTax"
+    value={formData.priceAfterTax}
+    readOnly 
+    onChange={handleInputChange} // Ensure handleInputChange uses the logic above
+    className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl focus:ring-brand-gold focus:border-brand-gold text-sm bg-brand-gold/5 font-bold"
+    placeholder="0.00"
+  />
+</div>
+
+
                 </div>
               </div>
             </div>
@@ -875,9 +927,25 @@ const EditProduct = () => {
                   >
                     <option value="">No Tax / Select Tax Rule</option>
                     {taxRules.map(rule => (
-                      <option key={rule.id} value={rule.id}>{rule.name} ({rule.rate}%)</option>
+                      <option key={rule.id} value={rule.id}>
+                        {rule.name} ({rule.rate}%) — {rule.taxType === 'inclusive' ? 'Tax Inclusive' : 'Tax Exclusive'}
+                      </option>
                     ))}
                   </select>
+                  {formData.taxRuleId && (() => {
+                    const selectedRule = taxRules.find(r => r.id === formData.taxRuleId);
+                    if (!selectedRule) return null;
+                    return (
+                      <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                        selectedRule.taxType === 'inclusive'
+                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                          : 'bg-amber-50 text-amber-600 border border-amber-100'
+                      }`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${selectedRule.taxType === 'inclusive' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        {selectedRule.taxType === 'inclusive' ? 'Tax Inclusive' : 'Tax Exclusive'}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>

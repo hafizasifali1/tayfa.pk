@@ -161,6 +161,7 @@ export const products = table('products', {
   pricelistId: isMysql ? char('pricelist_id', { length: 36 }) : char('pricelist_id'),
   taxRuleId: isMysql ? char('tax_rule_id', { length: 36 }) : char('tax_rule_id'),
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+  priceAfterTax: decimal('price_after_tax', { precision: 10, scale: 2 }), 
   discount: integer('discount').default(0),
   description: text('description'),
   images: json('images').notNull(),
@@ -424,6 +425,7 @@ export const taxRules = table('tax_rules', {
   state: varchar('state', { length: 100 }),
   country: varchar('country', { length: 100 }).default('Pakistan'),
   pricelistId: char('pricelist_id'),
+  taxType: varchar('tax_type', { length: 50 }).default('exclusive'), // 'inclusive' | 'exclusive'
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

@@ -273,6 +273,7 @@ export async function migrate() {
       // 2. Add missing columns
       console.log('Adding missing columns (MySQL)...');
       await addColumn('products', 'attributes', 'JSON');
+      await addColumn('products', 'price_after_tax', 'DECIMAL(10, 2)'); 
       await addColumn('orders', 'tax_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumn('orders', 'discount_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumn('orders', 'currency', "VARCHAR(10) DEFAULT 'PKR'");
@@ -553,6 +554,7 @@ export async function migrate() {
       // 2. Add missing columns
       console.log('Adding missing columns (PG)...');
       await addColumnPg('products', 'attributes', 'JSONB');
+      await addColumnPg('products', 'price_after_tax', 'DECIMAL(10, 2)');
       await addColumnPg('orders', 'tax_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumnPg('orders', 'discount_amount', 'DECIMAL(10, 2) DEFAULT 0.00');
       await addColumnPg('orders', 'currency', "VARCHAR(10) DEFAULT 'PKR'");

@@ -134,10 +134,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
           
           <div className="flex items-center justify-between pt-2">
             <Price 
-              amount={product.price} 
-              discount={product.salePrice ? (product.price - product.salePrice) : product.discount} 
+              amount={product.priceAfterTax || product.price} 
+              discount={product.salePrice ? (parseFloat(String(product.priceAfterTax || product.price)) - parseFloat(String(product.salePrice))) : (parseFloat(String(product.priceAfterTax || product.price)) * (parseFloat(String(product.discount || 0)) / 100))} 
               productId={product.id} 
               className="text-2xl font-medium" 
+              showInclTax={true}
             />
           </div>
 
@@ -247,10 +248,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid' })
         
         <div className="flex items-center justify-between pt-1">
           <Price 
-            amount={product.price} 
-            discount={product.salePrice ? (product.price - product.salePrice) : product.discount} 
+            amount={product.priceAfterTax || product.price} 
+            discount={product.salePrice ? (parseFloat(String(product.priceAfterTax || product.price)) - parseFloat(String(product.salePrice))) : (parseFloat(String(product.priceAfterTax || product.price)) * (parseFloat(String(product.discount || 0)) / 100))} 
             productId={product.id} 
             className="text-sm font-bold" 
+            showInclTax={true}
           />
           <button 
             onClick={handleAddToCart}

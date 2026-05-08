@@ -59,7 +59,6 @@ const Checkout = () => {
   // Constants
   const FREE_SHIPPING_THRESHOLD = 200;
   const SHIPPING_COST = 15;
-  const TAX_RATE = 0.08;
 
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
@@ -118,9 +117,14 @@ const Checkout = () => {
     return appliedCoupon.discountValue;
   }, [appliedCoupon, cartTotal, autoPromoDiscount]);
 
+  const exclusiveTaxTotal = React.useMemo(() => {
+    return cart
+      .filter(i => i.taxType === 'exclusive' && (i.taxRate || 0) > 0)
+      .reduce((sum, i) => sum + i.price * ((i.taxRate || 0) / 100) * i.qty, 0);
+  }, [cart]);
+
   const shipping = cartTotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
-  const taxes = (cartTotal - autoPromoDiscount - discountAmount) * TAX_RATE;
-  const finalTotal = Math.max(0, cartTotal - autoPromoDiscount - discountAmount + shipping + taxes);
+  const finalTotal = Math.max(0, cartTotal + exclusiveTaxTotal - autoPromoDiscount - discountAmount + shipping);
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -596,9 +600,10 @@ const Checkout = () => {
                             {item.variantId && item.variantId !== 'default' ? `Variant: ${item.variantId} • ` : ''}Qty: {item.qty}
                           </p>
                         </div>
-                        <Price 
+                        <Price
                           amount={item.price * item.qty}
-                          className="text-xs sm:text-sm font-bold whitespace-nowrap" 
+                          showInclTax={item.taxType === 'inclusive'}
+                          className="text-xs sm:text-sm font-bold whitespace-nowrap"
                         />
                       </div>
                     ))}
@@ -644,7 +649,14 @@ const Checkout = () => {
                 <span className="text-brand-dark/60 font-medium font-serif">Subtotal</span>
                 <Price amount={cartTotal} className="font-bold" />
               </div>
-              
+
+              {exclusiveTaxTotal > 0 && (
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-brand-dark/60 font-medium font-serif">Tax (Exclusive)</span>
+                  <Price amount={exclusiveTaxTotal} className="font-bold" />
+                </div>
+              )}
+
               {autoPromoDiscount > 0 && (
                 <div className="flex justify-between text-xs sm:text-sm">
                   <span className="text-emerald-600 font-medium flex items-center gap-1.5 font-serif">
@@ -673,12 +685,14 @@ const Checkout = () => {
                   <Price amount={shipping} className="font-bold" />
                 )}
               </div>
-              <div className="flex justify-between text-xs sm:text-sm">
-                <span className="text-brand-dark/60 font-medium font-serif">Estimated Tax</span>
-                <Price amount={taxes} className="font-bold" />
-              </div>
+
               <div className="pt-3 sm:pt-4 border-t border-brand-dark/5 flex justify-between items-end">
-                <span className="text-base sm:text-lg font-serif">Total</span>
+                <div>
+                  <span className="text-base sm:text-lg font-serif block">Total</span>
+                  {exclusiveTaxTotal === 0 && (
+                    <span className="text-[9px] text-brand-dark/40 font-bold uppercase tracking-widest">All prices include tax</span>
+                  )}
+                </div>
                 <Price amount={finalTotal} className="text-xl sm:text-2xl font-bold text-brand-gold" />
               </div>
             </div>

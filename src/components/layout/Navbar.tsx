@@ -29,6 +29,8 @@ const Navbar = () => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { openModal } = useAuthModal();
   const { user, logout } = useAuth();
+  const { formatPrice } = useCurrency();
+
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -98,7 +100,7 @@ const Navbar = () => {
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
           className="inline-block"
         >
-          Free Worldwide Shipping on Orders Over 500 • Authentic Designer Wear • 24/7 Premium Support • 
+          Free Worldwide Shipping on Orders Over {formatPrice(500)} • Authentic Designer Wear • 24/7 Premium Support • 
         </motion.div>
       </div>
 
@@ -252,7 +254,7 @@ const Navbar = () => {
                           Your Bag · {cartCount}
                         </span>
                         <span className={`text-[10px] font-medium ${cartTotal >= 500 ? 'text-[#C9A84C]' : 'text-brand-dark/40'}`}>
-                          {cartTotal >= 500 ? 'Free shipping unlocked' : `Spend $${Math.max(0, 500 - cartTotal).toFixed(0)} more for free shipping`}
+                          {cartTotal >= 500 ? 'Free shipping unlocked' : `Spend ${formatPrice(Math.max(0, 500 - cartTotal))} more for free shipping`}
                         </span>
                       </div>
 
@@ -267,9 +269,9 @@ const Navbar = () => {
                           />
                         </div>
                         <div className="flex justify-between items-center mt-2 text-[9px] font-bold uppercase tracking-widest">
-                          <span className="text-brand-dark/40">$0</span>
+                          <span className="text-brand-dark/40">{formatPrice(0)}</span>
                           <span className={cartTotal >= 500 ? 'text-[#C9A84C]' : 'text-brand-dark/40'}>
-                            $500 · UNLOCKED
+                            {formatPrice(500)} · UNLOCKED
                           </span>
                         </div>
                       </div>
@@ -285,7 +287,7 @@ const Navbar = () => {
                               <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">
                                   <h4 className="text-sm font-bold text-brand-dark truncate pr-4">{item.name}</h4>
-                                  <span className="text-sm font-bold text-brand-dark">${item.price}</span>
+                                  <span className="text-sm font-bold text-brand-dark">{formatPrice(item.price)}</span>
                                 </div>
                                 <p className="text-[11px] text-brand-dark/40 mb-3 truncate">
                                   {Object.values(item.attributes || {}).join(' · ') || 'No variants'}
@@ -329,7 +331,7 @@ const Navbar = () => {
                         <div className="p-5 bg-white border-t border-brand-dark/5 space-y-4">
                           <div className="flex justify-between items-center text-xs font-bold uppercase tracking-[0.1em] text-brand-dark">
                             <span>Subtotal</span>
-                            <span>${cartTotal.toFixed(2)}</span>
+                            <span>{formatPrice(cartTotal)}</span>
                           </div>
                           <div className="flex gap-3">
                             <Link 

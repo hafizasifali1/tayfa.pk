@@ -396,6 +396,7 @@ export interface TaxRule {
   country: string;
   state?: string;
   rate: number; // percentage, e.g., 15 for 15%
+  taxType: 'inclusive' | 'exclusive'; // inclusive: tax already in base price; exclusive: tax added on top
   pricelistId: string; // Linked pricelist
   isActive: boolean;
   createdAt: string;

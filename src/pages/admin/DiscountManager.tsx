@@ -107,6 +107,19 @@ const currencyCode = selectedCountry?.currencyCode || 'PKR'; // Fallback to PKR
     };
     fetchData();
   }, []);
+  
+  const toggleStatus = async (id: string) => {
+    const discount = discounts.find(d => d.id === id);
+    if (!discount) return;
+
+    try {
+      const newStatus = !discount.isActive;
+      await axios.put(`/api/discounts/${id}`, { isActive: newStatus });
+      setDiscounts(prev => prev.map(d => d.id === id ? { ...d, isActive: newStatus } : d));
+    } catch (error) {
+      console.error('Error toggling admin discount status:', error);
+    }
+  };
 
   const handleCreateDiscount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,23 +267,44 @@ const currencyCode = selectedCountry?.currencyCode || 'PKR'; // Fallback to PKR
                     </select>
                   </div>
                   <div>
-                    <label className="block font-bold uppercase tracking-widest mb-2" style={{ fontSize: '11px', letterSpacing: '0.7px', color: '#888' }}>Value</label>
-                    <input 
-                      required 
-                      type="number" 
-                      value={newDiscount.value} 
-                      onChange={(e) => setNewDiscount({ ...newDiscount, value: parseFloat(e.target.value) || 0 })} 
-                      className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-xl px-6 py-2.5 text-sm focus:outline-none transition-all"
-                      onFocus={(e) => {
-                        e.target.style.borderColor = brandGold;
-                        e.target.style.boxShadow = `0 0 0 3px ${brandGold}20`;
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = 'rgba(15, 15, 26, 0.05)';
-                        e.target.style.boxShadow = 'none';
-                      }}
-                    />
+                    <label className="block font-bold uppercase tracking-widest mb-2" style={{ fontSize: '11px', letterSpacing: '0.7px', color: '#888' }}>Status</label>
+                    <div className="flex items-center space-x-3 bg-brand-cream/30 border border-brand-dark/5 rounded-xl px-6 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setNewDiscount({ 
+                          ...newDiscount, 
+                          status: newDiscount.status === 'active' ? 'inactive' : 'active' 
+                        })}
+                        className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${newDiscount.status === 'active' ? 'bg-[#C5A059]' : 'bg-brand-dark/10'}`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${newDiscount.status === 'active' ? 'translate-x-5' : 'translate-x-0'}`}
+                        />
+                      </button>
+                      <span className="text-sm font-bold text-brand-dark uppercase tracking-widest" style={{ fontSize: '10px' }}>
+                        {newDiscount.status === 'active' ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold uppercase tracking-widest mb-2" style={{ fontSize: '11px', letterSpacing: '0.7px', color: '#888' }}>Value</label>
+                  <input 
+                    required 
+                    type="number" 
+                    value={newDiscount.value} 
+                    onChange={(e) => setNewDiscount({ ...newDiscount, value: parseFloat(e.target.value) || 0 })} 
+                    className="w-full bg-brand-cream/30 border border-brand-dark/5 rounded-xl px-6 py-2.5 text-sm focus:outline-none transition-all"
+                    onFocus={(e) => {
+                      e.target.style.borderColor = brandGold;
+                      e.target.style.boxShadow = `0 0 0 3px ${brandGold}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'rgba(15, 15, 26, 0.05)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
                 </div>
 
                 <div>
@@ -467,14 +501,15 @@ const currencyCode = selectedCountry?.currencyCode || 'PKR'; // Fallback to PKR
                   </div>
                 </td>
                 <td className="px-8 py-6">
-                  <span 
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                  <button 
+                    onClick={() => toggleStatus(discount.id)}
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors ${
                       discount.isActive ? 'text-white' : 'bg-brand-dark/5 text-brand-dark/40'
                     }`}
                     style={discount.isActive ? { backgroundColor: brandGold } : {}}
                   >
                     {discount.isActive ? 'Active' : 'Inactive'}
-                  </span>
+                  </button>
                 </td>
                 <td className="px-8 py-6 text-right">
                   <div className="flex items-center justify-end space-x-2">

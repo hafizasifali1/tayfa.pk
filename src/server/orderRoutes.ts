@@ -462,28 +462,57 @@ router.patch('/shipments/:id', async (req, res) => {
 // --- Returns & Refunds ---
 router.post('/orders/:id/returns', async (req, res) => {
   try {
-    const { orderItemId, reason, images } = req.body;
-    
+    const { itemIds, orderItemId, reason, comments, images, processedByName, processedById } = req.body;
+
+    // Support both single orderItemId (legacy) and itemIds array (new)
+    const allItemIds: string[] = Array.isArray(itemIds) ? itemIds : (orderItemId ? [orderItemId] : []);
+    const primaryItemId = allItemIds[0] || null;
+
+    if (!primaryItemId) {
+      return res.status(400).json({ error: 'At least one item must be selected for return.' });
+    }
+    if (!reason) {
+      return res.status(400).json({ error: 'Reason for return is required.' });
+    }
+
+    // Enforce one return per order
+    const existingReturns = await db.select().from(returns).where(eq(returns.orderId, req.params.id));
+    if (existingReturns.length > 0) {
+      return res.status(409).json({ error: 'A return request already exists for this order.' });
+    }
+
+    // Store structured reason (reason + comments + all selected itemIds)
+    const structuredReason = JSON.stringify({
+      reason,
+      comments: comments || '',
+      itemIds: allItemIds,
+    });
+
     const returnId = uuidv4();
     await db.insert(returns).values({
       id: returnId,
       orderId: req.params.id,
-      orderItemId,
-      reason,
-      images,
-      status: 'requested'
+      orderItemId: primaryItemId,
+      reason: structuredReason,
+      images: images || [],
+      status: 'requested',
     });
 
     const [newReturn] = await db.select().from(returns).where(eq(returns.id, returnId));
+
+    // Update order status to return_requested
+    await db.update(orders)
+      .set({ status: 'return_requested', updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(orders.id, req.params.id));
 
     await db.insert(orderStatusHistory).values({
       id: uuidv4(),
       orderId: req.params.id,
       status: 'return_requested',
-      comment: `Return requested for item: ${orderItemId}`,
+      comment: `Return requested for ${allItemIds.length} item(s). Reason: ${reason}${comments ? ' — ' + comments : ''}`,
       processedByRole: 'customer',
-      processedByName: req.body.processedByName,
-      processedById: req.body.processedById
+      processedByName: processedByName || 'Customer',
+      processedById: processedById || null,
     });
 
     res.status(201).json(newReturn);

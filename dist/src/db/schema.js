@@ -126,6 +126,7 @@ exports.products = table('products', {
     pricelistId: isMysql ? char('pricelist_id', { length: 36 }) : char('pricelist_id'),
     taxRuleId: isMysql ? char('tax_rule_id', { length: 36 }) : char('tax_rule_id'),
     price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+    priceAfterTax: decimal('price_after_tax', { precision: 10, scale: 2 }),
     discount: integer('discount').default(0),
     description: text('description'),
     images: json('images').notNull(),
@@ -468,6 +469,9 @@ exports.orderStatusHistory = table('order_status_history', {
     status: varchar('status', { length: 50 }).notNull(),
     comment: text('comment'),
     changedBy: isMysql ? char('changed_by', { length: 36 }) : char('changed_by'),
+    processedByRole: varchar('processed_by_role', { length: 50 }),
+    processedByName: varchar('processed_by_name', { length: 255 }),
+    processedById: isMysql ? char('processed_by_id', { length: 36 }) : char('processed_by_id'),
     createdAt: timestamp('created_at').defaultNow(),
 });
 exports.shipments = table('shipments', {

@@ -9,6 +9,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useAuthModal } from '../context/AuthModalContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useCurrency } from '../context/CurrencyContext';
 import Price from '../components/common/Price';
 import { motion, AnimatePresence } from 'motion/react';
 import { Coupon, Promotion } from '../types';
@@ -20,6 +21,7 @@ const ShoppingBagPage = () => {
   const { user } = useAuth();
   const { openModal } = useAuthModal();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { formatPrice } = useCurrency();
   const navigate = useNavigate();
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -51,9 +53,14 @@ const ShoppingBagPage = () => {
     return 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
   };
 
-  const FREE_SHIPPING_THRESHOLD = 200;
+  const FREE_SHIPPING_THRESHOLD = 500;
   const SHIPPING_COST = 15;
-  const TAX_RATE = 0.08;
+
+  const exclusiveTaxTotal = useMemo(() => {
+    return cart
+      .filter(i => i.taxType === 'exclusive' && (i.taxRate || 0) > 0)
+      .reduce((sum, i) => sum + i.price * ((i.taxRate || 0) / 100) * i.qty, 0);
+  }, [cart]);
 
   const autoPromoDiscount = useMemo(() => {
     return cart.reduce((total, item) => {
@@ -166,8 +173,7 @@ const ShoppingBagPage = () => {
   const displayItems = useMemo(() => [...cart, ...freeGifts], [cart, freeGifts]);
 
   const shipping = cartTotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
-  const taxes = (cartTotal - autoPromoDiscount - discountAmount) * TAX_RATE;
-  const finalTotal = Math.max(0, cartTotal - autoPromoDiscount - discountAmount + shipping + taxes);
+  const finalTotal = Math.max(0, cartTotal + exclusiveTaxTotal - autoPromoDiscount - discountAmount + shipping);
   const amountToFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - cartTotal);
 
   if (isLoading) {
@@ -250,8 +256,8 @@ const ShoppingBagPage = () => {
                       {promoStatus.promo?.status === 'applied' 
                         ? (promoStatus.promo?.promotion?.type === 'buy_x_get_y_free' 
                             ? "Congratulations! You've unlocked a FREE product!" 
-                            : `Congratulations! You're saving PKR ${promoStatus.promo?.savings?.toLocaleString()} on this order!`)
-                        : `Add ${promoStatus.promo?.remaining} more to unlock ${promoStatus.promo?.promotion?.value}${promoStatus.promo?.promotion?.type === 'percentage' ? '%' : ''} OFF!`
+                            : `Congratulations! You're saving ${formatPrice(promoStatus.promo?.savings || 0)} on this order!`)
+                        : `Add ${formatPrice(promoStatus.promo?.remaining || 0)} more to unlock ${promoStatus.promo?.promotion?.value}${promoStatus.promo?.promotion?.type === 'percentage' ? '%' : ''} OFF!`
                       }
                     </h4>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 mt-0.5">
@@ -402,18 +408,20 @@ const ShoppingBagPage = () => {
                           {(item as any).isFreeGift ? (
                             <span className="bg-emerald-100 text-emerald-700 font-black text-[10px] px-3 py-1.5 rounded-full uppercase tracking-widest">Free</span>
                           ) : (
-                            <Price 
+                            <Price
                               amount={(item.originalPrice || item.price) * item.qty}
                               discount={item.originalPrice ? (item.originalPrice - item.price) * item.qty : 0}
-                              className="text-base sm:text-xl font-bold text-brand-dark" 
+                              showInclTax={item.taxType === 'inclusive'}
+                              className="text-base sm:text-xl font-bold text-brand-dark"
                             />
                           )}
                           {item.qty > 1 && (
                             <p className="text-[9px] sm:text-[10px] text-brand-dark/40 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">
-                              <Price 
-                                amount={item.originalPrice || item.price} 
-                                discount={item.originalPrice ? (item.originalPrice - item.price) : 0}
-                              /> each
+                              <Price
+                                amount={item.price}
+                                discount={0}
+                                showInclTax={item.taxType === 'inclusive'}
+                              /> EACH
                             </p>
                           )}
                         </div>
@@ -458,7 +466,14 @@ const ShoppingBagPage = () => {
                     <span className="text-brand-dark/60 font-medium">Subtotal</span>
                     <Price amount={cartTotal} className="font-bold" />
                   </div>
-                  
+
+                  {exclusiveTaxTotal > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-brand-dark/60 font-medium">Tax (Exclusive)</span>
+                      <Price amount={exclusiveTaxTotal} className="font-bold" />
+                    </div>
+                  )}
+
                   {autoPromoDiscount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-brand-gold font-medium flex items-center gap-1.5">
@@ -488,15 +503,12 @@ const ShoppingBagPage = () => {
                     )}
                   </div>
 
-                  <div className="flex justify-between text-xs sm:text-sm">
-                    <span className="text-brand-dark/60 font-medium font-serif">Estimated Tax</span>
-                    <Price amount={taxes} className="font-bold" />
-                  </div>
-
                   <div className="pt-6 border-t border-brand-dark/5 flex justify-between items-end">
                     <div>
                       <span className="text-base font-serif block">Total</span>
-                      <span className="text-[9px] text-brand-dark/40 font-bold uppercase tracking-widest">Including VAT</span>
+                      {exclusiveTaxTotal === 0 && (
+                        <span className="text-[9px] text-brand-dark/40 font-bold uppercase tracking-widest">All prices include tax</span>
+                      )}
                     </div>
                     <Price amount={finalTotal} className="text-lg font-bold text-brand-gold" />
                   </div>
@@ -573,7 +585,7 @@ const ShoppingBagPage = () => {
                   <div className="bg-brand-gold/10 rounded-xl p-3 flex items-center justify-center space-x-2 border border-brand-gold/10">
                     <Tag size={14} className="text-brand-gold" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-brand-gold-dark">
-                      🏷 You're saving PKR {autoPromoDiscount.toLocaleString()} today!
+                      🏷 You're saving {formatPrice(autoPromoDiscount)} today!
                     </span>
                   </div>
                 )}
@@ -634,6 +646,12 @@ const ShoppingBagPage = () => {
                   <span className="text-brand-dark/60">Subtotal</span>
                   <Price amount={cartTotal} />
                 </div>
+                {exclusiveTaxTotal > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-brand-dark/60">Tax (Exclusive)</span>
+                    <Price amount={exclusiveTaxTotal} />
+                  </div>
+                )}
                 {autoPromoDiscount > 0 && (
                   <div className="flex justify-between text-xs">
                     <span className="text-emerald-600">Promotions</span>
@@ -649,10 +667,6 @@ const ShoppingBagPage = () => {
                 <div className="flex justify-between text-xs">
                   <span className="text-brand-dark/60">Shipping</span>
                   <span>{shipping === 0 ? 'FREE' : <Price amount={shipping} />}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-brand-dark/60">Tax</span>
-                  <Price amount={taxes} />
                 </div>
               </div>
             </motion.div>

@@ -339,7 +339,13 @@ const SellerProductList = () => {
                 </td>
                 <td className="px-10 py-8">
                   <div className="space-y-2">
-                    <Price amount={product.price} currency={product.currency} className="text-lg font-serif italic text-brand-dark" />
+                    <Price 
+                      amount={Math.max(0, parseFloat(String(product.priceAfterTax || product.price || 0)))} 
+                      discount={Math.max(0, product.salePrice ? (parseFloat(String(product.priceAfterTax || product.price)) - parseFloat(String(product.salePrice))) : (parseFloat(String(product.priceAfterTax || product.price)) * (parseFloat(String(product.discount || 0)) / 100)))} 
+                      currency={product.currency} 
+                      className="text-lg font-serif italic text-brand-dark" 
+                      showInclTax={true}
+                    />
                     <p className="text-[10px] text-brand-dark/30 uppercase tracking-[0.1em] font-medium">
                       {product.category || 'Uncategorized'}
                     </p>

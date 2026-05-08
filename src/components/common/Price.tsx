@@ -9,13 +9,16 @@ interface PriceProps {
   className?: string;
   showLocalMessage?: boolean;
   currency?: string;
+  showInclTax?: boolean;
 }
 
-const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, className = "", showLocalMessage = false, currency }) => {
+const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, className = "", showLocalMessage = false, currency, showInclTax = false }) => {
   const { formatPrice, selectedCountry, exchangeRates, isLoading } = useCurrency();
 
   const finalAmount = useMemo(() => {
-    let currentPriceUSD = amount - discount;
+    const safeAmount = Math.max(0, amount);
+    const safeDiscount = Math.max(0, discount);
+    let currentPriceUSD = Math.max(0, safeAmount - safeDiscount);
     if (!productId || !selectedCountry) return currentPriceUSD;
 
     let discounts: Discount[] = [];
@@ -76,12 +79,13 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
       }
     }
 
-    return currentPriceUSD;
+    return Math.max(0, currentPriceUSD);
   }, [amount, discount, productId, selectedCountry, exchangeRates, currency]);
 
   const discountPercentage = useMemo(() => {
-    if (finalAmount >= amount) return 0;
-    return Math.round(((amount - finalAmount) / amount) * 100);
+    if (finalAmount >= (amount - 0.01)) return 0;
+    const percentage = Math.round(((amount - finalAmount) / amount) * 100);
+    return Math.min(100, Math.max(0, percentage));
   }, [amount, finalAmount]);
 
   if (isLoading && !selectedCountry && !currency) {
@@ -94,7 +98,12 @@ const Price: React.FC<PriceProps> = ({ amount, discount = 0, productId, classNam
         <span className={`${className} text-brand-dark font-bold`}>
           {formatPrice(finalAmount, currency)}
         </span>
-        {finalAmount < amount && (
+        {showInclTax && (
+          <span className="text-[10px] text-brand-dark/40 font-bold uppercase tracking-widest">
+            incl. tax
+          </span>
+        )}
+        {finalAmount < (amount - 0.01) && (
           <>
             <span className="text-xs text-brand-dark-muted line-through font-medium">
               {formatPrice(amount, currency)}

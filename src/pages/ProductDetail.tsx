@@ -4,6 +4,7 @@ import { ShoppingBag, Heart, Share2, ChevronLeft, ChevronRight, Truck, ShieldChe
 import axios from 'axios';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useCurrency } from '../context/CurrencyContext';
 import Price from '../components/common/Price';
 import ProductCard from '../components/common/ProductCard';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,6 +27,7 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const { formatPrice } = useCurrency();
   const [product, setProduct] = useState<any>(null);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [productAttributes, setProductAttributes] = useState<any[]>([]);
@@ -435,14 +437,31 @@ const ProductDetail = () => {
             
             <h1 className="text-3xl md:text-5xl font-serif leading-tight text-brand-dark font-medium">{product.name}</h1>
             
-            <div className="flex items-center space-x-4">
-              <Price 
-                amount={product.price} 
-                discount={product.salePrice ? (product.price - product.salePrice) : product.discount} 
-                className="text-3xl font-medium text-brand-dark" 
-                showLocalMessage 
-              />
-            </div>
+              {(() => {
+                const isExclusive = product.taxType === 'exclusive';
+                const displayPrice = isExclusive
+                  ? parseFloat(String(product.price || 0))
+                  : parseFloat(String(product.priceAfterTax || product.price || 0));
+                const discountAmt = product.salePrice
+                  ? Math.max(0, displayPrice - parseFloat(String(product.salePrice || 0)))
+                  : Math.max(0, displayPrice * (parseFloat(String(product.discount || 0)) / 100));
+                return (
+                  <div className="flex items-center flex-wrap gap-3">
+                    <Price
+                      amount={Math.max(0, displayPrice)}
+                      discount={Math.max(0, Math.min(displayPrice, discountAmt))}
+                      className="text-3xl font-medium text-brand-dark"
+                      showInclTax={!isExclusive}
+                      showLocalMessage
+                    />
+                    {isExclusive && product.taxRate > 0 && (
+                      <span className="text-xs font-bold uppercase tracking-widest text-brand-dark/40 bg-brand-cream/60 px-2.5 py-1 rounded-full border border-brand-dark/5">
+                        + {product.taxRate}% tax
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
             <div className="flex flex-wrap gap-2 pt-2">
               {product.parentCategory && (
@@ -500,7 +519,9 @@ const ProductDetail = () => {
                 }`}
               >
                 <ShoppingBag size={18} />
-                <span>{isAdded ? 'Added to Bag' : `Add ${quantity > 1 ? quantity + ' Items' : 'to Bag'}`}</span>
+                <span>
+                  {isAdded ? 'Added to Bag' : `Add to Bag · ${formatPrice((product.salePrice || (product.taxType === 'exclusive' ? product.price : (product.priceAfterTax || product.price))) * quantity)}`}
+                </span>
               </button>
               <button 
                 onClick={() => toggleWishlist(product)}

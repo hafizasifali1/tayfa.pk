@@ -41,9 +41,6 @@ const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const index_1 = require("./index");
 const drizzle_orm_1 = require("drizzle-orm");
-const schema_1 = require("./schema");
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const uuid_1 = require("uuid");
 async function migrate() {
     const isMysql = process.env.DATABASE_URL?.startsWith('mysql');
     try {
@@ -137,6 +134,19 @@ async function migrate() {
           shipping_address JSON NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS order_status_history (
+          id CHAR(36) PRIMARY KEY,
+          order_id CHAR(36) NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          comment TEXT,
+          changed_by CHAR(36),
+          processed_by_role VARCHAR(50),
+          processed_by_name VARCHAR(255),
+          processed_by_id CHAR(36),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
             await index_1.db.execute((0, drizzle_orm_1.sql) `
@@ -324,6 +334,9 @@ async function migrate() {
             await addColumn('filters', 'is_attribute', 'TINYINT(1) NOT NULL DEFAULT 0');
             await addColumn('cart_items', 'attributes', 'JSON NULL');
             await addColumn('cart_items', 'variant_id', 'VARCHAR(255)');
+            await addColumn('order_status_history', 'processed_by_role', 'VARCHAR(50)');
+            await addColumn('order_status_history', 'processed_by_name', 'VARCHAR(255)');
+            await addColumn('order_status_history', 'processed_by_id', 'CHAR(36)');
         }
         else {
             // PostgreSQL
@@ -420,6 +433,19 @@ async function migrate() {
           reviewed_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+            await index_1.db.execute((0, drizzle_orm_1.sql) `
+        CREATE TABLE IF NOT EXISTS order_status_history (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          order_id UUID NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          comment TEXT,
+          changed_by UUID,
+          processed_by_role VARCHAR(50),
+          processed_by_name VARCHAR(255),
+          processed_by_id UUID,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
             await index_1.db.execute((0, drizzle_orm_1.sql) `
@@ -577,6 +603,9 @@ async function migrate() {
             await addColumnPg('seller_applications', 'company_email', 'VARCHAR(255)');
             await addColumnPg('seller_applications', 'brands', 'JSONB');
             await addColumnPg('seller_applications', 'overview_document_url', 'VARCHAR(500)');
+            await addColumnPg('order_status_history', 'processed_by_role', 'VARCHAR(50)');
+            await addColumnPg('order_status_history', 'processed_by_name', 'VARCHAR(255)');
+            await addColumnPg('order_status_history', 'processed_by_id', 'UUID');
         }
         // Data migration for seller_applications
         try {
@@ -714,38 +743,40 @@ async function migrate() {
         }
         console.log('Migrations completed successfully.');
         // Seed default admin user
+        /*
         try {
-            console.log('Seeding default admin user...');
-            const adminEmail = 'tayyab786fq@gmail.com';
-            const [existingAdmin] = await index_1.db.select().from(schema_1.users).where((0, drizzle_orm_1.eq)(schema_1.users.email, adminEmail));
-            const hashedPassword = await bcryptjs_1.default.hash('1234', 10);
-            if (existingAdmin) {
-                console.log('Updating existing user to admin...');
-                await index_1.db.update(schema_1.users)
-                    .set({
-                    role: 'super_admin',
-                    status: 'active',
-                    password: hashedPassword,
-                    updatedAt: new Date()
-                })
-                    .where((0, drizzle_orm_1.eq)(schema_1.users.email, adminEmail));
-            }
-            else {
-                console.log('Creating new default admin user...');
-                await index_1.db.insert(schema_1.users).values({
-                    id: (0, uuid_1.v4)(),
-                    fullName: 'Tayyab Admin',
-                    email: adminEmail,
-                    password: hashedPassword,
-                    role: 'super_admin',
-                    status: 'active'
-                });
-            }
-            console.log('Default admin user seeded successfully.');
+          console.log('Seeding default admin user...');
+          const adminEmail = 'tayyab786fq@gmail.com';
+          const [existingAdmin] = await db.select().from(users).where(eq(users.email, adminEmail));
+          
+          const hashedPassword = await bcrypt.hash('1234', 10);
+          
+          if (existingAdmin) {
+            console.log('Updating existing user to admin...');
+            await db.update(users)
+              .set({
+                role: 'super_admin',
+                status: 'active',
+                password: hashedPassword,
+                updatedAt: new Date()
+              })
+              .where(eq(users.email, adminEmail));
+          } else {
+            console.log('Creating new default admin user...');
+            await db.insert(users).values({
+              id: uuidv4(),
+              fullName: 'Tayyab Admin',
+              email: adminEmail,
+              password: hashedPassword,
+              role: 'super_admin',
+              status: 'active'
+            });
+          }
+          console.log('Default admin user seeded successfully.');
+        } catch (seedError) {
+          console.error('Failed to seed default admin user:', seedError);
         }
-        catch (seedError) {
-            console.error('Failed to seed default admin user:', seedError);
-        }
+        */
         // Seed default countries and rates
         try {
             console.log('Seeding default countries and rates...');

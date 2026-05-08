@@ -26,6 +26,8 @@ export interface CartItem {
   variantId: string;    // encodes all selected attribute values e.g. "Green-Cotton"
   attributes?: Record<string, string>; // { "Color": "Green", "Fabric": "Cotton" }
   applicablePromotions?: any[];
+  taxType?: 'inclusive' | 'exclusive'; // from the product's linked tax rule
+  taxRate?: number;                    // percentage rate, e.g. 18 — used to compute exclusive tax line
 }
 
 // ---------- Session ID for guests ----------

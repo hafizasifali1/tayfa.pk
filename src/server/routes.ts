@@ -152,6 +152,7 @@ const runMigrations = async () => {
     try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN pricelist_id CHAR(36)`); } catch (e) { }
     try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN is_active BOOLEAN DEFAULT TRUE`); } catch (e) { }
     try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`); } catch (e) { }
+    try { await db.execute(sql`ALTER TABLE tax_rules ADD COLUMN tax_type VARCHAR(50) DEFAULT 'exclusive'`); } catch (e) { }
 
     // Blogs
     try { await db.execute(sql`ALTER TABLE blogs ADD COLUMN status VARCHAR(50) DEFAULT 'active'`); } catch (e) { }
@@ -1042,6 +1043,7 @@ router.get('/products', async (req, res) => {
       categoryId: products.categoryId,
       brandId: products.brandId,
       price: products.price,
+      priceAfterTax: products.priceAfterTax,
       discount: products.discount,
       description: products.description,
       images: products.images,
@@ -1064,6 +1066,8 @@ router.get('/products', async (req, res) => {
       pricelistId: products.pricelistId,
       currency: pricelists.currency,
       taxRuleId: products.taxRuleId,
+      taxType: taxRules.taxType,
+      taxRate: taxRules.rate,
       dynamicFilters: products.dynamicFilters,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
@@ -1073,7 +1077,8 @@ router.get('/products', async (req, res) => {
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id))
     .leftJoin(users, eq(products.sellerId, users.id))
-    .leftJoin(pricelists, eq(products.pricelistId, pricelists.id));
+    .leftJoin(pricelists, eq(products.pricelistId, pricelists.id))
+    .leftJoin(taxRules, eq(products.taxRuleId, taxRules.id));
 
     // Fetch active promotions
     const activePromotions = await db.select().from(promotions).where(eq(promotions.isActive, true));
@@ -1133,6 +1138,10 @@ router.get('/products', async (req, res) => {
           ));
 
         result.forEach((product: any) => {
+          // Reset any stale DB-stored discount values — discount is always computed from global discounts
+          product.discount = 0;
+          product.discountType = null;
+
           // Find the best discount for this product
           const applicable = activeDiscounts.filter(d => {
             if (d.applyTo === 'all') return true;
@@ -1173,6 +1182,13 @@ router.get('/products', async (req, res) => {
             // If product already has a manual salePrice or discount, we respect the better one
             if (!product.salePrice || bestSalePrice < product.salePrice) {
               product.salePrice = bestSalePrice;
+              
+              // Ensure salePrice is also tax-inclusive if priceAfterTax exists
+              if (product.priceAfterTax && parseFloat(String(product.price)) > 0) {
+                const taxMultiplier = parseFloat(String(product.priceAfterTax)) / parseFloat(String(product.price));
+                product.salePrice = (bestSalePrice * taxMultiplier).toFixed(2);
+              }
+
               product.discount = appliedDiscountValue;
               product.discountType = appliedDiscountType;
             }
@@ -1384,6 +1400,7 @@ router.get('/products/:slug', async (req, res) => {
       categoryId: products.categoryId,
       brandId: products.brandId,
       price: products.price,
+       priceAfterTax: products.priceAfterTax, 
       discount: products.discount,
       description: products.description,
       images: products.images,
@@ -1399,6 +1416,9 @@ router.get('/products/:slug', async (req, res) => {
       gender: products.gender,
       type: products.type,
       subcategory: products.subcategory,
+      taxRuleId: products.taxRuleId,
+      taxType: taxRules.taxType,
+      taxRate: taxRules.rate,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
     })
@@ -1406,7 +1426,8 @@ router.get('/products/:slug', async (req, res) => {
       .leftJoin(brands, eq(products.brandId, brands.id))
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .leftJoin(parentCategories, eq(products.parentCategoryId, parentCategories.id))
-      .where(eq(products.slug, req.params.slug));
+      .leftJoin(taxRules, eq(products.taxRuleId, taxRules.id))
+      .where(or(eq(products.slug, req.params.slug), eq(products.id, req.params.slug)));
 
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
@@ -1435,6 +1456,10 @@ router.get('/products/:slug', async (req, res) => {
           lte(discounts.startDate, now),
           gte(discounts.endDate, now)
         ));
+
+      // Reset any stale DB-stored discount values — discount is always computed from global discounts
+      product.discount = 0;
+      product.discountType = null;
 
       // Find best discount
       const applicable = activeDiscounts.filter(d => {
@@ -1474,6 +1499,13 @@ router.get('/products/:slug', async (req, res) => {
 
         if (!product.salePrice || bestSalePrice < product.salePrice) {
           product.salePrice = bestSalePrice;
+          
+          // Ensure salePrice is also tax-inclusive if priceAfterTax exists
+          if (product.priceAfterTax && parseFloat(String(product.price)) > 0) {
+            const taxMultiplier = parseFloat(String(product.priceAfterTax)) / parseFloat(String(product.price));
+            product.salePrice = (bestSalePrice * taxMultiplier).toFixed(2);
+          }
+
           product.discount = appliedDiscountValue;
           product.discountType = appliedDiscountType;
         }
@@ -2072,7 +2104,7 @@ router.patch('/tax-rules/:id', async (req, res) => {
       data: req.body,
       userId: req.body.adminId || 'system',
       module: 'TaxRule',
-      allowedFields: ['name', 'country', 'state', 'rate', 'pricelistId', 'isActive']
+      allowedFields: ['name', 'country', 'state', 'rate', 'pricelistId', 'taxType', 'isActive']
     });
     res.json(updated);
   } catch (error: any) {

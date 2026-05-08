@@ -36,6 +36,41 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const prevUserIdRef = useRef<string | undefined>(undefined);
   const initDoneRef = useRef(false);
 
+  // Refresh each cart item's price from the current product API so stale
+  // snapshots (e.g. after a tax-rule change) are corrected on every load.
+  const syncCartPrices = async (items: CartItem[]): Promise<CartItem[]> => {
+    if (items.length === 0) return items;
+    const productIds = [...new Set(items.map(i => i.id))];
+    try {
+      const results = await Promise.all(
+        productIds.map(id =>
+          fetch(`/api/products/${id}`).then(r => r.ok ? r.json() : null).catch(() => null)
+        )
+      );
+      const priceMap: Record<string, { price: number; originalPrice?: number; taxType?: 'inclusive' | 'exclusive'; taxRate?: number }> = {};
+      results.forEach((product: any) => {
+        if (!product?.id) return;
+        const isExclusive = product.taxType === 'exclusive';
+        // Exclusive: display base price; Inclusive: display priceAfterTax
+        const displayPrice = isExclusive
+          ? parseFloat(String(product.price || 0))
+          : parseFloat(String(product.priceAfterTax || product.price || 0));
+        const salePrice = product.salePrice ? parseFloat(String(product.salePrice)) : null;
+        const taxRate = parseFloat(String(product.taxRate || 0));
+        priceMap[product.id] = salePrice
+          ? { price: salePrice, originalPrice: displayPrice, taxType: product.taxType, taxRate }
+          : { price: displayPrice, originalPrice: undefined, taxType: product.taxType, taxRate };
+      });
+      return items.map(item => {
+        const current = priceMap[item.id];
+        if (!current) return item;
+        return { ...item, price: current.price, originalPrice: current.originalPrice, taxType: current.taxType, taxRate: current.taxRate };
+      });
+    } catch {
+      return items;
+    }
+  };
+
   const attachPromotions = async (items: CartItem[]): Promise<CartItem[]> => {
     if (items.length === 0) return items;
     return Promise.all(
@@ -75,7 +110,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (!cancelled) {
-          const itemsWithPromos = await attachPromotions(items);
+          const syncedItems = await syncCartPrices(items);
+          const itemsWithPromos = await attachPromotions(syncedItems);
           setCart(itemsWithPromos);
           prevUserIdRef.current = currentUserId;
           initDoneRef.current = true;
@@ -83,8 +119,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('[CartContext] Init error:', err);
         if (!cancelled) {
-          const freshGuest = await attachPromotions(CartService.LocalCart.getAll());
-          setCart(freshGuest);
+          const freshGuest = await syncCartPrices(CartService.LocalCart.getAll());
+          setCart(await attachPromotions(freshGuest));
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -101,7 +137,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       try {
         const items = await CartService.getCart(user?.id);
-        const withPromos = await attachPromotions(items);
+        const syncedItems = await syncCartPrices(items);
+        const withPromos = await attachPromotions(syncedItems);
         setCart(withPromos);
       } finally {
         setIsLoading(false);
@@ -139,17 +176,26 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       image = 'https://images.unsplash.com/photo-1539109132381-31a1ecdd7ce9?q=80&w=800&auto=format&fit=crop';
     }
 
+    const isExclusive = product.taxType === 'exclusive';
+    const displayPrice = isExclusive
+      ? parseFloat(String(product.price || 0))
+      : parseFloat(String(product.priceAfterTax || product.price || 0));
+    const salePrice = product.salePrice ? parseFloat(String(product.salePrice)) : null;
+    const taxRate = parseFloat(String(product.taxRate || 0));
+
     const item: Omit<CartItem, 'cartItemId' | 'cartId'> = {
       id: product.id,
       sellerId: product.sellerId || '',
       name: product.name,
-      price: parseFloat(String(product.salePrice ?? product.price)) || 0,
-      originalPrice: product.salePrice ? (parseFloat(String(product.price)) || 0) : undefined,
+      price: salePrice || displayPrice,
+      originalPrice: salePrice ? displayPrice : undefined,
       imageUrl: image,
       qty,
       variantId,
       attributes: attributes || {},
-      applicablePromotions: product.applicablePromotions
+      applicablePromotions: product.applicablePromotions,
+      taxType: product.taxType,
+      taxRate,
     };
 
     await withLock(async () => {

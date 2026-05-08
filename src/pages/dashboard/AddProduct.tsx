@@ -121,6 +121,7 @@ const AddProduct = () => {
     brand: '',
     brandId: '',
     price: '',
+    priceAfterTax: '',
     salePrice: '',
     discount: '',
     discountType: null as 'percentage' | 'fixed' | null,
@@ -262,7 +263,22 @@ const AddProduct = () => {
     };
     fetchTaxRules();
   }, [formData.pricelistId]);
-  
+
+  useEffect(() => {
+    if (formData.price) {
+      const selectedRule = taxRules.find(r => r.id === formData.taxRuleId);
+      const basePrice = parseFloat(formData.price) || 0;
+
+      if (selectedRule) {
+        const rate = parseFloat(String(selectedRule.rate)) || 0;
+        const priceWithTax = basePrice * (1 + rate / 100);
+        setFormData(prev => ({ ...prev, priceAfterTax: priceWithTax.toFixed(2) }));
+      } else {
+        setFormData(prev => ({ ...prev, priceAfterTax: basePrice.toFixed(2) }));
+      }
+    }
+  }, [formData.taxRuleId, taxRules, formData.price]);
+
   useEffect(() => {
     const fetchAttributes = async () => {
       try {
@@ -451,12 +467,13 @@ const AddProduct = () => {
 
     setIsLoading(true);
     try {
-      const { brand, category, ...payload } = {
+      const { brand, category, discount: _d, discountType: _dt, ...payload } = {
         ...formData,
         sellerId: user?.id,
         price: parseFloat(formData.price) || 0,
+        priceAfterTax: parseFloat(formData.priceAfterTax) || parseFloat(formData.price) || 0,
         salePrice: formData.salePrice ? parseFloat(formData.salePrice) : null,
-        discount: formData.discount ? parseFloat(formData.discount) : 0,
+        discount: 0,
         stock: parseInt(formData.stock) || 0,
         images: images.map(img => img.url),
         status,
@@ -639,21 +656,33 @@ const AddProduct = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-brand-dark/5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-brand-dark/5">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Discount</label>
                 <div className="w-full px-4 py-3 border border-brand-dark/10 bg-brand-gold/5 rounded-xl text-sm font-bold text-brand-gold flex items-center justify-between min-h-[46px]">
                   <span className="text-base">
-                    {formData.discount && parseFloat(formData.discount) > 0 ? (
-                      formData.discountType === 'percentage' 
-                        ? `${formData.discount}%` 
+                    {formData.discount && parseFloat(formData.discount) > 0 && formData.discountType ? (
+                      formData.discountType === 'percentage'
+                        ? `${formData.discount}%`
                         : `${formData.discount} PKR`
                     ) : 'None'}
                   </span>
                   <span className="text-[10px] uppercase font-bold tracking-tighter bg-brand-gold/20 px-2 py-1 rounded-lg">
-                    {formData.discount && parseFloat(formData.discount) > 0 ? (formData.discountType === 'fixed' ? 'Fixed Amount' : 'Percentage') : ''}
+                    {formData.discount && parseFloat(formData.discount) > 0 && formData.discountType
+                      ? (formData.discountType === 'fixed' ? 'Fixed Amount' : 'Percentage')
+                      : ''}
                   </span>
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-brand-dark/60 mb-2">Price After Tax</label>
+                <input
+                  type="number"
+                  readOnly
+                  value={formData.priceAfterTax}
+                  className="w-full px-4 py-3 border border-brand-dark/10 rounded-xl bg-brand-gold/5 text-sm font-bold cursor-not-allowed"
+                  placeholder="0.00"
+                />
               </div>
             </div>
           </div>
@@ -964,9 +993,25 @@ const AddProduct = () => {
                 >
                   <option value="">No Tax / Select Tax Rule</option>
                   {Array.isArray(taxRules) && taxRules.map(rule => (
-                    <option key={rule.id} value={rule.id}>{rule.name} ({rule.rate}%) - {rule.country}</option>
+                    <option key={rule.id} value={rule.id}>
+                      {rule.name} ({rule.rate}%) — {rule.taxType === 'inclusive' ? 'Tax Inclusive' : 'Tax Exclusive'}
+                    </option>
                   ))}
                 </select>
+                {formData.taxRuleId && (() => {
+                  const selectedRule = taxRules.find(r => r.id === formData.taxRuleId);
+                  if (!selectedRule) return null;
+                  return (
+                    <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                      selectedRule.taxType === 'inclusive'
+                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                        : 'bg-amber-50 text-amber-600 border border-amber-100'
+                    }`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${selectedRule.taxType === 'inclusive' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                      {selectedRule.taxType === 'inclusive' ? 'Tax Inclusive' : 'Tax Exclusive'}
+                    </div>
+                  );
+                })()}
                 {!formData.pricelistId && (
                   <p className="mt-1 text-[8px] text-brand-dark/40 uppercase tracking-widest">Please select a pricelist first to see available tax rules.</p>
                 )}
