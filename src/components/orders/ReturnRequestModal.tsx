@@ -41,11 +41,14 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
   const [reason, setReason] = useState('');
   const [comments, setComments] = useState('');
   const [images, setImages] = useState<{ preview: string; base64: string }[]>([]);
+  const [paymentProof, setPaymentProof] = useState<{ preview: string; base64: string } | null>(null);
+  const [returnMethod, setReturnMethod] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const paymentProofRef = useRef<HTMLInputElement>(null);
 
-  const isValid = selectedItemIds.length > 0 && reason !== '' && images.length > 0;
+  const isValid = selectedItemIds.length > 0 && reason !== '' && images.length > 0 && paymentProof !== null && returnMethod !== '';
 
   const toggleItem = (id: string) => {
     setSelectedItemIds(prev =>
@@ -73,17 +76,41 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     e.target.value = '';
   };
 
+  const handlePaymentProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPaymentProof({
+        preview: URL.createObjectURL(file),
+        base64: reader.result as string,
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const handleSubmit = async () => {
     const errs: string[] = [];
     if (selectedItemIds.length === 0) errs.push('Please select at least one item to return.');
     if (!reason) errs.push('Reason for Return is required.');
     if (images.length === 0) errs.push('Please upload at least one photo of the item(s).');
+    if (!paymentProof) errs.push('Payment proof is required.');
+    if (!returnMethod) errs.push('Please select a return method.');
+    
     if (errs.length > 0) { setErrors(errs); return; }
 
     setErrors([]);
     setIsSubmitting(true);
     try {
-      await onSubmit({ itemIds: selectedItemIds, reason, comments, images: images.map(i => i.base64) });
+      await onSubmit({ 
+        itemIds: selectedItemIds, 
+        reason, 
+        comments, 
+        images: images.map(i => i.base64),
+        paymentProof: paymentProof.base64,
+        returnMethod
+      });
       handleClose();
     } catch {
       setErrors(['Submission failed. Please try again.']);
@@ -97,6 +124,8 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
     setReason('');
     setComments('');
     setImages([]);
+    setPaymentProof(null);
+    setReturnMethod('');
     setErrors([]);
     onClose();
   };
@@ -197,7 +226,7 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                 </div>
               </div>
 
-              {/* 2. Reason */}
+              {/* 2. Reason for Return */}
               <div className="space-y-3">
                 <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-brand-dark/50">
                   Reason for Return <span className="text-red-500">*</span>
@@ -214,7 +243,70 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                 </select>
               </div>
 
-              {/* 3. Comments */}
+              {/* 3. Return Method */}
+              <div className="space-y-3">
+                <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-brand-dark/50">
+                  Return Method <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {['Pick up from address', 'Drop off at store'].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setReturnMethod(m)}
+                      className={`px-4 py-3 rounded-2xl border-2 text-xs font-bold transition-all ${
+                        returnMethod === m
+                          ? 'border-brand-gold bg-brand-gold/5 text-brand-gold'
+                          : 'border-brand-dark/5 bg-brand-cream/20 text-brand-dark/40 hover:border-brand-dark/15'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. Payment Proof Upload */}
+              <div className="space-y-3">
+                <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-brand-dark/50">
+                  Payment Proof <span className="text-red-500">*</span>
+                </label>
+                {paymentProof ? (
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden border-2 border-brand-gold/20 group">
+                    <img src={paymentProof.preview} alt="Payment Proof" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPaymentProof(null)}
+                      className="absolute inset-0 bg-brand-dark/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all"
+                    >
+                      <Trash2 size={20} className="text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => paymentProofRef.current?.click()}
+                    className="w-full border-2 border-dashed border-brand-dark/10 rounded-2xl p-6 flex flex-col items-center gap-3 hover:border-brand-gold/40 hover:bg-brand-gold/5 transition-all group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-brand-cream flex items-center justify-center text-brand-dark/30 group-hover:bg-brand-gold group-hover:text-white transition-all">
+                      <CreditCard size={20} />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-brand-dark/60 uppercase tracking-widest">Upload Payment Proof</p>
+                      <p className="text-[10px] text-brand-dark/30 mt-1">Screenshot of payment confirmation</p>
+                    </div>
+                  </button>
+                )}
+                <input
+                  ref={paymentProofRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePaymentProofChange}
+                  className="hidden"
+                />
+              </div>
+
+              {/* 5. Additional Comments */}
               <div className="space-y-3">
                 <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-brand-dark/50">
                   Additional Comments <span className="text-brand-dark/25 normal-case font-bold">(Optional)</span>
@@ -228,12 +320,12 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                 />
               </div>
 
-              {/* 4. Image Upload */}
+              {/* 6. Photos of items */}
               <div className="space-y-3">
                 <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-brand-dark/50">
-                  Upload Photos <span className="text-red-500">*</span>
-                  <span className="ml-2 text-brand-dark/25 normal-case font-bold">(Max 5)</span>
+                  Item Photos <span className="text-red-500">*</span>
                 </label>
+                {/* ... existing photo upload UI ... */}
 
                 {images.length > 0 && (
                   <div className="flex flex-wrap gap-3">

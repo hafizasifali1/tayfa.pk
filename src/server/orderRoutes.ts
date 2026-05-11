@@ -7,6 +7,7 @@ import {
   shipments,
   returns,
   refunds,
+    refundRequests,
   products,
   users,
   paymentMethods,
@@ -251,6 +252,7 @@ router.get('/orders/:id', async (req, res) => {
     const history = await db.select().from(orderStatusHistory).where(eq(orderStatusHistory.orderId, order.id)).orderBy(desc(orderStatusHistory.createdAt));
     const orderShipments = await db.select().from(shipments).where(eq(shipments.orderId, order.id));
     const orderReturns = await db.select().from(returns).where(eq(returns.orderId, order.id));
+    const orderRefunds = await db.select().from(refundRequests).where(eq(refundRequests.orderId, order.id));
 
     let paymentMethodName: string | null = null;
 if (order.paymentMethod) {
@@ -270,7 +272,8 @@ if (order.paymentMethod) {
       items,
       history,
       shipments: orderShipments,
-      returns: orderReturns
+      returns: orderReturns,
+      refundRequests: orderRefunds
     });
   } catch (error) {
     console.error('Error fetching order details:', error);
@@ -522,23 +525,233 @@ router.post('/orders/:id/returns', async (req, res) => {
   }
 });
 
+// --- Refund Requests (Step 3 & 4) ---
+router.post('/orders/:id/refunds', async (req, res) => {
+  try {
+    const { reason, proofImages, paymentProof, refundMethod, userId } = req.body;
+
+    // --- STEP 5: Edge Cases ---
+    
+    // 1. Check if refund already requested or order is already refunded
+    const [existingOrder]: any = await db.select().from(orders).where(eq(orders.id, req.params.id));
+    if (!existingOrder) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (['refund_requested', 'refunded'].includes(existingOrder.status)) {
+      return res.status(400).json({ error: 'Refund already requested or processed for this order.' });
+    }
+
+    // 2. Allow refund only within 30 days of delivery date
+    if (existingOrder.status === 'delivered' && existingOrder.updatedAt) {
+      const deliveryDate = new Date(existingOrder.updatedAt);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      if (deliveryDate < thirtyDaysAgo) {
+        return res.status(400).json({ error: 'Refund request period (30 days) has expired.' });
+      }
+    }
+
+    // 1. Create Refund Request record
+    const refundRequestId = uuidv4();
+    await db.insert(refundRequests).values({
+      id: refundRequestId,
+      orderId: req.params.id,
+      userId: userId,
+      reason: reason,
+      proofImages: JSON.stringify(proofImages || []),
+      paymentProof: paymentProof,
+      refundMethod: refundMethod,
+      status: 'pending',
+      adminNote: null
+    });
+
+    // 2. Update Order Status (Step 4 Requirement)
+    await db.update(orders)
+      .set({ status: 'refund_requested', updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(orders.id, req.params.id));
+
+    // 3. Add to Order History
+    await db.insert(orderStatusHistory).values({
+      id: uuidv4(),
+      orderId: req.params.id,
+      status: 'refund_requested',
+      comment: `Refund requested: ${reason}`,
+      processedByRole: 'customer',
+      processedById: userId
+    });
+
+    res.status(201).json({ success: true, id: refundRequestId });
+  } catch (error: any) {
+    console.error('Refund submission error:', error);
+    res.status(500).json({ error: 'Failed to submit refund request', message: error.message });
+  }
+});
+
+// --- Return Requests ---
+router.post('/orders/:id/returns', async (req, res) => {
+  try {
+    const { reason, proofImages, paymentProof, returnMethod, userId } = req.body;
+
+    const [existingOrder]: any = await db.select().from(orders).where(eq(orders.id, req.params.id));
+    if (!existingOrder) return res.status(404).json({ error: 'Order not found' });
+
+    if (['return_requested', 'returned'].includes(existingOrder.status)) {
+      return res.status(400).json({ error: 'Return already requested or processed.' });
+    }
+
+    const returnId = uuidv4();
+    await db.insert(returns).values({
+      id: returnId,
+      orderId: req.params.id,
+      userId: userId,
+      reason: reason,
+      proofImages: JSON.stringify(proofImages || []),
+      paymentProof: paymentProof,
+      returnMethod: returnMethod,
+      status: 'pending'
+    });
+
+    await db.update(orders)
+      .set({ status: 'return_requested', updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(orders.id, req.params.id));
+
+    await db.insert(orderStatusHistory).values({
+      id: uuidv4(),
+      orderId: req.params.id,
+      status: 'return_requested',
+      comment: `Return requested: ${reason}`,
+      processedByRole: 'customer',
+      processedById: userId
+    });
+
+    res.status(201).json({ success: true, id: returnId });
+  } catch (error: any) {
+    console.error('Return submission error:', error);
+    res.status(500).json({ error: 'Failed to submit return request', message: error.message });
+  }
+});
+
+// Get Refund Request by Order ID
+router.get('/orders/:id/refund', async (req, res) => {
+  try {
+    const [refund] = await db.select()
+      .from(refundRequests)
+      .where(eq(refundRequests.orderId, req.params.id))
+      .orderBy(sql`${refundRequests.createdAt} DESC`)
+      .limit(1);
+
+    if (!refund) return res.status(404).json({ error: 'Refund request not found' });
+    res.json(refund);
+  } catch (error) {
+    console.error('Error fetching refund:', error);
+    res.status(500).json({ error: 'Failed to fetch refund details' });
+  }
+});
+
+router.get('/orders/:id/return', async (req, res) => {
+  try {
+    const [ret] = await db.select()
+      .from(returns)
+      .where(eq(returns.orderId, req.params.id))
+      .orderBy(sql`${returns.createdAt} DESC`)
+      .limit(1);
+
+    if (!ret) return res.status(404).json({ error: 'Return request not found' });
+    res.json(ret);
+  } catch (error) {
+    console.error('Error fetching return:', error);
+    res.status(500).json({ error: 'Failed to fetch return details' });
+  }
+});
+
+// Admin: Approve/Reject Refund (Step 3 & 4)
+router.patch('/refund-requests/:id', async (req, res) => {
+  try {
+    const { status, adminNote, adminId } = req.body; // status: 'approved' or 'rejected'
+    
+    // 1. Update Refund Request
+    const [refundReq] = await db.select().from(refundRequests).where(eq(refundRequests.id, req.params.id));
+    if (!refundReq) return res.status(404).json({ error: 'Request not found' });
+
+    await db.update(refundRequests)
+      .set({ 
+        status, 
+        adminNote, 
+        resolvedAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP` 
+      })
+      .where(eq(refundRequests.id, req.params.id));
+
+    // 2. If approved, update Order status to 'refunded' (Step 4 Requirement)
+    if (status === 'approved') {
+      await db.update(orders)
+        .set({ status: 'refunded', updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(orders.id, refundReq.orderId));
+    } else {
+      // If rejected, you might want to revert to 'delivered' or keep it 'refund_requested'
+      // As per your rules: "no status change, notify customer only"
+    }
+
+    // 3. Add to History
+    await db.insert(orderStatusHistory).values({
+      id: uuidv4(),
+      orderId: refundReq.orderId,
+      status: status === 'approved' ? 'refunded' : 'refund_rejected',
+      comment: `Refund ${status}: ${adminNote}`,
+      processedByRole: 'admin',
+      processedById: adminId
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Admin refund update error:', error);
+    res.status(500).json({ error: 'Failed to update refund request' });
+  }
+});
+
+
+
+// Admin: Approve/Reject Return
 router.patch('/returns/:id', async (req, res) => {
   try {
-    const updated = await handlePatchUpdate({
-      table: returns,
-      id: req.params.id,
-      data: req.body,
-      userId: req.body.adminId || 'system',
-      module: 'Return',
-      allowedFields: ['status', 'refundAmount', 'reason'],
-      enumValidators: {
-        status: ['requested', 'approved', 'rejected', 'received', 'refunded', 'cancelled']
-      }
+    const { status, adminNote, adminId } = req.body;
+    
+    const [retReq] = await db.select().from(returns).where(eq(returns.id, req.params.id));
+    if (!retReq) return res.status(404).json({ error: 'Return request not found' });
+
+    await db.update(returns)
+      .set({ 
+        status: status === 'approved' ? 'approved' : 'rejected',
+        adminNote: adminNote,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+      })
+      .where(eq(returns.id, req.params.id));
+
+    // Admin approves -> status: "Returned"
+    // Admin rejects -> status: unchanged (keep it delivered)
+    const orderStatus = status === 'approved' ? 'returned' : 'delivered';
+    
+    if (status === 'approved') {
+      await db.update(orders)
+        .set({ status: orderStatus, updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(orders.id, retReq.orderId));
+    }
+
+    await db.insert(orderStatusHistory).values({
+      id: uuidv4(),
+      orderId: retReq.orderId as string,
+      status: orderStatus,
+      comment: status === 'approved' ? 'Return approved' : `Return rejected: ${adminNote}`,
+      processedByRole: 'admin',
+      processedById: adminId
     });
-    res.json(updated);
-  } catch (error: any) {
-    console.error('Error updating return:', error);
-    res.status(error.message.includes('not found') ? 404 : 400).json({ error: error.message });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Return decision error:', error);
+    res.status(500).json({ error: 'Failed to process return decision' });
   }
 });
 

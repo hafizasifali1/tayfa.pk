@@ -12,18 +12,36 @@ const OrderTimeline: React.FC<OrderTimelineProps> = ({ status }) => {
     { id: 'processing', label: 'Processing', icon: Package },
     { id: 'shipped', label: 'Shipped', icon: Truck },
     { id: 'delivered', label: 'Delivered', icon: Check },
-    { id: 'return_requested', label: 'Return Requested', icon: RotateCcw },
-    { id: 'refunded', label: 'Refunded', icon: CreditCard },
   ];
 
+  // Dynamic last two states
+  if (status === 'refund_requested' || status === 'refunded' || status === 'refund_rejected') {
+    steps.push({ id: 'refund_requested', label: 'Refund Requested', icon: RotateCcw });
+    steps.push({ id: 'refunded', label: 'Refunded', icon: CreditCard });
+  } else if (status === 'return_requested' || status === 'returned') {
+    steps.push({ id: 'return_requested', label: 'Return Requested', icon: RotateCcw });
+    steps.push({ id: 'returned', label: 'Returned', icon: Check });
+  } else {
+    steps.push({ id: 'return_requested', label: 'Return Requested', icon: RotateCcw });
+    steps.push({ id: 'refunded', label: 'Refunded', icon: CreditCard });
+  }
+
   const getStepStatus = (stepId: string) => {
-    const statusOrder = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'return_requested', 'refunded'];
+    const statusOrder = [
+      'pending', 'confirmed', 'processing', 'shipped', 'delivered', 
+      'refund_requested', 'return_requested', 'refunded', 'returned'
+    ];
+    
     const currentIdx = statusOrder.indexOf(status);
     const stepIdx = statusOrder.indexOf(stepId);
 
     if (status === 'cancelled') return 'upcoming';
+    if (currentIdx === -1) return 'upcoming'; 
+
     if (stepIdx < currentIdx) return 'completed';
     if (stepIdx === currentIdx) return 'active';
+    
+    // Special case for mutual exclusion: if we are in 'refunded', the 'returned' step is irrelevant and vice versa
     return 'upcoming';
   };
 

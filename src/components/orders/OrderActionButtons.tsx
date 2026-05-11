@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, Package, Truck } from 'lucide-react';
+import { 
+  CheckCircle, 
+  XCircle, 
+  Package, 
+  Truck,
+  Eye
+} from 'lucide-react';
 import { Button } from '../ui/Button';
 import CancelOrderModal from './CancelOrderModal';
+
+import RefundReviewModal from './RefundReviewModal';
+import ReturnReviewModal from './ReturnReviewModal';
 
 interface OrderActionButtonsProps {
   orderId: string;
@@ -22,6 +31,7 @@ const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
 }) => {
   const [tracking, setTracking] = useState({ carrier: '', trackingNumber: '' });
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   const handleCancelConfirm = async (reason: string) => {
     await onUpdateStatus(orderId, 'cancelled', reason);
@@ -139,7 +149,6 @@ const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
       </Button>
     );
   }
-
   if (status === 'out_for_delivery') {
     return (
       <Button
@@ -162,29 +171,33 @@ const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
     );
   }
 
-  if (status === 'return_requested') {
+  if (status === 'return_requested' || status === 'refund_requested') {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <>
         <Button
-          onClick={() => onUpdateStatus(orderId, 'refunded', 'Return approved and refunded')}
+          onClick={() => setShowReviewModal(true)}
           disabled={isUpdating}
-          className="w-full h-12 rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20 transition-all font-bold text-[10px] uppercase tracking-widest order-toolbar-btn"
+          className="w-full h-12 rounded-2xl bg-brand-dark hover:bg-brand-gold text-white shadow-lg shadow-brand-dark/20 transition-all font-bold text-[10px] uppercase tracking-widest order-toolbar-btn"
         >
-          <CheckCircle size={18} className="mr-2" />
-          Approve Return
+          <Eye size={18} className="mr-2" />
+          {status === 'return_requested' ? 'View Return Request' : 'View Refund Request'}
         </Button>
-        <Button
-          onClick={() => {
-            const reason = window.prompt('Reason for rejection:');
-            if (reason) onUpdateStatus(orderId, 'delivered', `Return rejected: ${reason}`);
-          }}
-          disabled={isUpdating}
-          className="w-full h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20 transition-all font-bold text-[10px] uppercase tracking-widest order-toolbar-btn"
-        >
-          <XCircle size={18} className="mr-2" />
-          Reject Return
-        </Button>
-      </div>
+        {status === 'refund_requested' ? (
+          <RefundReviewModal
+            isOpen={showReviewModal}
+            onClose={() => setShowReviewModal(false)}
+            orderId={orderId}
+            onUpdateStatus={onUpdateStatus}
+          />
+        ) : (
+          <ReturnReviewModal
+            isOpen={showReviewModal}
+            onClose={() => setShowReviewModal(false)}
+            orderId={orderId}
+            onUpdateStatus={onUpdateStatus}
+          />
+        )}
+      </>
     );
   }
 

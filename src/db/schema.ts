@@ -552,17 +552,7 @@ export const shipments = table('shipments', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-export const returns = table('returns', {
-  id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
-  orderId: isMysql ? char('order_id', { length: 36 }).notNull() : char('order_id').notNull(),
-  orderItemId: isMysql ? char('order_item_id', { length: 36 }).notNull() : char('order_item_id').notNull(),
-  reason: text('reason').notNull(),
-  status: varchar('status', { length: 50 }).default('requested'),
-  refundAmount: decimal('refund_amount', { precision: 10, scale: 2 }),
-  images: json('images'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
+
 
 // --- Countries & Currencies ---
 export const countries = table('countries', {
@@ -590,10 +580,10 @@ export const communicationProviders = table('communication_providers', {
   id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(), // e.g., Twilio, WhatsApp Cloud API
   type: varchar('type', { length: 50 }).notNull(), // sms, whatsapp
-  config: json('config').notNull(), // Encrypted API Key, SID, Token, etc.
+  config: json('config').notNull(), 
   senderId: varchar('sender_id', { length: 100 }),
   endpointUrl: text('endpoint_url'),
-  priority: integer('priority').default(1), // For failover
+  priority: integer('priority').default(1), 
   isActive: boolean('is_active').default(true),
   isDefault: boolean('is_default').default(false),
   createdAt: timestamp('created_at').defaultNow(),
@@ -725,3 +715,66 @@ export const emailTemplates = table('email_templates', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// --- Refund System ---
+export const refundRequests = isMysql 
+  ? mysqlTable('refund_requests', {
+      id: mysqlChar('id', { length: 36 }).primaryKey(),
+      orderId: mysqlChar('order_id', { length: 36 }).notNull(),
+      userId: mysqlChar('user_id', { length: 36 }).notNull(),
+      reason: mysqlText('reason', { textType: 'long' }).notNull(),
+      proofImages: mysqlJson('proof_images'),
+      paymentProof: mysqlText('payment_proof', { textType: 'long' }),
+      refundMethod: mysqlVarchar('refund_method', { length: 100 }),
+      status: mysqlVarchar('status', { length: 50 }).default('pending'),
+      adminNote: mysqlText('admin_note', { textType: 'long' }),
+      requestedAt: mysqlTimestamp('requested_at').defaultNow(),
+      resolvedAt: mysqlTimestamp('resolved_at'),
+      createdAt: mysqlTimestamp('created_at').defaultNow(),
+      updatedAt: mysqlTimestamp('updated_at').defaultNow(),
+    })
+  : pgTable('refund_requests', {
+      id: pgUuid('id').defaultRandom().primaryKey(),
+      orderId: pgText('order_id').notNull(),
+      userId: pgText('user_id').notNull(),
+      reason: pgText('reason').notNull(),
+      proofImages: pgJsonb('proof_images'),
+      paymentProof: pgText('payment_proof'),
+      refundMethod: pgVarchar('refund_method', { length: 100 }),
+      status: pgVarchar('status', { length: 50 }).default('pending'),
+      adminNote: pgText('admin_note'),
+      requestedAt: pgTimestamp('requested_at').defaultNow(),
+      resolvedAt: pgTimestamp('resolved_at'),
+      createdAt: pgTimestamp('created_at').defaultNow(),
+      updatedAt: pgTimestamp('updated_at').defaultNow(),
+    });
+
+// --- Return System ---
+export const returns = isMysql
+  ? mysqlTable('returns', {
+      id: mysqlChar('id', { length: 36 }).primaryKey(),
+      orderId: mysqlChar('order_id', { length: 36 }).notNull(),
+      userId: mysqlChar('user_id', { length: 36 }).notNull(),
+      reason: mysqlText('reason', { textType: 'long' }).notNull(),
+      proofImages: mysqlJson('proof_images'),
+      paymentProof: mysqlText('payment_proof', { textType: 'long' }),
+      returnMethod: mysqlVarchar('return_method', { length: 100 }).notNull(),
+      status: mysqlVarchar('status', { length: 50 }).default('pending'),
+      adminNote: mysqlText('admin_note', { textType: 'long' }),
+      requestedAt: mysqlTimestamp('requested_at').defaultNow(),
+      createdAt: mysqlTimestamp('created_at').defaultNow(),
+      updatedAt: mysqlTimestamp('updated_at').defaultNow(),
+    })
+  : pgTable('returns', {
+      id: pgUuid('id').defaultRandom().primaryKey(),
+      orderId: pgText('order_id').notNull(),
+      userId: pgText('user_id').notNull(),
+      reason: pgText('reason').notNull(),
+      proofImages: pgJsonb('proof_images'),
+      paymentProof: pgText('payment_proof'),
+      returnMethod: pgVarchar('return_method', { length: 100 }).notNull(),
+      status: pgVarchar('status', { length: 50 }).default('pending'),
+      adminNote: pgText('admin_note'),
+      requestedAt: pgTimestamp('requested_at').defaultNow(),
+      createdAt: pgTimestamp('created_at').defaultNow(),
+      updatedAt: pgTimestamp('updated_at').defaultNow(),
+    });

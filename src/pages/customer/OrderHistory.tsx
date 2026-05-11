@@ -18,6 +18,7 @@ import { Button } from '../../components/ui/Button';
 import OrderTimeline from '../../components/orders/OrderTimeline';
 import OrderStatusHistory from '../../components/orders/OrderStatusHistory';
 import ReturnRequestModal from '../../components/orders/ReturnRequestModal';
+import RefundRequestModal from '../../components/orders/RefundRequestModal';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { Link } from 'react-router-dom';
@@ -33,6 +34,8 @@ interface Order {
   history: any[];
   shipments: any[];
   returns: any[];
+  refundRequests: any[];
+  paymentMethod: string;
 }
 
 const OrderHistory = () => {
@@ -41,8 +44,9 @@ const OrderHistory = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
-  const [returnSuccess, setReturnSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.id) fetchOrders();
@@ -83,33 +87,54 @@ const OrderHistory = () => {
     }
   };
 
-  const handleReturnSubmit = async (data: {
-    itemIds: string[];
-    reason: string;
-    comments: string;
-    images: string[];
-  }) => {
+  const handleRefundSubmit = async (data: any) => {
     if (!selectedOrder) return;
-    await axios.post(`/api/orders/${selectedOrder.id}/returns`, {
-      itemIds: data.itemIds,
-      orderItemId: data.itemIds[0],
-      reason: data.reason,
-      comments: data.comments,
-      images: data.images,
-      processedByRole: 'customer',
-      processedByName: user?.fullName || 'Customer',
-      processedById: user?.id,
-    });
-    setReturnSuccess(true);
-    await fetchOrderDetails(selectedOrder.id);
-    await fetchOrders();
-    setTimeout(() => setReturnSuccess(false), 8000);
+    try {
+      await axios.post(`/api/orders/${selectedOrder.id}/refunds`, {
+        ...data,
+        userId: user?.id,
+      });
+      setSuccessMsg('Refund request submitted successfully!');
+      await fetchOrderDetails(selectedOrder.id);
+      await fetchOrders();
+    } catch (error: any) {
+      console.error('Refund Error:', error);
+      alert(`Error: ${error.response?.data?.message || error.message}`);
+    }
   };
 
-  const hasExistingReturn = (order: Order) =>
-    Array.isArray(order.returns) && order.returns.length > 0;
+  const handleReturnSubmit = async (data: any) => {
+    if (!selectedOrder) return;
+    try {
+      await axios.post(`/api/orders/${selectedOrder.id}/returns`, {
+        ...data,
+        userId: user?.id,
+      });
+      setSuccessMsg('Return request submitted successfully!');
+      await fetchOrderDetails(selectedOrder.id);
+      await fetchOrders();
+    } catch (error: any) {
+      console.error('Return Error:', error);
+      alert(`Error: ${error.response?.data?.message || error.message}`);
+    }
+  };
 
   if (selectedOrder) {
+    const hasRefund = (selectedOrder.refundRequests || []).length > 0;
+    const hasReturn = (selectedOrder.returns || []).length > 0;
+    const isOnline = selectedOrder.paymentMethod !== 'cod';
+    const status = selectedOrder.status;
+
+    const showReturnBtn = !['return_requested', 'returned'].includes(status) && 
+                         !hasRefund &&
+                         ((isOnline && ['confirmed', 'processing', 'shipped', 'delivered'].includes(status)) ||
+                          (!isOnline && status === 'delivered'));
+
+    const showRefundBtn = !['refund_requested', 'refunded'].includes(status) && 
+                         !hasReturn &&
+                         ((isOnline && ['confirmed', 'processing', 'shipped', 'delivered'].includes(status)) ||
+                          (!isOnline && status === 'delivered'));
+
     return (
       <div className="min-h-screen bg-brand-cream/20 p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-8">
@@ -143,7 +168,7 @@ const OrderHistory = () => {
                   Cancel Order
                 </Button>
               )}
-              {selectedOrder.status === 'delivered' && !hasExistingReturn(selectedOrder) && (
+              {showReturnBtn && (
                 <Button
                   variant="premium"
                   onClick={() => setIsReturnModalOpen(true)}
@@ -152,22 +177,31 @@ const OrderHistory = () => {
                   Request Return
                 </Button>
               )}
-              {(selectedOrder.status === 'return_requested' || hasExistingReturn(selectedOrder)) && (
+              {showRefundBtn && (
+                <Button
+                  variant="premium"
+                  onClick={() => setIsRefundModalOpen(true)}
+                  className="rounded-2xl text-xs"
+                >
+                  Request Refund
+                </Button>
+              )}
+              {hasReturn && (
                 <span className="px-4 py-2 bg-orange-100 text-orange-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
-                  Return Pending
+                  Return {status === 'returned' ? 'Completed' : 'Pending'}
                 </span>
               )}
-              {selectedOrder.status === 'refunded' && (
+              {hasRefund && (
                 <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
-                  Refunded
+                  Refund {status === 'refunded' ? 'Completed' : 'Pending'}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Return Success Banner */}
+          {/* Success Banner */}
           <AnimatePresence>
-            {returnSuccess && (
+            {successMsg && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -178,11 +212,14 @@ const OrderHistory = () => {
                   <CheckCircle2 size={20} />
                 </div>
                 <div>
-                  <p className="font-bold text-emerald-800 text-sm">Return Request Submitted!</p>
+                  <p className="font-bold text-emerald-800 text-sm">{successMsg}</p>
                   <p className="text-emerald-700 text-xs mt-1 leading-relaxed">
-                    Your return request has been submitted successfully. A customer service agent will review your request and contact you shortly.
+                    Our team will review your request and get back to you shortly.
                   </p>
                 </div>
+                <button onClick={() => setSuccessMsg(null)} className="ml-auto text-emerald-400 hover:text-emerald-600">
+                  <XCircle size={16} />
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -207,7 +244,7 @@ const OrderHistory = () => {
                         <div>
                           <p className="font-bold text-brand-dark">{item.name}</p>
                           <p className="text-xs text-brand-dark/40">{item.size} • Qty: {item.quantity}</p>
-                          {hasExistingReturn(selectedOrder) && (
+                          {hasReturn && (
                             <span className="text-[10px] font-bold uppercase tracking-widest text-orange-500 mt-1 block">
                               Return Requested
                             </span>
@@ -282,18 +319,12 @@ const OrderHistory = () => {
           )}
         </div>
 
-        {/* Return Modal */}
-        <ReturnRequestModal
+        {/* Refund Modal */}
+        <RefundRequestModal
           isOpen={isReturnModalOpen}
           onClose={() => setIsReturnModalOpen(false)}
           onSubmit={handleReturnSubmit}
-          items={(selectedOrder.items || []).map((item: any) => ({
-            id: item.id,
-            name: item.name,
-            size: item.size,
-            quantity: item.quantity,
-            price: item.price,
-          }))}
+          paymentMethod={selectedOrder.paymentMethod}
         />
       </div>
     );
@@ -373,6 +404,23 @@ const OrderHistory = () => {
           </div>
         )}
       </div>
+
+      {selectedOrder && (
+        <>
+          <RefundRequestModal
+            isOpen={isRefundModalOpen}
+            onClose={() => setIsRefundModalOpen(false)}
+            onSubmit={handleRefundSubmit}
+            paymentMethod={selectedOrder.paymentMethod}
+          />
+          <ReturnRequestModal
+            isOpen={isReturnModalOpen}
+            onClose={() => setIsReturnModalOpen(false)}
+            onSubmit={handleReturnSubmit}
+            items={selectedOrder.items}
+          />
+        </>
+      )}
     </div>
   );
 };

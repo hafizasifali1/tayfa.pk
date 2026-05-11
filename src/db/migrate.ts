@@ -270,6 +270,34 @@ export async function migrate() {
         )
       `);
 
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS refund_requests (
+          id CHAR(36) PRIMARY KEY,
+          order_id CHAR(36) NOT NULL,
+          user_id CHAR(36) NOT NULL,
+          reason TEXT NOT NULL,
+          proof_images JSON,
+          payment_proof TEXT,
+          refund_method VARCHAR(100),
+          status VARCHAR(50) DEFAULT 'pending',
+          admin_note TEXT,
+          requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          resolved_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Upgrade columns to LONGTEXT to handle base64 images
+      console.log('Optimizing refund_requests columns (MySQL)...');
+      try {
+        await db.execute(sql.raw(`ALTER TABLE refund_requests MODIFY COLUMN payment_proof LONGTEXT`));
+        await db.execute(sql.raw(`ALTER TABLE refund_requests MODIFY COLUMN reason LONGTEXT`));
+        await db.execute(sql.raw(`ALTER TABLE refund_requests MODIFY COLUMN admin_note LONGTEXT`));
+      } catch (e: any) {
+        console.warn('Note: refund_requests column modification note:', e.message);
+      }
+
       // 2. Add missing columns
       console.log('Adding missing columns (MySQL)...');
       await addColumn('products', 'attributes', 'JSON');
@@ -333,6 +361,19 @@ export async function migrate() {
       await addColumn('order_status_history', 'processed_by_role', 'VARCHAR(50)');
       await addColumn('order_status_history', 'processed_by_name', 'VARCHAR(255)');
       await addColumn('order_status_history', 'processed_by_id', 'CHAR(36)');
+
+      console.log('Migrating returns table columns...');
+      await addColumn('returns', 'user_id', 'CHAR(36) NOT NULL');
+      await addColumn('returns', 'proof_images', 'JSON');
+      await addColumn('returns', 'payment_proof', 'LONGTEXT');
+      await addColumn('returns', 'return_method', 'VARCHAR(100) NOT NULL');
+      await addColumn('returns', 'admin_note', 'LONGTEXT');
+      await addColumn('returns', 'requested_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+      
+      // Update reason to LONGTEXT if needed
+      try {
+        await db.execute(sql.raw(`ALTER TABLE returns MODIFY COLUMN reason LONGTEXT`));
+      } catch (e) {}
     } else {
       // PostgreSQL
       const addColumnPg = async (table: string, column: string, definition: string) => {
@@ -546,6 +587,24 @@ export async function migrate() {
           description TEXT,
           is_system BOOLEAN DEFAULT FALSE,
           permissions JSONB NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS refund_requests (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          order_id UUID NOT NULL,
+          user_id UUID NOT NULL,
+          reason TEXT NOT NULL,
+          proof_images JSONB,
+          payment_proof TEXT,
+          refund_method VARCHAR(100),
+          status VARCHAR(50) DEFAULT 'pending',
+          admin_note TEXT,
+          requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          resolved_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
