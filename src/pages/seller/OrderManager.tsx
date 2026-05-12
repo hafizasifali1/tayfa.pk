@@ -18,6 +18,7 @@ import OrderActionButtons from '../../components/orders/OrderActionButtons';
 import OrderStatusHistory from '../../components/orders/OrderStatusHistory';
 import { useAuth } from '../../context/AuthContext';
 
+
 interface Order {
   id: string;
   orderNumber: string;
@@ -43,7 +44,7 @@ const SellerOrderManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
   useEffect(() => {
@@ -74,9 +75,10 @@ const SellerOrderManager = () => {
   const fetchOrderDetails = async (id: string) => {
     try {
       const res = await axios.get(`/api/orders/${id}`);
-      setSelectedOrder(res.data);
-    } catch (error) {
+      if (res.data) setSelectedOrder(res.data);
+    } catch (error: any) {
       console.error('Error fetching order details:', error);
+      alert(`Could not load order: ${error.response?.data?.error || error.message}`);
     }
   };
 
@@ -139,7 +141,12 @@ const SellerOrderManager = () => {
       case 'cancelled': return 'bg-red-100 text-red-700';
       case 'returned': return 'bg-rose-100 text-rose-700';
       case 'return_requested': return 'bg-orange-100 text-orange-700';
-      case 'refunded': return 'bg-blue-100 text-blue-700';
+      case 'return_approved': return 'bg-emerald-100 text-emerald-700';
+      case 'return_rejected': return 'bg-red-100 text-red-700';
+      case 'refunded':
+      case 'refund_approved': return 'bg-blue-100 text-blue-700';
+      case 'refund_requested': return 'bg-orange-100 text-orange-700';
+      case 'refund_rejected': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
@@ -173,9 +180,9 @@ const SellerOrderManager = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 order-main-container">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 order-main-container">
         {/* Order List */}
-        <div className="lg:col-span-5 xl:col-span-5 space-y-5 order-list-panel-wrap">
+        <div className="lg:col-span-4 xl:col-span-4 space-y-5 order-list-panel-wrap">
           {isLoading && orders.length === 0 ? (
             <div className="flex items-center justify-center h-64 bg-brand-cream/10 rounded-[2.5rem] border-2 border-dashed border-brand-dark/5">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold" />
@@ -218,7 +225,6 @@ const SellerOrderManager = () => {
                       <div className="text-right">
                         <p className="text-xl font-serif font-bold text-brand-dark order-item-amount">{order.currency} {Number(order.totalAmount).toLocaleString()}</p>
                         <div className={`inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] mt-2 px-3 py-1.5 rounded-xl border order-item-status ${getStatusColor(order.status)}`}>
-                          <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
                           {order.status.replace('_', ' ')}
                         </div>
                       </div>
@@ -259,7 +265,7 @@ const SellerOrderManager = () => {
         </div>
 
         {/* Order Details Panel */}
-        <div className="lg:col-span-7 xl:col-span-7 order-details-panel-wrap">
+        <div className="lg:col-span-8 xl:col-span-8 order-details-panel-wrap">
           <AnimatePresence mode="wait">
             {selectedOrder ? (
               <motion.div
@@ -285,7 +291,7 @@ const SellerOrderManager = () => {
                     </button>
                   </div>
 
-                  <OrderTimeline status={selectedOrder.status} />
+                  <OrderTimeline status={selectedOrder.status} history={selectedOrder.history} />
 
                   {/* Action Buttons */}
                   <OrderActionButtons
@@ -294,6 +300,10 @@ const SellerOrderManager = () => {
                     isUpdating={isUpdating}
                     onUpdateStatus={updateStatus}
                     onCreateShipment={createShipment}
+                    onSuccess={async () => {
+                      await fetchOrderDetails(selectedOrder.id);
+                      await fetchOrders();
+                    }}
                   />
 
                   {/* Customer Details */}
@@ -443,6 +453,7 @@ const SellerOrderManager = () => {
           </AnimatePresence>
         </div>
       </div>
+
     </div>
   );
 };

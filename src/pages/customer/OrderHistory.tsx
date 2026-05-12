@@ -19,6 +19,8 @@ import OrderTimeline from '../../components/orders/OrderTimeline';
 import OrderStatusHistory from '../../components/orders/OrderStatusHistory';
 import ReturnRequestModal from '../../components/orders/ReturnRequestModal';
 import RefundRequestModal from '../../components/orders/RefundRequestModal';
+import CourierSubmitModal from '../../components/orders/CourierSubmitModal';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { Link } from 'react-router-dom';
@@ -43,10 +45,15 @@ const OrderHistory = () => {
   const { formatPrice } = useCurrency();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [isWithdrawConfirmOpen, setIsWithdrawConfirmOpen] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  
 
   useEffect(() => {
     if (user?.id) fetchOrders();
@@ -65,11 +72,15 @@ const OrderHistory = () => {
   };
 
   const fetchOrderDetails = async (id: string) => {
+    setIsDetailLoading(true);
     try {
       const res = await axios.get(`/api/orders/${id}`);
       if (res.data) setSelectedOrder(res.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching order details:', error);
+      alert(`Could not load order: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsDetailLoading(false);
     }
   };
 
@@ -103,12 +114,45 @@ const OrderHistory = () => {
     }
   };
 
+  const handleWithdrawRefund = async () => {
+    if (!selectedOrder) return;
+    setIsWithdrawing(true);
+    try {
+      await axios.delete(`/api/orders/${selectedOrder.id}/refunds`);
+      setIsWithdrawConfirmOpen(false);
+      setSuccessMsg('Refund request withdrawn successfully.');
+      await fetchOrderDetails(selectedOrder.id);
+      await fetchOrders();
+    } catch (error: any) {
+      alert(`Error: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
+  const handleCourierSubmit = async (data: { courierId: string; courierSlip: string }) => {
+    if (!selectedOrder) return;
+    const ret = (selectedOrder.returns || [])[0];
+    if (!ret) return;
+    await axios.patch(`/api/returns/${ret.id}/courier`, {
+      courierId: data.courierId,
+      courierSlip: data.courierSlip,
+      customerId: user?.id,
+    });
+    setSuccessMsg('Courier details submitted successfully!');
+    await fetchOrderDetails(selectedOrder.id);
+    await fetchOrders();
+  };
+
   const handleReturnSubmit = async (data: any) => {
     if (!selectedOrder) return;
     try {
       await axios.post(`/api/orders/${selectedOrder.id}/returns`, {
-        ...data,
-        userId: user?.id,
+        order_item_id: data.order_item_id,
+        proof_images: data.proof_images,
+        return_method: data.return_method,
+        receipt_file: data.receipt_file,
+        user_id: user?.id,
       });
       setSuccessMsg('Return request submitted successfully!');
       await fetchOrderDetails(selectedOrder.id);
@@ -122,24 +166,24 @@ const OrderHistory = () => {
   if (selectedOrder) {
     const hasRefund = (selectedOrder.refundRequests || []).length > 0;
     const hasReturn = (selectedOrder.returns || []).length > 0;
+    const activeReturn = (selectedOrder.returns || [])[0] ?? null;
     const isOnline = selectedOrder.paymentMethod !== 'cod';
     const status = selectedOrder.status;
+    const showCourierBtn = activeReturn?.status === 'approved' && !activeReturn?.courierId;
 
-    const showReturnBtn = !['return_requested', 'returned'].includes(status) && 
-                         !hasRefund &&
-                         ((isOnline && ['confirmed', 'processing', 'shipped', 'delivered'].includes(status)) ||
-                          (!isOnline && status === 'delivered'));
+    const showReturnBtn = status === 'delivered' && !hasRefund && !hasReturn;
 
-    const showRefundBtn = !['refund_requested', 'refunded'].includes(status) && 
-                         !hasReturn &&
-                         ((isOnline && ['confirmed', 'processing', 'shipped', 'delivered'].includes(status)) ||
+    const showRefundBtn = !hasReturn &&
+                         !['refund_requested', 'refunded', 'refund_approved', 'return_requested', 'return_approved', 'returned'].includes(status) &&
+                         (selectedOrder.refundRequests || []).filter((r: any) => r.status !== 'rejected').length === 0 &&
+                         ((isOnline && status === 'confirmed') ||
                           (!isOnline && status === 'delivered'));
 
     return (
       <div className="min-h-screen bg-brand-cream/20 p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-8">
           <button
-            onClick={() => { setSelectedOrder(null); setReturnSuccess(false); }}
+            onClick={() => { setSelectedOrder(null); setSuccessMsg(null); }}
             className="flex items-center text-brand-dark/60 hover:text-brand-dark transition-colors font-bold uppercase tracking-widest text-xs"
           >
             <ArrowLeft size={16} className="mr-2" />
@@ -155,11 +199,11 @@ const OrderHistory = () => {
               </p>
             </div>
             <div className="flex items-center space-x-3">
-              <Button variant="outline" className="rounded-2xl text-xs">
+              {/* <Button variant="outline" className="rounded-2xl text-xs">
                 <Download size={16} className="mr-2" />
                 Invoice
-              </Button>
-              {['pending', 'confirmed'].includes(selectedOrder.status) && (
+              </Button> */}
+              {['pending', 'confirmed', 'processing'].includes(selectedOrder.status) && (
                 <Button
                   variant="outline"
                   onClick={() => cancelOrder(selectedOrder.id)}
@@ -186,14 +230,42 @@ const OrderHistory = () => {
                   Request Refund
                 </Button>
               )}
-              {hasReturn && (
+              {hasReturn && !showCourierBtn && (
                 <span className="px-4 py-2 bg-orange-100 text-orange-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
-                  Return {status === 'returned' ? 'Completed' : 'Pending'}
+                  Return {status === 'returned' ? 'Completed' : activeReturn?.status === 'approved' ? 'Approved' : 'Pending'}
                 </span>
               )}
-              {hasRefund && (
+              {showCourierBtn && (
+                <Button
+                  variant="premium"
+                  onClick={() => setIsCourierModalOpen(true)}
+                  className="rounded-2xl text-xs"
+                >
+                  Submit Courier Details
+                </Button>
+              )}
+              {activeReturn?.courierId && (
+                <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
+                  Courier Submitted
+                </span>
+              )}
+              {hasRefund && status === 'refund_requested' && (
+                <>
+                  <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
+                    Refund Pending
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsWithdrawConfirmOpen(true)}
+                    className="rounded-2xl text-xs border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    Withdraw Refund
+                  </Button>
+                </>
+              )}
+              {hasRefund && status === 'refunded' && (
                 <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-2xl text-[10px] font-bold uppercase tracking-widest">
-                  Refund {status === 'refunded' ? 'Completed' : 'Pending'}
+                  Refund Completed
                 </span>
               )}
             </div>
@@ -227,7 +299,7 @@ const OrderHistory = () => {
           <Card className="p-8 space-y-12 rounded-[2.5rem]">
             <div className="space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-widest text-brand-gold">Order Progress</h3>
-              <OrderTimeline status={selectedOrder.status} />
+              <OrderTimeline status={selectedOrder.status} history={selectedOrder.history} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-8 border-t border-brand-dark/5">
@@ -319,12 +391,36 @@ const OrderHistory = () => {
           )}
         </div>
 
-        {/* Refund Modal */}
-        <RefundRequestModal
+        <ReturnRequestModal
           isOpen={isReturnModalOpen}
           onClose={() => setIsReturnModalOpen(false)}
           onSubmit={handleReturnSubmit}
+          items={selectedOrder.items}
+          orderNumber={selectedOrder.orderNumber}
+        />
+        <CourierSubmitModal
+          isOpen={isCourierModalOpen}
+          onClose={() => setIsCourierModalOpen(false)}
+          onSubmit={handleCourierSubmit}
+          orderNumber={selectedOrder.orderNumber}
+        />
+        <RefundRequestModal
+          isOpen={isRefundModalOpen}
+          onClose={() => setIsRefundModalOpen(false)}
+          onSubmit={handleRefundSubmit}
           paymentMethod={selectedOrder.paymentMethod}
+          orderNumber={selectedOrder.orderNumber}
+        />
+        <ConfirmModal
+          isOpen={isWithdrawConfirmOpen}
+          onClose={() => setIsWithdrawConfirmOpen(false)}
+          onConfirm={handleWithdrawRefund}
+          title="Withdraw Refund Request"
+          message="Are you sure you want to withdraw your refund request? This action cannot be undone."
+          confirmText="Yes, Withdraw"
+          cancelText="Keep Request"
+          variant="danger"
+          isLoading={isWithdrawing}
         />
       </div>
     );
@@ -340,7 +436,7 @@ const OrderHistory = () => {
           </div>
         </div>
 
-        {isLoading ? (
+        {isLoading || isDetailLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold" />
           </div>
@@ -358,13 +454,11 @@ const OrderHistory = () => {
         ) : (
           <div className="space-y-4">
             {orders.map(order => (
-              <motion.div
+              <Card
                 key={order.id}
-                whileHover={{ scale: 1.01 }}
+                className="p-6 hover:border-brand-gold/30 transition-all rounded-[2rem] cursor-pointer"
                 onClick={() => fetchOrderDetails(order.id)}
-                className="cursor-pointer"
               >
-                <Card className="p-6 hover:border-brand-gold/30 transition-all rounded-[2rem]">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 bg-brand-cream rounded-2xl flex items-center justify-center text-brand-gold">
@@ -386,10 +480,16 @@ const OrderHistory = () => {
                       </div>
                       <div className="flex items-center space-x-4">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                          order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                          order.status === 'return_requested' ? 'bg-orange-100 text-orange-700' :
-                          order.status === 'refunded' ? 'bg-blue-100 text-blue-700' :
+                          order.status === 'delivered'       ? 'bg-green-100 text-green-700' :
+                          order.status === 'cancelled'       ? 'bg-red-100 text-red-700' :
+                          order.status === 'return_requested'? 'bg-orange-100 text-orange-700' :
+                          order.status === 'return_approved' ? 'bg-emerald-100 text-emerald-700' :
+                          order.status === 'return_rejected' ? 'bg-red-100 text-red-700' :
+                          order.status === 'refund_requested'? 'bg-orange-100 text-orange-700' :
+                          order.status === 'refund_approved' ? 'bg-emerald-100 text-emerald-700' :
+                          order.status === 'refund_rejected' ? 'bg-red-100 text-red-700' :
+                          order.status === 'refunded'        ? 'bg-blue-100 text-blue-700' :
+                          order.status === 'returned'        ? 'bg-rose-100 text-rose-700' :
                           'bg-blue-100 text-blue-700'
                         }`}>
                           {order.status.replace(/_/g, ' ')}
@@ -398,29 +498,12 @@ const OrderHistory = () => {
                       </div>
                     </div>
                   </div>
-                </Card>
-              </motion.div>
+              </Card>
             ))}
           </div>
         )}
       </div>
 
-      {selectedOrder && (
-        <>
-          <RefundRequestModal
-            isOpen={isRefundModalOpen}
-            onClose={() => setIsRefundModalOpen(false)}
-            onSubmit={handleRefundSubmit}
-            paymentMethod={selectedOrder.paymentMethod}
-          />
-          <ReturnRequestModal
-            isOpen={isReturnModalOpen}
-            onClose={() => setIsReturnModalOpen(false)}
-            onSubmit={handleReturnSubmit}
-            items={selectedOrder.items}
-          />
-        </>
-      )}
     </div>
   );
 };

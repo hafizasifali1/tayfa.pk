@@ -37,7 +37,7 @@ router.post('/orders', async (req, res) => {
 
   try {
     const orderId = uuidv4();
-    const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const orderNumber = `ORD-${Math.random().toString(36).toUpperCase().slice(2, 8)}`;
     
     let totalAmount = 0;
     let taxAmount = 0;

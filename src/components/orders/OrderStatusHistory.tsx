@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, MessageSquare, CheckCircle, Package, Truck, XCircle, RotateCcw, CreditCard } from 'lucide-react';
+import { Clock, MessageSquare, CheckCircle, Package, Truck, XCircle, RotateCcw, CreditCard, AlertCircle } from 'lucide-react';
 
 interface StatusHistoryItem {
   status: string;
@@ -42,9 +42,15 @@ const STATUS_META: Record<string, { color: string; bg: string; border: string; I
   out_for_delivery: { color: 'text-indigo-700',  bg: 'bg-indigo-50',  border: 'border-indigo-400',  Icon: Truck },
   delivered:        { color: 'text-green-600',   bg: 'bg-green-50',   border: 'border-green-300',   Icon: CheckCircle },
   cancelled:        { color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-300',     Icon: XCircle },
-  return_requested: { color: 'text-orange-600',  bg: 'bg-orange-50',  border: 'border-orange-300',  Icon: RotateCcw },
-  returned:         { color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-300',    Icon: RotateCcw },
-  refunded:         { color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-300',    Icon: CreditCard },
+  return_requested:  { color: 'text-orange-600',  bg: 'bg-orange-50',   border: 'border-orange-300',  Icon: RotateCcw },
+  return_approved:   { color: 'text-emerald-600', bg: 'bg-emerald-50',  border: 'border-emerald-300', Icon: CheckCircle },
+  return_rejected:   { color: 'text-red-600',     bg: 'bg-red-50',      border: 'border-red-300',     Icon: AlertCircle },
+  returned:          { color: 'text-rose-600',    bg: 'bg-rose-50',     border: 'border-rose-300',    Icon: RotateCcw },
+  courier_submitted: { color: 'text-teal-600',    bg: 'bg-teal-50',     border: 'border-teal-300',    Icon: Truck },
+  refund_requested:  { color: 'text-orange-600',  bg: 'bg-orange-50',   border: 'border-orange-300',  Icon: CreditCard },
+  refund_approved:   { color: 'text-emerald-600', bg: 'bg-emerald-50',  border: 'border-emerald-300', Icon: CheckCircle },
+  refund_rejected:   { color: 'text-red-600',     bg: 'bg-red-50',      border: 'border-red-300',     Icon: AlertCircle },
+  refunded:          { color: 'text-blue-600',    bg: 'bg-blue-50',     border: 'border-blue-300',    Icon: CreditCard },
 };
 
 const OrderStatusHistory: React.FC<OrderStatusHistoryProps> = ({ history, showRoleBadge }) => {

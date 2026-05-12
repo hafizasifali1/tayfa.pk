@@ -275,12 +275,13 @@ export async function migrate() {
           id CHAR(36) PRIMARY KEY,
           order_id CHAR(36) NOT NULL,
           user_id CHAR(36) NOT NULL,
-          reason TEXT NOT NULL,
+          reason LONGTEXT NOT NULL,
           proof_images JSON,
-          payment_proof TEXT,
+          payment_proof LONGTEXT,
           refund_method VARCHAR(100),
           status VARCHAR(50) DEFAULT 'pending',
-          admin_note TEXT,
+          admin_note LONGTEXT,
+          confirmation_receipt LONGTEXT,
           requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           resolved_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -363,13 +364,19 @@ export async function migrate() {
       await addColumn('order_status_history', 'processed_by_id', 'CHAR(36)');
 
       console.log('Migrating returns table columns...');
-      await addColumn('returns', 'user_id', 'CHAR(36) NOT NULL');
+      await addColumn('returns', 'order_item_id', 'CHAR(36) NULL');
+      await addColumn('returns', 'user_id', 'CHAR(36) NULL');
       await addColumn('returns', 'proof_images', 'JSON');
       await addColumn('returns', 'payment_proof', 'LONGTEXT');
-      await addColumn('returns', 'return_method', 'VARCHAR(100) NOT NULL');
+      await addColumn('returns', 'return_method', 'VARCHAR(100) NULL');
       await addColumn('returns', 'admin_note', 'LONGTEXT');
+      await addColumn('returns', 'courier_slip', 'LONGTEXT NULL');
+      await addColumn('returns', 'courier_id', 'VARCHAR(255) NULL');
       await addColumn('returns', 'requested_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
-      
+
+      console.log('Migrating refund_requests table columns...');
+      await addColumn('refund_requests', 'confirmation_receipt', 'LONGTEXT NULL');
+
       // Update reason to LONGTEXT if needed
       try {
         await db.execute(sql.raw(`ALTER TABLE returns MODIFY COLUMN reason LONGTEXT`));
@@ -603,6 +610,7 @@ export async function migrate() {
           refund_method VARCHAR(100),
           status VARCHAR(50) DEFAULT 'pending',
           admin_note TEXT,
+          confirmation_receipt TEXT,
           requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           resolved_at TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -686,6 +694,18 @@ export async function migrate() {
       await addColumnPg('order_status_history', 'processed_by_role', 'VARCHAR(50)');
       await addColumnPg('order_status_history', 'processed_by_name', 'VARCHAR(255)');
       await addColumnPg('order_status_history', 'processed_by_id', 'UUID');
+
+      await addColumnPg('returns', 'order_item_id', 'UUID NULL');
+      await addColumnPg('returns', 'user_id', 'UUID NULL');
+      await addColumnPg('returns', 'proof_images', 'JSONB');
+      await addColumnPg('returns', 'payment_proof', 'TEXT');
+      await addColumnPg('returns', 'return_method', 'VARCHAR(100)');
+      await addColumnPg('returns', 'admin_note', 'TEXT');
+      await addColumnPg('returns', 'courier_slip', 'TEXT');
+      await addColumnPg('returns', 'courier_id', 'VARCHAR(255)');
+      await addColumnPg('returns', 'requested_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+
+      await addColumnPg('refund_requests', 'confirmation_receipt', 'TEXT NULL');
     }
 
     // Data migration for seller_applications

@@ -143,7 +143,7 @@ const Orders = () => {
                         <div className="mt-8 pt-8 border-t border-brand-dark/5 space-y-8">
                           <div>
                             <h3 className="text-xs font-bold uppercase tracking-widest text-brand-gold mb-4">Order Progress</h3>
-                            <OrderTimeline status={order.status} />
+                            <OrderTimeline status={order.status} history={order.history} />
                           </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

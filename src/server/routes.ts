@@ -457,6 +457,43 @@ const runMigrations = async () => {
         } else if (!sellerTpl.isActive) {
           await db.update(emailTemplates).set({ isActive: true }).where(eq(emailTemplates.id, sellerTpl.id));
         }
+
+        // Idempotent: ensure return/refund decision templates exist
+        const decisionTemplates = [
+          {
+            name: 'return_approved',
+            subject: 'Your Return Request for Order #{{order_id}} Has Been Approved',
+            body: '<h2>Hi {{customer_name}},</h2><p>Great news! Your return request for order <strong>#{{order_id}}</strong> has been <strong style="color:#16a34a;">approved</strong>.</p><p>Please ship the item(s) back using your preferred courier and submit the courier slip and tracking ID on your order page so we can process your refund.</p>{{admin_note_html}}<p>Thank you for shopping with us.</p>',
+            variables: '{{customer_name}},{{order_id}},{{admin_note_html}}',
+          },
+          {
+            name: 'return_rejected',
+            subject: 'Your Return Request for Order #{{order_id}} Has Been Rejected',
+            body: '<h2>Hi {{customer_name}},</h2><p>Unfortunately, your return request for order <strong>#{{order_id}}</strong> has been <strong style="color:#dc2626;">rejected</strong>.</p>{{admin_note_html}}<p>If you have any questions, please contact our support team.</p>',
+            variables: '{{customer_name}},{{order_id}},{{admin_note_html}}',
+          },
+          {
+            name: 'refund_approved',
+            subject: 'Your Refund for Order #{{order_id}} Has Been Approved',
+            body: '<h2>Hi {{customer_name}},</h2><p>Your refund request for order <strong>#{{order_id}}</strong> has been <strong style="color:#16a34a;">approved</strong>.</p><p>The refund will be processed to your original payment method within 5–7 business days.</p>{{admin_note_html}}<p>Thank you for your patience.</p>',
+            variables: '{{customer_name}},{{order_id}},{{admin_note_html}}',
+          },
+          {
+            name: 'refund_rejected',
+            subject: 'Your Refund Request for Order #{{order_id}} Has Been Rejected',
+            body: '<h2>Hi {{customer_name}},</h2><p>Unfortunately, your refund request for order <strong>#{{order_id}}</strong> has been <strong style="color:#dc2626;">rejected</strong>.</p>{{admin_note_html}}<p>If you have any questions, please contact our support team.</p>',
+            variables: '{{customer_name}},{{order_id}},{{admin_note_html}}',
+          },
+        ];
+        for (const tpl of decisionTemplates) {
+          const [existing] = await db.select().from(emailTemplates).where(eq(emailTemplates.name, tpl.name)).limit(1);
+          if (!existing) {
+            await db.execute(sql`
+              INSERT INTO email_templates (name, subject, body, variables, is_active) VALUES
+              (${tpl.name}, ${tpl.subject}, ${tpl.body}, ${tpl.variables}, true)
+            `);
+          }
+        }
       }
     } catch (e) {
       console.error('Error migrating email tables:', e);

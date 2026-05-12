@@ -142,11 +142,6 @@ const SellerLayout = () => {
                           >
                             <item.icon size={18} className={isActive ? 'text-white' : 'text-brand-gold/40 group-hover:text-brand-gold transition-colors'} />
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{item.label}</span>
-                            {isActive && (
-                              <motion.div layoutId="active-indicator" className="ml-auto">
-                                <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
-                              </motion.div>
-                            )}
                           </Link>
                         );
                       })}
@@ -215,7 +210,7 @@ const SellerLayout = () => {
         </header>
 
         {/* Page Content */}
-        <div className="p-4 sm:p-8 lg:p-12 flex-grow">
+        <div className="px-3 pt-3 pb-6 sm:px-5 sm:pt-4 sm:pb-8 lg:px-6 lg:pt-4 lg:pb-8 grow">
           <Outlet />
         </div>
       </main>

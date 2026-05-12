@@ -18,6 +18,7 @@ interface OrderActionButtonsProps {
   isUpdating: boolean;
   onUpdateStatus: (id: string, status: string, comment: string) => void | Promise<void>;
   onCreateShipment: (id: string, data: { carrier: string; trackingNumber: string }) => void | Promise<void>;
+  onSuccess?: () => Promise<void>;
 }
 
 const TERMINAL_STATES = ['cancelled', 'refunded'];
@@ -28,6 +29,7 @@ const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
   isUpdating,
   onUpdateStatus,
   onCreateShipment,
+  onSuccess,
 }) => {
   const [tracking, setTracking] = useState({ carrier: '', trackingNumber: '' });
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -194,9 +196,61 @@ const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
             isOpen={showReviewModal}
             onClose={() => setShowReviewModal(false)}
             orderId={orderId}
-            onUpdateStatus={onUpdateStatus}
+            onSuccess={onSuccess ?? (async () => { setShowReviewModal(false); })}
           />
         )}
+      </>
+    );
+  }
+
+  if (status === 'return_approved') {
+    return (
+      <>
+        <Button
+          onClick={() => setShowReviewModal(true)}
+          disabled={isUpdating}
+          className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 transition-all font-bold text-[10px] uppercase tracking-widest order-toolbar-btn"
+        >
+          <Eye size={18} className="mr-2" />
+          View Return Details
+        </Button>
+        <ReturnReviewModal
+          isOpen={showReviewModal}
+          onClose={() => setShowReviewModal(false)}
+          orderId={orderId}
+          onSuccess={onSuccess ?? (async () => { setShowReviewModal(false); })}
+        />
+      </>
+    );
+  }
+
+  if (status === 'courier_submitted') {
+    return (
+      <>
+        <div className="space-y-3">
+          <Button
+            onClick={() => setShowReviewModal(true)}
+            disabled={isUpdating}
+            className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 transition-all font-bold text-[10px] uppercase tracking-widest order-toolbar-btn"
+          >
+            <Eye size={18} className="mr-2" />
+            View Courier Details
+          </Button>
+          <Button
+            onClick={() => onUpdateStatus(orderId, 'returned', 'Return received and confirmed by admin')}
+            disabled={isUpdating}
+            className="w-full h-12 rounded-2xl bg-brand-dark hover:bg-brand-gold text-white shadow-lg shadow-brand-dark/20 transition-all font-bold text-[10px] uppercase tracking-widest order-toolbar-btn"
+          >
+            <Truck size={18} className="mr-2" />
+            Mark as Returned
+          </Button>
+        </div>
+        <ReturnReviewModal
+          isOpen={showReviewModal}
+          onClose={() => setShowReviewModal(false)}
+          orderId={orderId}
+          onSuccess={onSuccess ?? (async () => { setShowReviewModal(false); })}
+        />
       </>
     );
   }
