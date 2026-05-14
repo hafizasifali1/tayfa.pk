@@ -55,7 +55,7 @@ const AdminInvoices = () => {
     <div className="space-y-8 p-6">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-4xl font-serif mb-2 tracking-tight">Global Invoices</h1>
+          <h1 className="page-heading mb-2">Global Invoices</h1>
           <p className="text-brand-dark/40 text-xs font-mono uppercase tracking-[0.2em]">System_Financial_Records_v2.0</p>
         </div>
         <button 

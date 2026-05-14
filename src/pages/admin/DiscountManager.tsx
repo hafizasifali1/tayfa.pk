@@ -194,7 +194,7 @@ const currencyCode = selectedCountry?.currencyCode || 'PKR'; // Fallback to PKR
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-serif mb-2 text-brand-dark">Global Discounts</h1>
+          <h1 className="page-heading mb-2">Global Discounts</h1>
           <p className="text-brand-dark/60">Monitor and manage direct product discounts across all sellers.</p>
         </div>
         <Button 

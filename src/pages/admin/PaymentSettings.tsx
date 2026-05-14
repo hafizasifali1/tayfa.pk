@@ -173,7 +173,7 @@ const PaymentSettings: React.FC = () => {
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Payment Gateways</h1>
+          <h1 className="page-heading">Payment Gateways</h1>
           <p className="text-gray-500 mt-1">Configure and manage your marketplace payment methods.</p>
         </div>
         <button 

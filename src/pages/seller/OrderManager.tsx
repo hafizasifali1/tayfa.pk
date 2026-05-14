@@ -45,7 +45,7 @@ const SellerOrderManager = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const itemsPerPage = 13;
 
   useEffect(() => {
     if (user?.id) fetchOrders();
@@ -61,6 +61,7 @@ const [currentPage, setCurrentPage] = useState(1);
       const res = await axios.get(`/api/orders?sellerId=${user?.id}`);
       if (Array.isArray(res.data)) {
         setOrders(res.data);
+        setCurrentPage(1);
       } else {
         setOrders([]);
       }
@@ -156,7 +157,7 @@ const [currentPage, setCurrentPage] = useState(1);
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-serif text-brand-dark order-page-title">Order Fulfillment</h1>
+          <h1 className="page-heading order-page-title">Order Fulfillment</h1>
           <p className="text-brand-dark/60 mt-2 order-page-subtitle">Manage your assigned orders and update shipment tracking.</p>
         </div>
         <div className="flex items-center space-x-3">

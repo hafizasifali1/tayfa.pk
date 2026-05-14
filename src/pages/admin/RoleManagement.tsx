@@ -62,7 +62,7 @@ const RoleManagement = () => {
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-5xl font-serif mb-4">Role & Permissions</h1>
+          <h1 className="page-heading mb-4">Role & Permissions</h1>
           <p className="text-brand-dark/60 font-sans">Define granular access control for platform modules and actions.</p>
         </div>
         <Button variant="primary" icon={Plus}>

@@ -118,7 +118,7 @@ const CountryManager = () => {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-serif text-brand-dark">Country & Currency</h1>
+          <h1 className="page-heading">Country & Currency</h1>
           <p className="text-brand-dark/60">Manage active countries and their exchange rates.</p>
         </div>
         <button 

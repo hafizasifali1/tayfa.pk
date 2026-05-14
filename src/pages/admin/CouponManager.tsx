@@ -178,7 +178,7 @@ const AdminCouponManager = () => {
     <div className="max-w-[1440px] mx-auto space-y-10 p-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-5xl font-serif mb-2 text-brand-dark tracking-tight">Global Coupons</h1>
+          <h1 className="page-heading mb-2">Global Coupons</h1>
         </div>
         <button 
           onClick={() => {

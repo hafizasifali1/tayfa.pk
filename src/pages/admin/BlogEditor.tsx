@@ -121,7 +121,7 @@ const BlogEditor = () => {
             </Button>
           </Link>
           <div>
-            <h1 className="text-5xl font-serif mb-4">{isEdit ? 'Edit Article' : 'Create New Article'}</h1>
+            <h1 className="page-heading mb-4">{isEdit ? 'Edit Article' : 'Create New Article'}</h1>
             <p className="text-brand-dark/60 font-sans">Craft compelling stories for your audience.</p>
           </div>
         </div>

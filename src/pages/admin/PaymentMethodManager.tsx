@@ -123,7 +123,7 @@ const PaymentMethodManager = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-brand-dark mb-2">Payment Methods</h1>
+          <h1 className="page-heading mb-2">Payment Methods</h1>
           <p className="text-brand-dark/60">Manage how your customers pay for their orders.</p>
         </div>
         <button 

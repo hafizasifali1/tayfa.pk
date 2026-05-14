@@ -94,25 +94,25 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
         style={{ maxHeight: '90vh' }}
       >
         {/* Header */}
-        <div className="p-8 border-b border-brand-dark/5 flex items-center justify-between bg-brand-cream/10">
+        <div className="p-6 border-b border-white/10 flex items-center justify-between bg-brand-gold shadow-lg shadow-brand-gold/20">
           <div>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600">
-                <RotateCcw size={20} />
+              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+                <RotateCcw size={18} />
               </div>
-              <h2 className="text-3xl font-serif text-brand-dark">Review Return Request</h2>
+              <h2 className="text-xl font-serif text-white tracking-wide">Review Return Request</h2>
             </div>
-            <div className="flex items-center gap-3 mt-2 ml-13">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/30">
+            <div className="flex items-center gap-3 mt-2 ml-12">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/70">
                 Audit & Decision Panel • Order ID: {orderId}
               </p>
               {isApproved && (
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[9px] font-bold uppercase tracking-widest">
+                <span className="px-2 py-0.5 bg-white/20 text-white rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-sm border border-white/20">
                   Approved
                 </span>
               )}
               {isRejected && (
-                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[9px] font-bold uppercase tracking-widest">
+                <span className="px-2 py-0.5 bg-white/20 text-white rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-sm border border-white/20">
                   Rejected
                 </span>
               )}
@@ -120,9 +120,9 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-12 h-12 rounded-full bg-white border border-brand-dark/5 flex items-center justify-center text-brand-dark/40 hover:bg-brand-dark hover:text-white transition-all shadow-sm"
+            className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white hover:bg-white hover:text-brand-gold transition-all shadow-sm"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
@@ -139,7 +139,7 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
               <div className="lg:col-span-7 space-y-8">
                 {/* Reason */}
                 <div className="p-8 bg-brand-cream/20 rounded-[2rem] border border-brand-dark/5">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-gold mb-4">Reason for Return</h3>
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-gold mb-4 ml-1">Reason for Return</h3>
                   <p className="text-lg text-brand-dark font-medium leading-relaxed">
                     {requestData.reason}
                   </p>
@@ -147,17 +147,17 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
 
                 {/* Details Grid */}
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="p-6 bg-white border border-brand-dark/5 rounded-[1.5rem]">
+                  {/* <div className="p-6 bg-white border border-brand-dark/5 rounded-[1.5rem]">
                     <div className="flex items-center gap-3 mb-2">
                       <RotateCcw size={16} className="text-brand-gold" />
                       <span className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40">Return Method</span>
                     </div>
                     <p className="font-bold text-brand-dark">{requestData.returnMethod || '—'}</p>
-                  </div>
+                  </div> */}
                   <div className="p-6 bg-white border border-brand-dark/5 rounded-[1.5rem]">
                     <div className="flex items-center gap-3 mb-2">
                       <Clock size={16} className="text-brand-gold" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40">Requested At</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Requested At</span>
                     </div>
                     <p className="font-bold text-brand-dark">
                       {new Date(requestData.createdAt).toLocaleString()}
@@ -168,7 +168,7 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
                 {/* Courier Details (shown after customer submits) */}
                 {hasCourier && (
                   <div className="p-8 bg-emerald-50 rounded-[2rem] border border-emerald-200 space-y-5">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
                       Courier Details — Submitted by Customer
                     </h3>
                     <div className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-emerald-100">
@@ -176,7 +176,7 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
                         <Hash size={18} />
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40">Tracking ID</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold">Tracking ID</p>
                         <p className="font-bold text-brand-dark mt-0.5 font-mono">{requestData.courierId}</p>
                       </div>
                     </div>
@@ -214,7 +214,7 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
                 {/* Admin Note (only for pending decisions) */}
                 {isPending && (
                   <div className="space-y-4">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-dark/40 ml-2">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold ml-2">
                       Internal Admin Note / Feedback
                     </h3>
                     <textarea
@@ -229,7 +229,7 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
                 {/* Show admin note if already decided */}
                 {!isPending && requestData.adminNote && (
                   <div className="p-6 bg-brand-cream/20 rounded-2xl border border-brand-dark/5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 mb-2">Admin Note</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold mb-2">Admin Note</p>
                     <p className="text-sm text-brand-dark/70 leading-relaxed">{requestData.adminNote}</p>
                   </div>
                 )}
@@ -240,7 +240,7 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
                 {/* Proof Photos */}
                 {proofImages.length > 0 && (
                   <div>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-dark/40 mb-4 ml-2">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold mb-4 ml-2">
                       Proof Photos
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
@@ -263,9 +263,9 @@ const ReturnReviewModal: React.FC<ReturnReviewModalProps> = ({
 
                 {/* Receipt / Proof of Purchase */}
                 <div>
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-dark/40 mb-4 ml-2">
-                    Receipt / Proof of Purchase
-                  </h3>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-gold mb-4 ml-2">
+                      Receipt / Proof of Purchase
+                    </h3>
                   <div className="rounded-3xl overflow-hidden border-2 border-brand-dark/5 shadow-inner">
                     {requestData.paymentProof ? (
                       requestData.paymentProof.startsWith('data:image/') ? (

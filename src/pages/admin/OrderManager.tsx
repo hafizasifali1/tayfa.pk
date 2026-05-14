@@ -2,9 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   Search,
-  Filter,
   Eye,
-  RotateCcw,
   Package,
   ChevronRight,
   User,
@@ -55,7 +53,7 @@ const OrderManager = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [viewedOrders, setViewedOrders] = useState<string[]>([]);
-  const itemsPerPage = 12;
+  const itemsPerPage = 13;
   const [currentPage, setCurrentPage] = useState(1);
 
 
@@ -99,6 +97,7 @@ const OrderManager = () => {
       const res = await axios.get('/api/orders');
       if (Array.isArray(res.data)) {
         setOrders(res.data);
+        setCurrentPage(1);
       } else {
         console.error('Orders response is not an array:', res.data);
         setOrders([]);
@@ -191,11 +190,11 @@ const OrderManager = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-serif text-brand-dark order-page-title">Order Management</h1>
+            <h1 className="page-heading order-page-title">Order Management</h1>
             <p className="text-brand-dark/60 mt-2 order-page-subtitle">Monitor and manage the full order lifecycle.</p>
           </div>
           <div className="flex items-center space-x-3">
@@ -209,8 +208,8 @@ const OrderManager = () => {
                 className="pl-12 pr-6 py-3 bg-white border border-brand-dark/5 rounded-2xl focus:outline-none focus:border-brand-gold transition-all w-64 shadow-sm hover:shadow-md focus:shadow-md order-toolbar-btn"
               />
             </div>
-            <Button 
-              variant="outline" 
+            {/* <Button
+              variant="outline"
               className="rounded-2xl bg-white border-brand-dark/5 order-toolbar-btn"
               onClick={fetchOrders}
             >
@@ -219,7 +218,7 @@ const OrderManager = () => {
             <Button variant="outline" className="rounded-2xl bg-white border-brand-dark/5 order-toolbar-btn">
               <Filter size={18} className="mr-2" />
               Filter
-            </Button>
+            </Button> */}
             <PermissionGate module="orders" action="create">
               <Button
                 onClick={() => setIsCreateModalOpen(true)}

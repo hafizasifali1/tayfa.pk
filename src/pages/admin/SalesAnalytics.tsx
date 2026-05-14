@@ -22,7 +22,7 @@ const SalesAnalytics = () => {
     <div className="space-y-8">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-4xl font-serif mb-2">Sales Analytics</h1>
+          <h1 className="page-heading mb-2">Sales Analytics</h1>
           <p className="text-brand-dark/60">Comprehensive insights into your platform's financial performance.</p>
         </div>
         <div className="flex space-x-4">

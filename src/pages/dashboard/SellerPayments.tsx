@@ -15,7 +15,7 @@ const SellerPayments = () => {
     <div className="space-y-8">
       <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-serif mb-2">Payments</h1>
+            <h1 className="page-heading mb-2">Payments</h1>
             <p className="text-brand-dark/60 text-sm">Track your earnings and payout history.</p>
           </div>
           <button className="bg-brand-dark text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-brand-gold transition-all flex items-center space-x-2">

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   LogOut, Menu, X, Bell, Search, ChevronDown,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { MODULES_CONFIG, SECTION_ORDER, ModuleSection } from '../../config/permissions.config';
@@ -12,19 +14,78 @@ import AccessDenied from '../../components/admin/AccessDenied';
 const SellerLayout = () => {
   const { user, logout, hasPermission, canView, isAuthReady, refreshRoles } = useAuth();
   const location = useLocation();
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('seller_sidebar_collapsed') === 'true';
+  });
+  const [labelsVisible, setLabelsVisible] = useState(() => {
+    return localStorage.getItem('seller_sidebar_collapsed') !== 'true';
+  });
+  const [isLogoHovered, setIsLogoHovered] = useState(false);
+  const [tooltip, setTooltip] = useState<{ label: string; y: number; isLogo?: boolean } | null>(null);
+  const [menuQuery, setMenuQuery] = useState('');
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('seller_sidebar_width');
+    return saved ? parseInt(saved, 10) : 280;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = React.useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = React.useCallback(
+    (e: MouseEvent) => {
+      if (isResizing) {
+        let newWidth = e.clientX;
+        if (newWidth < 180) newWidth = 180;
+        if (newWidth > 400) newWidth = 400;
+        setSidebarWidth(newWidth);
+      }
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
+
+  useEffect(() => {
+    if (!isSidebarCollapsed) {
+      localStorage.setItem('seller_sidebar_width', sidebarWidth.toString());
+    }
+  }, [sidebarWidth, isSidebarCollapsed]);
+
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('seller_sidebar_expanded');
     return saved ? JSON.parse(saved) : {
       'Operations': true,
-      'Reporting': true,
-      'Configurations': true,
-      'Settings': true
+      'Reporting': false,
+      'Configurations': false,
+      'Settings': false,
     };
   });
 
-  // Refresh permissions from the DB every time the seller layout mounts so that
-  // admin changes to roles are immediately reflected without a full app restart.
   useEffect(() => {
     if (isAuthReady) {
       refreshRoles();
@@ -39,16 +100,12 @@ const SellerLayout = () => {
     );
   }
 
-  // Redirect if not logged in
   if (!user) {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  // Show Access Denied if logged in but not seller
-  // Access Control: Only allow sellers or custom roles with dashboard access.
-  // We check if they have 'view' permission on 'overview' as a proxy for dashboard access.
   const isAuthorized = user.role === 'seller' || hasPermission('overview', 'view');
-  
+
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-brand-cream flex items-center justify-center p-8">
@@ -65,12 +122,21 @@ const SellerLayout = () => {
     });
   };
 
-  // Build sidebar groups dynamically from MODULES_CONFIG, filtered by canView.
-  // Why: previously this was a hard-coded array missing newly-added modules
-  // (attributes, tax_rules, seo, blogs, users, rbac), so granting their
-  // permissions had no effect on the sidebar.
-  // Note: computed inline (not via useMemo) because this runs after early
-  // returns above; useMemo here would change the hook count between renders.
+  const toggleSidebar = () => {
+    if (!isSidebarCollapsed) {
+      setLabelsVisible(false);
+      setTimeout(() => {
+        setIsSidebarCollapsed(true);
+        localStorage.setItem('seller_sidebar_collapsed', 'true');
+      }, 160);
+    } else {
+      setIsSidebarCollapsed(false);
+      localStorage.setItem('seller_sidebar_collapsed', 'false');
+      setTimeout(() => setLabelsVisible(true), 280);
+    }
+  };
+
+  // RBAC + grouping (unchanged from prior logic)
   const grouped = new Map<ModuleSection, { icon: any; label: string; path: string; module: string }[]>();
   for (const m of MODULES_CONFIG) {
     if (!canView(m.key)) continue;
@@ -82,96 +148,295 @@ const SellerLayout = () => {
     .filter(s => grouped.has(s))
     .map(label => ({ label, items: grouped.get(label)! }));
 
-  console.log('[Sidebar Result] User:', user?.email, 'Role:', user?.role, 'Visible Sections:', filteredModules.length);
+  // Menu search filter
+  const q = menuQuery.trim().toLowerCase();
+  const searchedModules = q
+    ? filteredModules
+        .map(mod => ({ ...mod, items: mod.items.filter(i => i.label.toLowerCase().includes(q)) }))
+        .filter(mod => mod.items.length > 0)
+    : filteredModules;
+
+  const allItems = filteredModules.flatMap(m => m.items);
+
+  const isItemActive = (path: string) =>
+    location.pathname === path || (path !== '/seller/dashboard' && location.pathname.startsWith(path));
 
   return (
-    <div className="min-h-screen bg-brand-cream flex">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-80 flex-shrink-0 bg-brand-dark text-white border-r border-white/5 sticky top-0 h-screen overflow-y-auto custom-scrollbar">
-        <div className="px-10 py-6 border-b border-white/5">
-          <Link to="/" className="inline-block transition-transform hover:scale-105">
-            <img src="/Tayfa.png" alt="TAYFA" className="h-14 w-auto brightness-0 invert" />
-          </Link>
-        </div>
+    <div className="h-screen bg-brand-cream flex overflow-hidden">
+      {/* ============ Desktop Sidebar ============ */}
+      <div
+        className="hidden lg:flex shrink-0 bg-brand-cream-dark border-r border-brand-dark/5 relative group/sidebar"
+        style={{
+          width: isSidebarCollapsed ? 72 : sidebarWidth,
+          minWidth: isSidebarCollapsed ? 72 : sidebarWidth,
+          transition: isResizing ? 'none' : 'width 0.3s ease, min-width 0.3s ease',
+        }}
+      >
+        {/* Drag handle */}
+        {!isSidebarCollapsed && (
+          <div
+            onMouseDown={startResizing}
+            className="absolute -right-[2px] top-0 bottom-0 w-[4px] cursor-col-resize z-50 transition-colors"
+            style={{ touchAction: 'none' }}
+          />
+        )}
+        <aside className="flex flex-col w-full text-brand-dark sticky top-0 h-screen overflow-y-auto overflow-x-hidden">
 
-        <nav className="flex-grow p-6 space-y-4">
-          {filteredModules.map((module) => {
-            const isExpanded = expandedSections[module.label] ?? true;
-            return (
-              <div key={module.label} className="space-y-1">
-                <button 
-                  onClick={() => toggleSection(module.label)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all group border-l-2 ${
-                    isExpanded ? 'border-brand-gold/50 bg-white/5 shadow-[2px_0_15px_rgba(201,168,76,0.05)]' : 'border-transparent hover:bg-white/5'
-                  }`}
-                >
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/80 group-hover:text-white group-hover:brightness-150 transition-all">
-                    {module.label}
-                  </h3>
-                  <motion.div
-                    animate={{ rotate: isExpanded ? 0 : -90 }}
-                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                  >
-                    <ChevronDown size={14} className="text-white/20 group-hover:text-brand-gold transition-colors" />
-                  </motion.div>
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0, y: -10 }}
-                      transition={{ 
-                        height: { type: 'spring', damping: 25, stiffness: 200 },
-                        opacity: { duration: 0.2 }
-                      }}
-                      className="overflow-hidden space-y-1"
-                    >
-                      {module.items.map((item) => {
-                        const isActive = location.pathname === item.path || (item.path !== '/seller/dashboard' && location.pathname.startsWith(item.path));
-                        return (
-                          <Link
-                            key={item.path}
-                            to={item.path}
-                            className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all group relative overflow-hidden ${
-                              isActive
-                                ? 'bg-brand-gold text-white shadow-[0_10px_20px_rgba(201,168,76,0.2)]' 
-                                : 'text-white/40 hover:bg-white/5 hover:text-white'
-                            }`}
-                          >
-                            <item.icon size={18} className={isActive ? 'text-white' : 'text-brand-gold/40 group-hover:text-brand-gold transition-colors'} />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{item.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+          {/* --- Logo / Toggle --- */}
+          <div className="shrink-0">
+            {isSidebarCollapsed ? (
+              <div
+                onClick={toggleSidebar}
+                onMouseEnter={e => {
+                  setIsLogoHovered(true);
+                }}
+                onMouseLeave={() => {
+                  setIsLogoHovered(false);
+                }}
+                className="flex items-center justify-center w-full py-5 cursor-pointer text-brand-dark/60 hover:text-brand-dark transition-all group"
+              >
+                <div className="relative flex items-center justify-center">
+                  <img 
+                    src="/tayfa-icon.png" 
+                    alt="TAYFA" 
+                    className={`transition-all duration-300 ${isLogoHovered ? 'opacity-0 scale-50 rotate-12' : 'opacity-100 scale-100'}`}
+                    style={{ width: 30, height: 'auto' }} 
+                  />
+                  <PanelLeftOpen 
+                    size={20} 
+                    className={`absolute transition-all duration-300 ${isLogoHovered ? 'opacity-100 scale-110' : 'opacity-0 scale-50'}`}
+                  />
+                </div>
               </div>
-            );
-          })}
-        </nav>
+            ) : (
+              <div className="flex items-center justify-between px-6 py-6">
+                <Link to="/" className="inline-block transition-transform hover:scale-[1.02] active:scale-[0.98]">
+                  <img src="/Tayfa.png" alt="TAYFA" className="h-16 w-auto" />
+                </Link>
+                <button
+                  onClick={toggleSidebar}
+                  className="p-2.5 rounded-xl text-brand-dark/35 hover:text-brand-dark hover:bg-brand-dark/5 transition-all group"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose size={20} className="group-hover:rotate-12 transition-transform" />
+                </button>
+              </div>
+            )}
+          </div>
 
-        <div className="p-8 border-t border-white/5 space-y-6 bg-black/20">
-          <button 
-            onClick={logout}
-            className="w-full flex items-center space-x-4 px-6 py-4 rounded-2xl text-rose-400/60 hover:text-rose-400 hover:bg-rose-500/10 transition-all group border border-transparent hover:border-rose-500/20"
+          {/* --- Menu search --- */}
+          {!isSidebarCollapsed && (
+            <div className="px-4 pt-1 pb-1"
+              style={{ opacity: labelsVisible ? 1 : 0, transition: 'opacity 0.15s ease' }}>
+              <div className="flex items-center gap-2 px-3 py-2 bg-white border border-brand-dark/6 rounded-xl">
+                <Search size={13} className="text-brand-dark/40" />
+                <input
+                  value={menuQuery}
+                  onChange={e => setMenuQuery(e.target.value)}
+                  placeholder="Search menu"
+                  className="flex-1 bg-transparent border-0 outline-none p-0 text-xs text-brand-dark placeholder:text-brand-dark/35"
+                />
+
+              </div>
+            </div>
+          )}
+
+          {/* --- Nav --- */}
+          <nav
+            className="grow overflow-y-auto"
+            style={{ padding: isSidebarCollapsed ? '10px 6px' : '8px 12px 12px' }}
           >
-            <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Logout</span>
-          </button>
-        </div>
-      </aside>
+            {isSidebarCollapsed ? (
+              // Collapsed rail
+              <div className="flex flex-col items-center gap-1">
+                {allItems.map(item => {
+                  const active = isItemActive(item.path);
+                  return (
+                    <div
+                      key={item.path}
+                      className="w-full"
+                      onMouseEnter={e => {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setTooltip({ label: item.label, y: rect.top + rect.height / 2 });
+                      }}
+                      onMouseLeave={() => setTooltip(null)}
+                    >
+                      <Link
+                        to={item.path}
+                        className={`flex items-center justify-center p-3 rounded-xl transition-all ${
+                          active
+                            ? 'bg-brand-dark text-white shadow-[0_6px_14px_rgba(26,26,26,0.18)]'
+                            : 'text-brand-dark/55 hover:bg-brand-dark/5 hover:text-brand-dark'
+                        }`}
+                      >
+                        <item.icon size={20} className={active ? 'text-brand-gold' : ''} />
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              // Expanded list
+              <div className="space-y-2">
+                {searchedModules.map(mod => {
+                  const isExpanded = q ? true : (expandedSections[mod.label] ?? true);
+                  return (
+                    <div key={mod.label}>
+                      <button
+                        onClick={() => !q && toggleSection(mod.label)}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all text-brand-dark/55 hover:text-brand-dark"
+                        style={{ opacity: labelsVisible ? 1 : 0, transition: 'opacity 0.15s ease' }}
+                      >
+                        <h3 className="text-[10px] font-bold uppercase tracking-[0.18em]">{mod.label}</h3>
+                        <motion.div
+                          animate={{ rotate: isExpanded ? 0 : -90 }}
+                          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                        >
+                          <ChevronDown size={12} />
+                        </motion.div>
+                      </button>
 
-      {/* Main Content */}
-      <main className="flex-grow flex flex-col min-h-screen overflow-x-hidden">
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{
+                              height: { type: 'spring', damping: 25, stiffness: 220 },
+                              opacity: { duration: 0.18 },
+                            }}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col gap-0.5 mt-0.5">
+                              {mod.items.map(item => {
+                                const active = isItemActive(item.path);
+                                return (
+                                  <Link
+                                    key={item.path}
+                                    to={item.path}
+                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                                      active
+                                        ? 'bg-brand-dark text-white'
+                                        : 'text-brand-dark/75 hover:bg-brand-dark/5 hover:text-brand-dark'
+                                    }`}
+                                  >
+                                    <item.icon
+                                      size={16}
+                                      className={active ? 'text-brand-gold' : 'text-brand-dark/55'}
+                                    />
+                                    <span
+                                      className="flex-1 text-[13px] whitespace-nowrap overflow-hidden"
+                                      style={{
+                                        fontWeight: active ? 600 : 500,
+                                        opacity: labelsVisible ? 1 : 0,
+                                        transition: 'opacity 0.15s ease',
+                                      }}
+                                    >
+                                      {item.label}
+                                    </span>
+                                    {active && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0" />
+                                    )}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+
+                {q && searchedModules.length === 0 && (
+                  <div className="px-3 py-6 text-center text-[12px] text-brand-dark/45">
+                    No matches for "{menuQuery}"
+                  </div>
+                )}
+              </div>
+            )}
+          </nav>
+
+          {/* --- User chip + logout --- */}
+          <div
+            className="shrink-0 border-t border-brand-dark/5"
+            style={{ padding: isSidebarCollapsed ? '8px 6px' : '8px 12px', transition: 'padding 0.3s ease' }}
+          >
+            {isSidebarCollapsed ? (
+              <div
+                onMouseEnter={e => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setTooltip({ label: 'Logout', y: rect.top + rect.height / 2 });
+                }}
+                onMouseLeave={() => setTooltip(null)}
+              >
+                <button
+                  onClick={logout}
+                  className="w-full flex items-center justify-center p-3 rounded-xl text-brand-dark/45 hover:text-rose-500 hover:bg-rose-500/8 transition-all"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={logout}
+                style={{ opacity: labelsVisible ? 1 : 0, transition: 'opacity 0.15s ease' }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-brand-dark/50 hover:text-rose-500 hover:bg-rose-500/5 transition-all group"
+              >
+                <LogOut size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+                <span className="text-[13px] font-semibold tracking-wide">Sign out</span>
+              </button>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {/* Collapsed-rail tooltip portal */}
+      {tooltip && isSidebarCollapsed && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: tooltip.y,
+            left: 80,
+            transform: 'translateY(-50%)',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+          className={`px-3 py-1.5 bg-brand-dark text-white text-[10px] font-bold uppercase tracking-[0.12em] rounded-lg whitespace-nowrap shadow-2xl transition-all duration-300 ${tooltip.isLogo ? 'bg-white border border-brand-dark/10 !p-4' : ''}`}
+        >
+          {tooltip.isLogo ? (
+            <img src="/Tayfa.png" alt="TAYFA" className="h-7 w-auto brightness-0" />
+          ) : (
+            <>
+              <div
+                style={{
+                  position: 'absolute',
+                  right: '100%',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 0,
+                  height: 0,
+                  borderTop: '5px solid transparent',
+                  borderBottom: '5px solid transparent',
+                  borderRight: '5px solid #1A1A1A',
+                }}
+              />
+              {tooltip.label}
+            </>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {/* ============ Main ============ */}
+      <main className="grow flex flex-col h-screen overflow-y-auto overflow-x-hidden custom-scrollbar">
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-xl border-b border-brand-dark/5 sticky top-0 z-40 px-4 sm:px-6 lg:px-10 py-4 sm:py-5 flex items-center justify-between">
+        <header className="bg-white/85 backdrop-blur-xl sticky top-0 z-40 px-4 sm:px-6 lg:px-10 py-4 sm:py-5 flex items-center justify-between gap-6">
           <div className="flex items-center lg:hidden">
-            <button 
+            <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 text-brand-dark hover:text-brand-gold transition-colors bg-brand-cream/50 rounded-xl"
+              className="p-2 text-brand-dark hover:text-brand-gold transition-colors bg-brand-cream-dark rounded-xl"
             >
               <Menu size={20} />
             </button>
@@ -180,100 +445,101 @@ const SellerLayout = () => {
             </Link>
           </div>
 
-          <div className="hidden lg:flex items-center flex-grow max-w-2xl relative group">
-            <Search size={16} className="absolute left-6 text-brand-dark/40 group-focus-within:text-brand-gold transition-colors" />
-            <input 
-              type="text" 
-              placeholder="Search" 
-              className="w-full bg-white border border-brand-dark/10 rounded-2xl pl-14 pr-8 py-4 text-[10px] font-mono uppercase tracking-[0.2em] focus:ring-4 focus:ring-brand-gold/10 focus:border-brand-gold/30 transition-all placeholder:text-brand-dark/30 shadow-sm"
-            />
-          </div>
 
-          <div className="flex items-center space-x-6">
-            <button className="p-4 bg-brand-cream/50 text-brand-dark rounded-2xl hover:bg-brand-gold hover:text-white transition-all relative group shadow-sm">
+
+          <div className="flex items-center gap-4 ml-auto">
+            <button className="p-3 bg-brand-cream-dark text-brand-dark rounded-2xl hover:bg-brand-gold hover:text-white transition-all relative group">
               <Bell size={18} className="group-hover:rotate-12 transition-transform" />
-              <span className="absolute top-3 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white shadow-sm" />
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
             </button>
-            
-            <div className="w-px h-10 bg-brand-dark/5 mx-2" />
-            
-            <div className="flex items-center space-x-4 group cursor-pointer">
+
+            <div className="w-px h-9 bg-brand-dark/6 mx-1" />
+
+            <div className="flex items-center gap-3 group cursor-pointer">
               <div className="text-right hidden sm:block">
-                <p className="text-[11px] font-bold leading-none mb-1 uppercase tracking-wider">{user.fullName}</p>
-                {/* <p className="text-[9px] text-brand-dark/30 uppercase tracking-[0.2em] font-mono">VERIFIED_SELLER</p> */}
+                <p className="text-[11px] font-bold leading-none uppercase tracking-wider text-brand-dark">
+                  {user.fullName}
+                </p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-brand-dark text-white flex items-center justify-center font-bold shadow-xl shadow-brand-dark/20 group-hover:bg-brand-gold transition-all overflow-hidden relative">
-                <span className="relative z-10">{(user.fullName || '?').charAt(0)}</span>
+              <div className="w-11 h-11 rounded-2xl bg-brand-dark text-white flex items-center justify-center font-bold group-hover:bg-brand-gold transition-all">
+                {(user.fullName || '?').charAt(0)}
               </div>
             </div>
           </div>
         </header>
 
-        {/* Page Content */}
+        {/* Page content */}
         <div className="px-3 pt-3 pb-6 sm:px-5 sm:pt-4 sm:pb-8 lg:px-6 lg:pt-4 lg:pb-8 grow">
           <Outlet />
         </div>
       </main>
 
-      {/* Mobile Menu Overlay */}
+      {/* ============ Mobile drawer ============ */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-[60]"
+              className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm z-60"
             />
-            <motion.aside 
+            <motion.aside
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 left-0 w-80 bg-brand-dark text-white p-8 z-[70] flex flex-col"
+              className="fixed inset-y-0 left-0 w-80 bg-brand-cream-dark text-brand-dark z-70 flex flex-col"
             >
-              <div className="flex justify-between items-center mb-12">
+              <div className="flex justify-between items-center px-6 py-5 border-b border-brand-dark/6">
                 <Link to="/" className="inline-block">
-                  <img src="/Tayfa.png" alt="TAYFA" className="h-10 w-auto brightness-0 invert" />
+                  <img src="/Tayfa.png" alt="TAYFA" className="h-9 w-auto" />
                 </Link>
-                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-white/60 hover:text-white">
-                  <X size={24} />
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 text-brand-dark/55 hover:text-brand-dark rounded-lg"
+                >
+                  <X size={20} />
                 </button>
               </div>
 
-              <nav className="flex-grow space-y-8 overflow-y-auto pr-4">
-                {filteredModules.map((module) => (
-                  <div key={module.label} className="space-y-2">
-                    <h3 className="px-6 text-[9px] font-bold uppercase tracking-[0.2em] text-white/20 font-serif italic mb-4">{module.label}</h3>
-                    <div className="space-y-1">
-                      {module.items.map((item) => (
+              <nav className="grow overflow-y-auto p-3 space-y-3">
+                {filteredModules.map(mod => (
+                  <div key={mod.label} className="space-y-1">
+                    <h3 className="px-3 pt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-dark/50">
+                      {mod.label}
+                    </h3>
+                    {mod.items.map(item => {
+                      const active = isItemActive(item.path);
+                      return (
                         <Link
                           key={item.path}
                           to={item.path}
                           onClick={() => setIsMobileMenuOpen(false)}
-                          className={`flex items-center space-x-4 px-6 py-4 rounded-2xl transition-all ${
-                            location.pathname === item.path 
-                              ? 'bg-brand-gold text-white shadow-lg' 
-                              : 'text-white/60 hover:bg-white/5 hover:text-white'
+                          className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
+                            active
+                              ? 'bg-brand-dark text-white'
+                              : 'text-brand-dark/75 hover:bg-brand-dark/5 hover:text-brand-dark'
                           }`}
                         >
-                          <item.icon size={20} className={location.pathname === item.path ? 'text-white' : 'text-brand-gold'} />
-                          <span className="text-sm font-bold uppercase tracking-widest">{item.label}</span>
+                          <item.icon size={17} className={active ? 'text-brand-gold' : 'text-brand-dark/55'} />
+                          <span className="text-[13px] font-medium">{item.label}</span>
+                          {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-gold" />}
                         </Link>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 ))}
               </nav>
 
-              <div className="mt-auto pt-8 border-t border-white/10">
-                <button 
+              <div className="border-t border-brand-dark/6 p-3">
+                <button
                   onClick={logout}
-                  className="w-full flex items-center space-x-4 px-6 py-4 rounded-2xl text-rose-400 hover:bg-rose-500/10 transition-all"
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-rose-500 hover:bg-rose-500/8 transition-all"
                 >
-                  <LogOut size={20} />
-                  <span className="text-sm font-bold uppercase tracking-widest">Sign Out</span>
+                  <LogOut size={17} />
+                  <span className="text-[13px] font-semibold">Sign out</span>
                 </button>
               </div>
             </motion.aside>

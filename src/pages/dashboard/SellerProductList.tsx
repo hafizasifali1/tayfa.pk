@@ -215,7 +215,7 @@ const SellerProductList = () => {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 pb-8 border-b border-brand-dark/5">
         <div>
-          <h1 className="text-4xl sm:text-5xl font-serif text-brand-dark">Product</h1>
+          <h1 className="page-heading">Product</h1>
           <p className="text-brand-dark/60 mt-3 text-lg font-light italic">Detailed list view of your luxury product collection.</p>
         </div>
         

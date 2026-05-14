@@ -296,7 +296,7 @@ const SellerDetail = () => {
               {user.fullName.charAt(0)}
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-serif text-brand-dark mb-2">{user.fullName}</h1>
+              <h1 className="page-heading mb-2">{user.fullName}</h1>
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2 text-xs font-medium text-brand-dark/60">
                   <Mail size={14} className="text-brand-gold" />

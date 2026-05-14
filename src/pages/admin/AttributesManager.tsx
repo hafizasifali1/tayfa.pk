@@ -78,7 +78,7 @@ const AttributesManager: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-serif font-bold text-brand-dark tracking-tight">Attribute Management</h1>
+          <h1 className="page-heading">Attribute Management</h1>
           <p className="text-brand-dark/40 mt-2 font-medium">Define product specifications shown on product detail pages.</p>
         </div>
         <PermissionGate module="attributes" action="create">

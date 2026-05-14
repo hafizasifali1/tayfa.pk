@@ -230,7 +230,7 @@ const PricelistManagement = () => {
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-4xl font-serif mb-2">Pricelist Management</h1>
+            <h1 className="page-heading mb-2">Pricelist Management</h1>
             <p className="text-brand-dark/60">Manage custom price sets for your products.</p>
           </div>
           <button 

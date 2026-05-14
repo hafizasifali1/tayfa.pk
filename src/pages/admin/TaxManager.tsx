@@ -134,7 +134,7 @@ const TaxManager = () => {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-serif mb-2">Tax Management</h1>
+          <h1 className="page-heading mb-2">Tax Management</h1>
           <p className="text-brand-dark/60">Configure country and state-based tax rules for your pricelists.</p>
         </div>
         <Button onClick={() => handleOpenModal()} className="flex items-center space-x-2">

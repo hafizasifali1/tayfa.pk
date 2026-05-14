@@ -74,7 +74,7 @@ const BlogManager = () => {
     <div className="space-y-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-5xl font-serif mb-4">Blog Management</h1>
+          <h1 className="page-heading mb-4">Blog Management</h1>
           <p className="text-brand-dark/60 font-sans">Create and manage your platform's editorial content.</p>
         </div>
         <Link to="/admin/blogs/new">

@@ -112,7 +112,7 @@ const AdminDashboard = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
         >
-          <h1 className="text-3xl sm:text-5xl font-serif mb-2 sm:mb-4">Admin Overview</h1>
+          <h1 className="page-heading mb-2 sm:mb-4">Admin Overview</h1>
           <p className="text-xs sm:text-base text-brand-dark/60 font-sans">Welcome back, Administrator. Here's your platform's pulse.</p>
         </motion.div>
         <div className="flex flex-wrap gap-3 sm:gap-4">
@@ -471,7 +471,7 @@ const AdminDashboard = () => {
               { to: '/admin/invoices', icon: FileText, label: 'Invoices', color: 'rose' },
             ].map((link) => (
               <Link key={link.label} to={link.to}>
-                <div className="card-premium p-6 sm:p-8 flex flex-col items-center text-center space-y-4 sm:space-y-5 hover:border-brand-gold/30 hover:shadow-xl hover:shadow-brand-gold/5 transition-all group h-full">
+                <div className="card-premium sm:p-8 flex flex-col items-center text-center space-y-4 sm:space-y-5 hover:border-brand-gold/30 hover:shadow-xl hover:shadow-brand-gold/5 transition-all group h-full">
                   <div className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-${link.color}-500/10 text-${link.color}-600 group-hover:bg-brand-gold group-hover:text-white transition-all`}>
                     <link.icon size={24} />
                   </div>

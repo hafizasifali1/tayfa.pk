@@ -181,7 +181,7 @@ const PromotionManager = () => {
     <div className="space-y-8 p-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-serif mb-2 text-brand-dark">Promotion Manager</h1>
+          <h1 className="page-heading mb-2">Promotion Manager</h1>
           <p className="text-brand-dark/60">Manage your store's marketing campaigns and sales events.</p>
         </div>
         <button 

@@ -109,7 +109,7 @@ const AdminTransactions: React.FC = () => {
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
-          <h1 className="text-4xl font-serif mb-2 tracking-tight">Global Payments</h1>
+          <h1 className="page-heading mb-2">Global Payments</h1>
           <p className="text-brand-dark/40 text-xs font-mono uppercase tracking-[0.2em]">Transaction_Monitoring_v2.0</p>
         </div>
         <div className="flex gap-3">

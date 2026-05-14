@@ -159,7 +159,7 @@ const OrderHistory = () => {
       await fetchOrders();
     } catch (error: any) {
       console.error('Return Error:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      alert(`Error: ${error.response?.data?.error || error.response?.data?.message || error.message}`);
     }
   };
 

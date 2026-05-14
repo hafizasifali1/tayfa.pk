@@ -19,7 +19,7 @@ const SellerAnalytics = () => {
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-serif mb-2 tracking-tight">Sales Analytics</h1>
+          <h1 className="page-heading mb-2">Sales Analytics</h1>
           <p className="text-brand-dark/40 text-xs font-mono uppercase tracking-[0.2em]">Performance_Metrics_v2.0</p>
         </div>
         <div className="flex items-center space-x-4">

@@ -663,7 +663,7 @@ const SellerDashboard = () => {
 
         {/* Inventory Overview */}
         <div className="card-premium overflow-hidden">
-          <div className="p-8 sm:p-10 border-b border-brand-dark/5 flex flex-col sm:flex-row sm:items-center justify-between gap-8">
+          <div className=" sm:p-10 border-b border-brand-dark/5 flex flex-col sm:flex-row sm:items-center justify-between gap-8">
             <div>
               <h2 className="text-3xl sm:text-4xl font-serif text-brand-dark">Inventory Overview</h2>
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-brand-dark/40 mt-2">Manage your luxury collection</p>

@@ -465,6 +465,8 @@ router.patch('/shipments/:id', async (req, res) => {
 // --- Returns & Refunds ---
 router.post('/orders/:id/returns', async (req, res) => {
   try {
+    console.log('Initiating return request for order:', req.params.id);
+    console.log('Request body keys:', Object.keys(req.body));
     const {
       order_item_id,
       proof_images,
@@ -474,12 +476,15 @@ router.post('/orders/:id/returns', async (req, res) => {
     } = req.body;
 
     if (!order_item_id) {
+      console.warn('Return request failed: missing order_item_id');
       return res.status(400).json({ error: 'Please select an item to return.' });
     }
-    if (!return_method) {
+    /* if (!return_method) {
+      console.warn('Return request failed: missing return_method');
       return res.status(400).json({ error: 'Return method is required.' });
-    }
+    } */
     if (!receipt_file) {
+      console.warn('Return request failed: missing receipt_file');
       return res.status(400).json({ error: 'Receipt or proof of purchase is required.' });
     }
 

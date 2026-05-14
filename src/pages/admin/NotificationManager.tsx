@@ -92,7 +92,7 @@ const NotificationManager = () => {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-serif text-brand-dark">System Notifications</h1>
+          <h1 className="page-heading">System Notifications</h1>
           <p className="text-brand-dark/60">Broadcast messages and alerts to users.</p>
         </div>
         <button 

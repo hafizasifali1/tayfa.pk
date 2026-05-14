@@ -240,7 +240,7 @@ const ProductModeration = () => {
     <div className="space-y-6 sm:space-y-8 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-serif mb-1 sm:mb-2 text-brand-dark">Products</h1>
+          <h1 className="page-heading mb-1 sm:mb-2">Products</h1>
           <p className="text-xs sm:text-sm text-brand-dark/60 font-sans italic">Review and manage platform-wide product listings from all sellers.</p>
         </div>
         <div className="flex items-center space-x-3 sm:space-x-4">

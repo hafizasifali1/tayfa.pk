@@ -144,7 +144,7 @@ const EmailSettings = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
-          <h1 className="text-5xl font-serif mb-3">Email Settings</h1>
+          <h1 className="page-heading mb-3">Email Settings</h1>
           <p className="text-brand-dark/60 text-xs font-bold uppercase tracking-[0.2em] flex items-center gap-3">
             <span className="w-8 h-[2px] bg-brand-gold"></span>
             SMTP Configuration & Notification Templates

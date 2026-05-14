@@ -170,7 +170,7 @@ const CouponManager = () => {
     <div className="max-w-7xl mx-auto space-y-8 p-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-4xl font-serif mb-2 text-brand-dark">Coupon Manager</h1>
+            <h1 className="page-heading mb-2">Coupon Manager</h1>
             <p className="text-brand-dark/60 text-sm">Create and manage high-conversion discount codes for your customers.</p>
           </div>
           <button 

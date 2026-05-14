@@ -5,6 +5,7 @@ interface Step {
   key: string;
   label: string;
   icon: React.ElementType;
+  isFinal?: boolean;
 }
 
 interface OrderTimelineProps {
@@ -21,92 +22,124 @@ const BASE_STEPS: Step[] = [
   { key: 'delivered',        label: 'Delivered',        icon: Check },
 ];
 
-const RETURN_STEPS: Step[] = [
+// Return flow: shows on the single dynamic circle, one label at a time
+const RETURN_FLOW: Step[] = [
   { key: 'return_requested',  label: 'Return Req.',  icon: RotateCcw },
-  { key: 'return_approved',   label: 'Approved',     icon: Check },
+  { key: 'return_approved',   label: 'Ret. Approved', icon: Check },
   { key: 'courier_submitted', label: 'Courier Sent', icon: Truck },
-  { key: 'returned',          label: 'Returned',     icon: Package },
+  { key: 'returned',          label: 'Returned',     icon: Package,   isFinal: true },
+  { key: 'return_rejected',   label: 'Rejected',     icon: XCircle,   isFinal: true },
 ];
 
-const RETURN_REJECTED_STEPS: Step[] = [
-  { key: 'return_requested', label: 'Return Req.', icon: RotateCcw },
-  { key: 'return_rejected',  label: 'Rejected',    icon: XCircle },
-];
-
-const REFUND_STEPS: Step[] = [
+// Refund flow: shows on the single dynamic circle, one label at a time
+const REFUND_FLOW: Step[] = [
   { key: 'refund_requested', label: 'Refund Req.', icon: RotateCcw },
-  { key: 'refund_approved',  label: 'Approved',    icon: Check },
-  { key: 'refunded',         label: 'Refunded',    icon: CreditCard },
+  { key: 'refund_approved',  label: 'REF. Approved', icon: Check },
+  { key: 'refunded',         label: 'Refunded',    icon: CreditCard, isFinal: true },
+  { key: 'refund_rejected',  label: 'Rejected',    icon: XCircle,    isFinal: true },
 ];
 
-const REFUND_REJECTED_STEPS: Step[] = [
-  { key: 'refund_requested', label: 'Refund Req.', icon: RotateCcw },
-  { key: 'refund_rejected',  label: 'Rejected',    icon: XCircle },
-];
+const RETURN_KEYS = new Set(RETURN_FLOW.map(s => s.key));
+const REFUND_KEYS = new Set(REFUND_FLOW.map(s => s.key));
 
-const RETURN_ALL = ['return_requested', 'return_approved', 'return_rejected', 'courier_submitted', 'returned'];
-const REFUND_ALL = ['refund_requested', 'refund_approved', 'refund_rejected', 'refunded'];
+type DynamicStep = Step & { displayStatus: 'active' | 'completed' };
+
+function getMostAdvancedStep(flow: Step[], allStatuses: string[]): DynamicStep | null {
+  let maxIdx = -1;
+  for (const s of allStatuses) {
+    const idx = flow.findIndex(f => f.key === s);
+    if (idx > maxIdx) maxIdx = idx;
+  }
+  if (maxIdx === -1) return null;
+  const step = flow[maxIdx];
+  return { ...step, displayStatus: step.isFinal ? 'completed' : 'active' };
+}
+
+const BASE_STATUS_ORDER = BASE_STEPS.map(s => s.key);
 
 const OrderTimeline: React.FC<OrderTimelineProps> = ({ status, history = [] }) => {
   const allStatuses = [status, ...history.map(h => h.status)];
 
-  const hasReturnFlow = allStatuses.some(s => RETURN_ALL.includes(s));
-  const hasRefundFlow = allStatuses.some(s => REFUND_ALL.includes(s));
-  const isReturnRejected = allStatuses.includes('return_rejected');
-  const isRefundRejected = allStatuses.includes('refund_rejected');
+  const hasReturnFlow = allStatuses.some(s => RETURN_KEYS.has(s));
+  const hasRefundFlow = allStatuses.some(s => REFUND_KEYS.has(s));
 
-  const steps: Step[] = [
-    ...BASE_STEPS,
-    ...(hasReturnFlow ? (isReturnRejected ? RETURN_REJECTED_STEPS : RETURN_STEPS) : []),
-    ...(hasRefundFlow ? (isRefundRejected ? REFUND_REJECTED_STEPS : REFUND_STEPS) : []),
-  ];
+  const dynamicStep: DynamicStep | null = hasReturnFlow
+    ? getMostAdvancedStep(RETURN_FLOW, allStatuses)
+    : hasRefundFlow
+    ? getMostAdvancedStep(REFUND_FLOW, allStatuses)
+    : null;
 
-  const statusOrder = steps.map(s => s.key);
-
-  // Use the most-advanced status that has occurred (current + history) so the
-  // progress bar advances even when the order's status field lags behind
-  // (e.g. order stays "return_requested" in DB but history already has "return_approved").
-  const advancedIdx = allStatuses.reduce((max, s) => {
-    const idx = statusOrder.indexOf(s);
+  const advancedBaseIdx = allStatuses.reduce((max, s) => {
+    const idx = BASE_STATUS_ORDER.indexOf(s);
     return idx > max ? idx : max;
   }, -1);
 
-  const getStepStatus = (key: string): 'completed' | 'active' | 'upcoming' => {
+  const getBaseStepStatus = (key: string): 'completed' | 'active' | 'upcoming' => {
     if (status === 'cancelled') return 'upcoming';
-    const stepIdx = statusOrder.indexOf(key);
-    if (advancedIdx === -1 || stepIdx === -1) return 'upcoming';
-    if (stepIdx < advancedIdx) return 'completed';
-    if (stepIdx === advancedIdx) return 'active';
+    const stepIdx = BASE_STATUS_ORDER.indexOf(key);
+    if (advancedBaseIdx === -1) return 'upcoming';
+    // Once a post-delivery flow starts, all base steps are completed
+    if (dynamicStep !== null) return 'completed';
+    if (stepIdx < advancedBaseIdx) return 'completed';
+    if (stepIdx === advancedBaseIdx) return 'active';
     return 'upcoming';
   };
 
+  const totalSteps = BASE_STEPS.length + (dynamicStep ? 1 : 0);
+
   return (
-    <div className="relative flex justify-between items-center w-full py-8">
-      <div className="absolute top-1/2 left-0 w-full h-0.5 bg-brand-dark/5 -translate-y-1/2" />
-      {steps.map((step) => {
-        const stepStatus = getStepStatus(step.key);
-        const Icon = step.icon;
-        return (
-          <div key={step.key} className="relative z-10 flex flex-col items-center">
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 order-stepper-circle ${
-                stepStatus === 'completed'
-                  ? 'bg-brand-gold text-white'
-                  : stepStatus === 'active'
-                  ? 'bg-brand-dark text-white ring-4 ring-brand-dark/10'
-                  : 'bg-white text-brand-dark/20 border-2 border-brand-dark/5'
-              }`}
-            >
-              {stepStatus === 'completed' ? <Check size={18} /> : <Icon size={18} />}
-            </div>
-            <p className={`mt-3 text-[10px] font-bold uppercase tracking-widest order-stepper-label ${
-              stepStatus === 'active' ? 'text-brand-dark' : 'text-brand-dark/40'
-            }`}>
-              {step.label}
-            </p>
-          </div>
-        );
-      })}
+    <div className="w-full overflow-x-auto pb-1">
+      <div className="relative flex items-center py-6" style={{ minWidth: `${totalSteps * 72}px` }}>
+        <div className="absolute top-1/2 left-0 w-full h-0.5 bg-brand-dark/5 -translate-y-1/2" />
+        <div className="relative z-10 flex w-full justify-between">
+          {BASE_STEPS.map((step) => {
+            const stepStatus = getBaseStepStatus(step.key);
+            const Icon = step.icon;
+            return (
+              <div key={step.key} className="flex flex-col items-center">
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 order-stepper-circle ${
+                    stepStatus === 'completed'
+                      ? 'bg-brand-gold text-white'
+                      : stepStatus === 'active'
+                      ? 'bg-brand-dark text-white ring-4 ring-brand-dark/10'
+                      : 'bg-white text-brand-dark/20 border-2 border-brand-dark/5'
+                  }`}
+                >
+                  {stepStatus === 'completed' ? <Check size={16} /> : <Icon size={16} />}
+                </div>
+                <p className={`mt-2 text-[9px] font-bold uppercase tracking-wider order-stepper-label whitespace-nowrap ${
+                  stepStatus === 'active' ? 'text-brand-dark' : 'text-brand-dark/40'
+                }`}>
+                  {step.label}
+                </p>
+              </div>
+            );
+          })}
+
+          {dynamicStep && (() => {
+            const DynIcon = dynamicStep.icon;
+            return (
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 order-stepper-circle ${
+                    dynamicStep.displayStatus === 'completed'
+                      ? 'bg-brand-gold text-white'
+                      : 'bg-brand-dark text-white ring-4 ring-brand-dark/10'
+                  }`}
+                >
+                  {dynamicStep.displayStatus === 'completed' ? <Check size={16} /> : <DynIcon size={16} />}
+                </div>
+                <p className={`mt-2 text-[9px] font-bold uppercase tracking-wider order-stepper-label whitespace-nowrap ${
+                  dynamicStep.displayStatus === 'active' ? 'text-brand-dark' : 'text-brand-dark/40'
+                }`}>
+                  {dynamicStep.label}
+                </p>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
     </div>
   );
 };

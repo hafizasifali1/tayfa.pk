@@ -92,7 +92,7 @@ const SystemLogs = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
         >
-          <h1 className="text-7xl font-serif text-brand-dark tracking-tight mb-4">System Protocol</h1>
+          <h1 className="page-heading mb-4">System Protocol</h1>
           <div className="flex items-center space-x-3">
             <div className="w-12 h-[1px] bg-brand-gold/40" />
             <p className="text-[11px] text-brand-dark/60 uppercase tracking-[0.4em] font-bold">Platform Intelligence & Security Monitoring</p>

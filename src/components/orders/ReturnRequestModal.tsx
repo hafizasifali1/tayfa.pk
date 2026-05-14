@@ -49,7 +49,7 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
   const proofRef = useRef<HTMLInputElement>(null);
   const receiptRef = useRef<HTMLInputElement>(null);
 
-  const isValid = selectedItemId !== '' && returnMethod !== '' && proofImages.length > 0 && receipt !== null;
+  const isValid = selectedItemId !== '' && proofImages.length > 0 && receipt !== null;
 
   const handleProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -82,7 +82,7 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
   const handleSubmit = async () => {
     const errs: string[] = [];
     if (!selectedItemId) errs.push('Please select an item to return.');
-    if (!returnMethod) errs.push('Please select a return method.');
+    // if (!returnMethod) errs.push('Please select a return method.');
     if (proofImages.length === 0) errs.push('Please upload at least one proof photo.');
     if (!receipt) errs.push('Please upload your receipt or proof of purchase.');
 
@@ -211,7 +211,7 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
               </div>
 
               {/* 2. Return Method */}
-              <div className="space-y-3">
+              {/* <div className="space-y-3">
                 <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-brand-dark/50">
                   Return Method <span className="text-red-500">*</span>
                 </label>
@@ -231,7 +231,7 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({
                     </button>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
               {/* 3. Item Proof Photos */}
               <div className="space-y-3">

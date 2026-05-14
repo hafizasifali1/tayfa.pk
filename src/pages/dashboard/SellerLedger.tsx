@@ -57,7 +57,7 @@ const SellerLedger = () => {
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
-          <h1 className="text-4xl font-serif mb-2">Seller Ledger</h1>
+          <h1 className="page-heading mb-2">Seller Ledger</h1>
           <p className="text-brand-dark/40 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
             <span className="w-6 h-[1px] bg-brand-gold"></span>
             Financial movement history
