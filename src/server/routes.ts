@@ -7,6 +7,7 @@ import {
   promotions,
   coupons,
   invoices,
+  invoiceItems,
   creditNotes,
   ledgers,
   auditLogs,
@@ -43,6 +44,8 @@ import {
   cartItems,
   customers,
   transactions,
+
+  
   payments,
   orderItems,
   orderStatusHistory,
@@ -50,6 +53,7 @@ import {
   returns,
   refunds,
   emailSettings,
+  sellerProfiles,
   emailTemplates
 } from '../db/schema';
 import nodemailer from 'nodemailer';
@@ -946,6 +950,29 @@ router.get('/invoices', async (req, res) => {
   } catch (error) {
     console.error('Error fetching invoices:', error);
     res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+});
+
+router.get('/invoices/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, id));
+    const [order] = await db.select().from(orders).where(eq(orders.id, invoice.orderId));
+    const [customer] = await db.select().from(users).where(eq(users.id, invoice.customerId));
+    const [sellerCompany] = await db.select().from(companies).where(eq(companies.sellerId, invoice.sellerId));
+    res.json({
+      invoice,
+      items,
+      order: order || null,
+      customer: customer || null,
+      sellerCompany: sellerCompany || null
+    });
+  } catch (error: any) {
+    console.error('Error fetching invoice details:', error);
+    res.status(500).json({ error: 'Failed to fetch invoice details' });
   }
 });
 
@@ -3690,6 +3717,22 @@ router.post('/admin/users', async (req, res) => {
       status: finalStatus
     });
 
+    if (role === 'user') {
+      const nameParts = fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Customer';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await db.insert(customers).values({
+        id: uuidv4(),
+        userId: id,
+        firstName,
+        lastName,
+        email,
+        phone: phone || null,
+        status: finalStatus === 'active' ? 'active' : 'inactive'
+      });
+    }
+
     await db.insert(auditLogs).values({
       id: uuidv4(),
       userId: adminId || 'system',
@@ -3899,6 +3942,11 @@ router.patch('/admin/sellers/:id/approve', async (req, res) => {
       reviewedAt: new Date() 
     }).where(eq(sellerApplications.userId, sellerId));
 
+    await db.update(sellerProfiles).set({
+      status: 'active',
+      updatedAt: new Date()
+    }).where(eq(sellerProfiles.userId, sellerId));
+
     const [user] = await db.select().from(users).where(eq(users.id, sellerId)).limit(1);
     
     // Audit Log
@@ -3942,6 +3990,11 @@ router.patch('/admin/sellers/:id/reject', async (req, res) => {
       reviewedAt: new Date() 
     }).where(eq(sellerApplications.userId, sellerId));
 
+    await db.update(sellerProfiles).set({
+      status: 'rejected',
+      updatedAt: new Date()
+    }).where(eq(sellerProfiles.userId, sellerId));
+
     // Audit Log
     await db.insert(auditLogs).values({
       id: uuidv4(),
@@ -3965,6 +4018,23 @@ router.post('/users', async (req, res) => {
     if (!process.env.DATABASE_URL) return res.status(500).json({ error: 'DB not connected' });
     const id = uuidv4();
     await db.insert(users).values({ ...req.body, id });
+
+    if (req.body.role === 'user') {
+      const fullName = req.body.fullName || 'User';
+      const nameParts = fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Customer';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await db.insert(customers).values({
+        id: uuidv4(),
+        userId: id,
+        firstName,
+        lastName,
+        email: req.body.email,
+        phone: req.body.phone || null,
+        status: 'active'
+      });
+    }
     const [newUser] = await db.select().from(users).where(eq(users.id, id));
     res.status(201).json(newUser);
   } catch (error) {
@@ -4029,6 +4099,22 @@ router.post('/auth/register', async (req, res) => {
       status
     });
 
+    if ((role || 'user') === 'user') {
+      const nameParts = fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Customer';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await db.insert(customers).values({
+        id: uuidv4(),
+        userId: id,
+        firstName,
+        lastName,
+        email,
+        phone: phone || null,
+        status: 'active'
+      });
+    }
+
     if (role === 'seller' && businessData) {
       const bd = businessData as any;
       console.log('Registering seller with businessData keys:', Object.keys(bd));
@@ -4058,6 +4144,25 @@ router.post('/auth/register', async (req, res) => {
         
         status: 'pending'
       } as any);
+
+      await db.insert(sellerProfiles).values({
+        id: uuidv4(),
+        userId: id,
+        shopName: bd.shopName || firstCompany.name || `${fullName}'s Shop`,
+        businessName: firstCompany.name || bd.businessName || null,
+        phone: phone || firstCompany.phone || null,
+        cnic: bd.cnic || null,
+        address: firstCompany.addressLine1 || firstCompany.address || null,
+        city: firstCompany.city || null,
+        country: firstCompany.countryCode || 'Pakistan',
+        logo: bd.logo || null,
+        banner: bd.banner || null,
+        bankName: bd.bankName || null,
+        accountTitle: bd.accountTitle || null,
+        accountNumber: bd.accountNumber || null,
+        iban: bd.iban || null,
+        status: 'pending'
+      });
     }
 
     const [newUser] = await db.select().from(users).where(eq(users.id, id));
@@ -4174,6 +4279,22 @@ router.post('/auth/google', async (req, res) => {
         role: role || 'user',
         status
       });
+
+      if ((role || 'user') === 'user') {
+        const nameParts = fullName.trim().split(/\s+/);
+        const firstName = nameParts[0] || 'Customer';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        await db.insert(customers).values({
+          id: uuidv4(),
+          userId: id,
+          firstName,
+          lastName,
+          email,
+          phone: '',
+          status: 'active'
+        });
+      }
 
       const [newUser] = await db.select().from(users).where(eq(users.id, id));
       user = newUser;

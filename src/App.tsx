@@ -48,6 +48,7 @@ const SellerRegister = lazy(() => import('./pages/auth/SellerRegister'));
 const SellerDashboard = lazy(() => import('./pages/dashboard/SellerDashboard'));
 const SellerOrderManager = lazy(() => import('./pages/seller/OrderManager'));
 const SellerInvoices = lazy(() => import('./pages/dashboard/SellerInvoices'));
+const InvoiceDetail = lazy(() => import('./pages/dashboard/InvoiceDetail'));
 const SellerLedger = lazy(() => import('./pages/dashboard/SellerLedger'));
 const SellerAnalytics = lazy(() => import('./pages/dashboard/SellerAnalytics'));
 const SellerLogs = lazy(() => import('./pages/dashboard/SellerLogs'));
@@ -149,6 +150,7 @@ export default function App() {
                       <Route path="orders" element={<ProtectedRoute module="orders"><SellerOrderManager /></ProtectedRoute>} />
                       <Route path="payments" element={<ProtectedRoute module="payments"><Transactions /></ProtectedRoute>} />
                       <Route path="invoices" element={<ProtectedRoute module="invoices"><SellerInvoices /></ProtectedRoute>} />
+                      <Route path="invoices/:id" element={<ProtectedRoute module="invoices"><InvoiceDetail /></ProtectedRoute>} />
                       <Route path="ledger" element={<ProtectedRoute module="ledger"><SellerLedger /></ProtectedRoute>} />
                       <Route path="add-product" element={<ProtectedRoute module="products" action="create"><AddProduct /></ProtectedRoute>} />
                       <Route path="edit-product/:id" element={<ProtectedRoute module="products" action="edit"><EditProduct /></ProtectedRoute>} />
@@ -184,6 +186,7 @@ export default function App() {
                       <Route path="products" element={<ProtectedRoute module="products"><ProductModeration /></ProtectedRoute>} />
                       <Route path="orders" element={<ProtectedRoute module="orders"><AdminOrderManager /></ProtectedRoute>} />
                       <Route path="invoices" element={<ProtectedRoute module="invoices"><AdminInvoices /></ProtectedRoute>} />
+                      <Route path="invoices/:id" element={<ProtectedRoute module="invoices"><InvoiceDetail /></ProtectedRoute>} />
                       <Route path="ledger" element={<ProtectedRoute module="ledger"><AdminLedger /></ProtectedRoute>} />
                       <Route path="analytics" element={<ProtectedRoute module="analytics"><SalesAnalytics /></ProtectedRoute>} />
                       <Route path="settings" element={<ProtectedRoute module="settings"><Settings /></ProtectedRoute>} />

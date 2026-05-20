@@ -133,6 +133,47 @@ export const sellerApplications = table('seller_applications', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+export const sellerProfiles = table('seller_profiles', {
+  id: isMysql
+    ? char('id', { length: 36 }).primaryKey()
+    : char('id').defaultRandom().primaryKey(),
+
+  userId: isMysql
+    ? char('user_id', { length: 36 }).notNull()
+    : char('user_id').notNull(),
+
+  shopName: varchar('shop_name', { length: 255 }).notNull(),
+
+  businessName: varchar('business_name', { length: 255 }),
+
+  phone: varchar('phone', { length: 50 }),
+
+  cnic: varchar('cnic', { length: 50 }),
+
+  address: text('address'),
+
+  city: varchar('city', { length: 100 }),
+
+  country: varchar('country', { length: 100 }),
+
+  logo: text('logo'),
+
+  banner: text('banner'),
+
+  bankName: varchar('bank_name', { length: 255 }),
+
+  accountTitle: varchar('account_title', { length: 255 }),
+
+  accountNumber: varchar('account_number', { length: 100 }),
+
+  iban: varchar('iban', { length: 100 }),
+
+  status: varchar('status', { length: 50 }).default('pending'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
 // --- Categories ---
 export const categories = table('categories', {
   id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),
@@ -326,6 +367,50 @@ export const invoices = table('invoices', {
   paidAt: timestamp('paid_at'),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const invoiceItems = table('invoice_items', {
+  id: isMysql
+    ? char('id', { length: 36 }).primaryKey()
+    : char('id').defaultRandom().primaryKey(),
+
+  invoiceId: isMysql
+    ? char('invoice_id', { length: 36 }).notNull()
+    : char('invoice_id').notNull(),
+
+  productId: isMysql
+    ? char('product_id', { length: 36 }).notNull()
+    : char('product_id').notNull(),
+
+  productName: varchar('product_name', { length: 255 }).notNull(),
+
+  sku: varchar('sku', { length: 100 }),
+
+  quantity: integer('quantity').default(1).notNull(),
+
+  unitPrice: decimal('unit_price', {
+    precision: 10,
+    scale: 2,
+  }).notNull(),
+
+  discountAmount: decimal('discount_amount', {
+    precision: 10,
+    scale: 2,
+  }).default('0.00'),
+
+  taxAmount: decimal('tax_amount', {
+    precision: 10,
+    scale: 2,
+  }).default('0.00'),
+
+  totalAmount: decimal('total_amount', {
+    precision: 10,
+    scale: 2,
+  }).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 
 export const creditNotes = table('credit_notes', {
   id: isMysql ? char('id', { length: 36 }).primaryKey() : char('id').defaultRandom().primaryKey(),

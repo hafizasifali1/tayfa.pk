@@ -708,6 +708,66 @@ export async function migrate() {
       await addColumnPg('refund_requests', 'confirmation_receipt', 'TEXT NULL');
     }
 
+    try {
+  await db.execute(sql`
+    CREATE TABLE invoice_items (
+      id CHAR(36) PRIMARY KEY,
+
+      invoice_id CHAR(36) NOT NULL,
+      product_id CHAR(36) NOT NULL,
+
+      product_name VARCHAR(255) NOT NULL,
+      sku VARCHAR(100),
+
+      quantity INT NOT NULL DEFAULT 1,
+
+      unit_price DECIMAL(10,2) NOT NULL,
+      discount_amount DECIMAL(10,2) DEFAULT 0.00,
+      tax_amount DECIMAL(10,2) DEFAULT 0.00,
+
+      total_amount DECIMAL(10,2) NOT NULL,
+
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch (e) {}
+
+
+try {
+  await db.execute(sql`
+    CREATE TABLE seller_profiles (
+      id CHAR(36) PRIMARY KEY,
+
+      user_id CHAR(36) NOT NULL,
+
+      shop_name VARCHAR(255) NOT NULL,
+      business_name VARCHAR(255),
+
+      phone VARCHAR(50),
+      cnic VARCHAR(50),
+
+      address TEXT,
+
+      city VARCHAR(100),
+      country VARCHAR(100),
+
+      logo TEXT,
+      banner TEXT,
+
+      bank_name VARCHAR(255),
+      account_title VARCHAR(255),
+      account_number VARCHAR(100),
+      iban VARCHAR(100),
+
+      status VARCHAR(50) DEFAULT 'pending',
+
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch (e) {}
+
     // Data migration for seller_applications
     try {
       console.log('Migrating existing seller_applications data...');
@@ -746,7 +806,91 @@ export async function migrate() {
       console.error('Failed to migrate seller applications data:', migError);
     }
 
-    // Seed/Sync roles and permissions
+    // Data migration for existing sellers into seller_profiles
+    try {
+      console.log('Migrating existing sellers into seller_profiles...');
+      const { users, sellerApplications, sellerProfiles } = await import('./schema');
+      
+      const sellers = await db.select().from(users).where(eq(users.role, 'seller'));
+      
+      for (const seller of sellers) {
+        const [existingProfile] = await db.select()
+          .from(sellerProfiles)
+          .where(eq(sellerProfiles.userId, seller.id))
+          .limit(1);
+          
+        if (!existingProfile) {
+          console.log(`Creating profile for existing seller: ${seller.fullName} (${seller.id})`);
+          
+          const [app] = await db.select()
+            .from(sellerApplications)
+            .where(eq(sellerApplications.userId, seller.id))
+            .limit(1);
+            
+          const bd = (app?.businessData as any) || {};
+          const firstCompany = bd.companies?.[0] || {};
+          
+          await db.insert(sellerProfiles).values({
+            id: uuidv4(),
+            userId: seller.id,
+            shopName: app?.companyName || bd.shopName || firstCompany.name || `${seller.fullName}'s Shop`,
+            businessName: app?.companyName || firstCompany.name || bd.businessName || null,
+            phone: seller.phone || firstCompany.phone || null,
+            cnic: bd.cnic || null,
+            address: app?.addressLine1 || firstCompany.addressLine1 || firstCompany.address || null,
+            city: app?.city || firstCompany.city || null,
+            country: app?.countryCode || firstCompany.countryCode || 'Pakistan',
+            logo: bd.logo || null,
+            banner: bd.banner || null,
+            bankName: bd.bankName || null,
+            accountTitle: bd.accountTitle || null,
+            accountNumber: bd.accountNumber || null,
+            iban: bd.iban || null,
+            status: seller.status || 'pending'
+          });
+        }
+      }
+      console.log('Seller profiles migration completed.');
+    } catch (migError) {
+      console.error('Failed to migrate seller profiles:', migError);
+    }
+
+    // Data migration for existing users into customers
+    try {
+      console.log('Migrating existing users into customers...');
+      const { users, customers } = await import('./schema');
+      
+      const regularUsers = await db.select().from(users).where(eq(users.role, 'user'));
+      
+      for (const regularUser of regularUsers) {
+        const [existingCustomer] = await db.select()
+          .from(customers)
+          .where(eq(customers.userId, regularUser.id))
+          .limit(1);
+          
+        if (!existingCustomer) {
+          console.log(`Creating customer profile for existing user: ${regularUser.fullName} (${regularUser.id})`);
+          
+          const nameParts = regularUser.fullName.trim().split(/\s+/);
+          const firstName = nameParts[0] || 'Customer';
+          const lastName = nameParts.slice(1).join(' ') || '';
+          
+          await db.insert(customers).values({
+            id: uuidv4(),
+            userId: regularUser.id,
+            firstName,
+            lastName,
+            email: regularUser.email,
+            phone: regularUser.phone || null,
+            status: regularUser.status === 'active' ? 'active' : 'inactive'
+          });
+        }
+      }
+      console.log('Customer profiles migration completed.');
+    } catch (migError) {
+      console.error('Failed to migrate customer profiles:', migError);
+    }
+
     try {
       console.log('Synchronizing roles and permissions...');
       const defaultRoles = [

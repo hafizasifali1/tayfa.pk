@@ -11,7 +11,9 @@ import {
   products,
   users,
   paymentMethods,
-  paymentGateways
+  paymentGateways,
+   invoices,
+  invoiceItems
 } from '../db/schema';
 import { handlePatchUpdate } from './utils/updateHandler';
 import { eq, and, desc, sql, exists, inArray } from 'drizzle-orm';
@@ -376,28 +378,93 @@ router.delete('/orders/:id', async (req, res) => {
 router.patch('/orders/:id/status', async (req, res) => {
   try {
     const { status, comment, changedBy, processedByRole, processedByName, processedById } = req.body;
-    
-    await db.update(orders)
-      .set({ status, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(eq(orders.id, req.params.id));
+    const orderId = req.params.id;
 
-    const [updatedOrder] = await db.select().from(orders).where(eq(orders.id, req.params.id));
+    // Use a transaction so if saving invoices fails, status update is rolled back
+    const updatedOrder = await db.transaction(async (tx) => {
+      
+      // 1. Update Order Status
+      await tx.update(orders)
+        .set({ status, updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(orders.id, orderId));
 
-    await db.insert(orderStatusHistory).values({
-      id: uuidv4(),
-      orderId: req.params.id,
-      status,
-      comment,
-      changedBy: changedBy || processedById,
-      processedByRole,
-      processedByName,
-      processedById: processedById || changedBy
+      const [order] = await tx.select().from(orders).where(eq(orders.id, orderId));
+      if (!order) throw new Error('Order not found');
+
+      // 2. Generate Invoice & Items if status is "confirmed"
+      if (status === 'confirmed') {
+        // Duplicate check
+        const [existingInvoice] = await tx.select()
+          .from(invoices)
+          .where(eq(invoices.orderId, orderId));
+
+        if (!existingInvoice) {
+          // Fetch order items
+          const items = await tx.select()
+            .from(orderItems)
+            .where(eq(orderItems.orderId, orderId));
+
+          const invoiceId = uuidv4();
+          const invoiceNumber = `INV-${Math.random().toString(36).toUpperCase().slice(2, 8)}-${Date.now()}`;
+
+          // A. Save to `invoices` table
+          await tx.insert(invoices).values({
+            id: invoiceId,
+            invoiceNumber,
+            orderId: orderId,
+            sellerId: items[0]?.sellerId || 'admin', // Resolving sellerId from order items
+            customerId: order.customerId,
+            amount: order.totalAmount,
+            taxAmount: order.taxAmount || '0.00',
+            status: order.paymentStatus === 'paid' ? 'paid' : 'unpaid',
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Default 7-day payment window
+          });
+
+          // B. Save items to `invoice_items` table
+          if (items.length > 0) {
+            const invoiceItemsData = items.map((item) => {
+              const qty = Number(item.quantity);
+              const unitPrice = Number(item.price);
+              const totalAmount = qty * unitPrice;
+
+              return {
+                id: uuidv4(),
+                invoiceId: invoiceId,
+                productId: item.productId,
+                productName: item.name,
+                sku: item.size || null,
+                quantity: qty,
+                unitPrice: unitPrice.toString(),
+                discountAmount: '0.00',
+                taxAmount: '0.00',
+                totalAmount: totalAmount.toString()
+              };
+            });
+
+            await tx.insert(invoiceItems).values(invoiceItemsData);
+          }
+        }
+      }
+
+      // 3. Save History Log
+      await tx.insert(orderStatusHistory).values({
+        id: uuidv4(),
+        orderId: orderId,
+        status,
+        comment,
+        changedBy: changedBy || processedById,
+        processedByRole,
+        processedByName,
+        processedById: processedById || changedBy
+      });
+
+      return order;
     });
 
     res.json(updatedOrder);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating order status:', error);
-    res.status(500).json({ error: 'Failed to update order status' });
+    res.status(500).json({ error: error.message || 'Failed to update order status' });
   }
 });
 
@@ -441,6 +508,7 @@ router.post('/orders/:id/shipments', async (req, res) => {
     res.status(500).json({ error: 'Failed to create shipment' });
   }
 });
+
 
 router.patch('/shipments/:id', async (req, res) => {
   try {
